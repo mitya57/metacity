@@ -1,3 +1,18 @@
+2003-07-23  Havoc Pennington  <hp@redhat.com>
+
+	* src/window.c (implement_showing): no animation if we are 
+	in reduced resources mode
+
+	* src/prefs.c: add REDUCED_RESOURCES pref
+
+	* src/window.c (meta_window_update_keyboard_resize): fix to 
+	modify grab_anchor_window_pos to grab_wireframe_rect if 
+	appropriate instead of window->rect
+
+	* src/display.h (struct _MetaDisplay): add grab_start_serial used
+	to avoid responding to events that occurred prior to the grab
+	initialization.
+
 2003-07-20  Havoc Pennington  <hp@pobox.com>
 
 	Still broken in various ways, specifically EnterNotify that

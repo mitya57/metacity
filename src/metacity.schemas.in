@@ -258,8 +258,8 @@
     </schema>
 
     <schema>
-      <key>/schemas/apps/metacity/general/reduced_resource_usage</key>
-      <applyto>/apps/metacity/general/reduced_resource_usage</applyto>
+      <key>/schemas/apps/metacity/general/reduced_resources</key>
+      <applyto>/apps/metacity/general/reduced_resources</applyto>
       <owner>metacity</owner>
       <type>bool</type>
       <default>false</default>

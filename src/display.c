@@ -1229,6 +1229,7 @@ event_callback (XEvent   *event,
       
       if (display->grab_op != META_GRAB_OP_NONE &&
           display->grab_window != NULL &&
+          event->xany.serial > display->grab_start_serial &&
           grab_op_is_mouse (display->grab_op))
         meta_window_handle_mouse_grab_op_event (display->grab_window, event);
     }
@@ -1294,7 +1295,8 @@ event_callback (XEvent   *event,
     case ButtonPress:
       if ((window &&
            grab_op_is_mouse (display->grab_op) &&
-           display->grab_button != (int) event->xbutton.button && 
+           display->grab_button != (int) event->xbutton.button &&
+           event->xany.serial > display->grab_start_serial &&
            display->grab_window == window) ||
           grab_op_is_keyboard (display->grab_op))
         {
@@ -1444,16 +1446,19 @@ event_callback (XEvent   *event,
       break;
     case ButtonRelease:
       if (display->grab_window == window &&
+          event->xany.serial > display->grab_start_serial &&
           grab_op_is_mouse (display->grab_op))
         meta_window_handle_mouse_grab_op_event (window, event);
       break;
     case MotionNotify:
       if (display->grab_window == window &&
+          event->xany.serial > display->grab_start_serial &&
           grab_op_is_mouse (display->grab_op))
         meta_window_handle_mouse_grab_op_event (window, event);
       break;
     case EnterNotify:
       if (display->grab_window == window &&
+          event->xany.serial > display->grab_start_serial &&
           grab_op_is_mouse (display->grab_op))
         meta_window_handle_mouse_grab_op_event (window, event);
       /* do this even if window->has_focus to avoid races */
@@ -1517,6 +1522,7 @@ event_callback (XEvent   *event,
       break;
     case LeaveNotify:
       if (display->grab_window == window &&
+          event->xany.serial > display->grab_start_serial &&
           grab_op_is_mouse (display->grab_op))
         meta_window_handle_mouse_grab_op_event (window, event);
       else if (window != NULL)
@@ -2793,6 +2799,9 @@ meta_display_begin_grab_op (MetaDisplay *display,
       return FALSE;
     }
 
+  /* We'll ignore any events < this serial. */
+  display->grab_start_serial = XNextRequest (display->xdisplay);
+  
   /* FIXME:
    *   If we have no MetaWindow we do our best
    *   and try to do the grab on the RootWindow.
@@ -2806,7 +2815,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
   
   if (pointer_already_grabbed)
     display->grab_have_pointer = TRUE;
-      
+  
   meta_display_set_grab_op_cursor (display, screen, op, FALSE, grab_xwindow,
                                    timestamp);
 
@@ -2853,6 +2862,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
 #ifdef HAVE_XSYNC
   display->grab_update_alarm = None;
 #endif
+  display->grab_was_cancelled = FALSE;
   
   if (display->grab_window)
     {
@@ -2862,13 +2872,10 @@ meta_display_begin_grab_op (MetaDisplay *display,
                                 &display->grab_initial_window_pos.y);
       display->grab_anchor_window_pos = display->grab_initial_window_pos;
 
-#if 0
       display->grab_wireframe_active =
-        meta_grab_op_is_resizing (display->grab_op) ||
-        meta_grab_op_is_moving (display->grab_op);
-#else
-      display->grab_wireframe_active = FALSE;
-#endif
+        meta_prefs_get_reduced_resources () && 
+        (meta_grab_op_is_resizing (display->grab_op) ||
+         meta_grab_op_is_moving (display->grab_op));
       
       if (display->grab_wireframe_active)
         {
@@ -3026,12 +3033,13 @@ meta_display_end_grab_op (MetaDisplay *display,
       display->grab_wireframe_active = FALSE;
       meta_effects_end_wireframe (display->grab_window->screen,
                                   &display->grab_wireframe_rect);
-      meta_window_move_resize (display->grab_window,
-                               TRUE,
-                               display->grab_wireframe_rect.x,
-                               display->grab_wireframe_rect.y,
-                               display->grab_wireframe_rect.width,
-                               display->grab_wireframe_rect.height);
+      if (!display->grab_was_cancelled)
+        meta_window_move_resize (display->grab_window,
+                                 TRUE,
+                                 display->grab_wireframe_rect.x,
+                                 display->grab_wireframe_rect.y,
+                                 display->grab_wireframe_rect.width,
+                                 display->grab_wireframe_rect.height);
       meta_window_calc_showing (display->grab_window);
     }
   

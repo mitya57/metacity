@@ -1722,13 +1722,18 @@ process_keyboard_move_grab (MetaDisplay *display,
 
   if (keysym == XK_Escape)
     {
-      /* End move and restore to original position */
+      /* End resize and restore to original state.
+       * The move_resize is only needed when !wireframe
+       * since in wireframe we always moveresize at the end
+       * of the grab only.
+       */
       meta_window_move_resize (display->grab_window,
                                TRUE,
                                display->grab_initial_window_pos.x,
                                display->grab_initial_window_pos.y,
                                display->grab_initial_window_pos.width,
                                display->grab_initial_window_pos.height);
+      display->grab_was_cancelled = TRUE;
     }
   
   /* When moving by increments, we still snap to edges if the move
@@ -1862,13 +1867,18 @@ process_keyboard_resize_grab (MetaDisplay *display,
 
   if (keysym == XK_Escape)
     {
-      /* End resize and restore to original state */
+      /* End resize and restore to original state.
+       * The move_resize is only needed when !wireframe
+       * since in wireframe we always moveresize at the end
+       * of the grab only.
+       */
       meta_window_move_resize (display->grab_window,
                                TRUE,
                                display->grab_initial_window_pos.x,
                                display->grab_initial_window_pos.y,
                                display->grab_initial_window_pos.width,
                                display->grab_initial_window_pos.height);
+      display->grab_was_cancelled = TRUE;
 
       return FALSE;
     }
@@ -1980,12 +1990,14 @@ process_keyboard_resize_grab (MetaDisplay *display,
     {
       meta_window_update_keyboard_resize (window, TRUE);
       return TRUE; 
-    } 
+    }
 
   if (display->grab_wireframe_active)
     {
       x = display->grab_wireframe_rect.x;
       y = display->grab_wireframe_rect.y;
+      orig_x = x;
+      orig_y = y;
       width = display->grab_wireframe_rect.width;
       height = display->grab_wireframe_rect.height;
     }
@@ -2057,12 +2069,16 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case NorthWestGravity:
         case NorthEastGravity:
           /* Move bottom edge up */
-          edge = meta_window_find_next_horizontal_edge (window, TRUE);
           height -= height_inc;
           
-          if (smart_snap || ((edge > (y+height)) &&
-                             ABS (edge - (y+height)) < height_inc))
-            height = edge - y;
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_horizontal_edge (window, TRUE);
+              
+              if (smart_snap || ((edge > (y+height)) &&
+                                 ABS (edge - (y+height)) < height_inc))
+                height = edge - y;
+            }
           
           handled = TRUE;
           break;
@@ -2071,11 +2087,15 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthWestGravity:
         case SouthEastGravity:
           /* Move top edge up */
-          edge = meta_window_find_next_horizontal_edge (window, FALSE);
           y -= height_inc;
-          
-          if (smart_snap || ((edge > y) && ABS (edge - y) < height_inc))
-            y = edge;
+
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_horizontal_edge (window, FALSE);          
+
+              if (smart_snap || ((edge > y) && ABS (edge - y) < height_inc))
+                y = edge;
+            }
           
           height += (orig_y - y);
           break;
@@ -2098,12 +2118,16 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case NorthWestGravity:
         case NorthEastGravity:
           /* Move bottom edge down */
-          edge = meta_window_find_next_horizontal_edge (window, TRUE);
           height += height_inc;
-          
-          if (smart_snap || ((edge < (y+height)) &&
-                             ABS (edge - (y+height)) < height_inc))
-            height = edge - y;
+
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_horizontal_edge (window, TRUE);
+
+               if (smart_snap || ((edge < (y+height)) &&
+                                  ABS (edge - (y+height)) < height_inc))
+                 height = edge - y;
+            }
           
           handled = TRUE;
           break;
@@ -2112,11 +2136,15 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthWestGravity:
         case SouthEastGravity:
           /* Move top edge down */
-          edge = meta_window_find_next_horizontal_edge (window, FALSE);
           y += height_inc;
-          
-          if (smart_snap || ((edge < y) && ABS (edge - y) < height_inc))
-            y = edge;
+
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_horizontal_edge (window, FALSE);
+
+              if (smart_snap || ((edge < y) && ABS (edge - y) < height_inc))
+                y = edge;
+            }
           
           height -= (y - orig_y);
           break;
@@ -2139,11 +2167,15 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthEastGravity:
         case NorthEastGravity:
           /* Move left edge left */
-          edge = meta_window_find_next_vertical_edge (window, TRUE);
           x -= width_inc;
           
-          if (smart_snap || ((edge > x) && ABS (edge - x) < width_inc))
-            x = edge;
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_vertical_edge (window, TRUE);
+
+               if (smart_snap || ((edge > x) && ABS (edge - x) < width_inc))
+                 x = edge;
+            }
           
           width += (orig_x - x);
           break;
@@ -2152,12 +2184,16 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthWestGravity:
         case NorthWestGravity:
           /* Move right edge left */
-          edge = meta_window_find_next_vertical_edge (window, FALSE);
           width -= width_inc;
           
-          if (smart_snap || ((edge > (x+width)) &&
-                             ABS (edge - (x+width)) < width_inc))
-            width = edge - x;
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_vertical_edge (window, FALSE);
+              
+              if (smart_snap || ((edge > (x+width)) &&
+                                 ABS (edge - (x+width)) < width_inc))
+                width = edge - x;
+            }
           
           handled = TRUE;
           break;
@@ -2180,11 +2216,15 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthEastGravity:
         case NorthEastGravity:
           /* Move left edge right */
-          edge = meta_window_find_next_vertical_edge (window, FALSE);
           x += width_inc;
-          
-          if (smart_snap || ((edge < x) && ABS (edge - x) < width_inc))
-            x = edge;
+
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_vertical_edge (window, FALSE);
+
+              if (smart_snap || ((edge < x) && ABS (edge - x) < width_inc))
+                x = edge;
+            }
           
           width -= (x - orig_x);
           break;
@@ -2193,12 +2233,16 @@ process_keyboard_resize_grab (MetaDisplay *display,
         case SouthWestGravity:
         case NorthWestGravity:
           /* Move right edge right */
-          edge = meta_window_find_next_vertical_edge (window, TRUE);
           width += width_inc;
-          
-          if (smart_snap || ((edge > (x+width)) &&
-                             ABS (edge - (x+width)) < width_inc))
-            width = edge - x;
+
+          if (!display->grab_wireframe_active)
+            {
+              edge = meta_window_find_next_vertical_edge (window, TRUE);
+              
+              if (smart_snap || ((edge > (x+width)) &&
+                                 ABS (edge - (x+width)) < width_inc))
+                width = edge - x;
+            }
           
           handled = TRUE;
           break;

@@ -230,6 +230,7 @@ struct _MetaDisplay
   MetaScreen *grab_screen;
   MetaWindow *grab_window;
   Window      grab_xwindow;
+  gulong      grab_start_serial;
   int         grab_button;
   int         grab_anchor_root_x;
   int         grab_anchor_root_y;
@@ -240,6 +241,7 @@ struct _MetaDisplay
   guint       grab_have_pointer : 1;
   guint       grab_have_keyboard : 1;
   guint       grab_wireframe_active : 1;
+  guint       grab_was_cancelled : 1;
   MetaRectangle grab_wireframe_rect;
   MetaRectangle grab_initial_window_pos;
   MetaResizePopup *grab_resize_popup;

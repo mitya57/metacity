@@ -1245,7 +1245,8 @@ implement_showing (MetaWindow *window,
        * if we are mapped now, we are supposed to
        * be minimized, and we are on the current workspace.
        */
-      if (on_workspace && window->minimized && window->mapped)
+      if (on_workspace && window->minimized && window->mapped &&
+          !meta_prefs_get_reduced_resources ())
         {
 	  MetaRectangle icon_rect, window_rect;
 	  gboolean result;
@@ -5596,7 +5597,7 @@ check_moveresize_frequency (MetaWindow *window)
   window->display->grab_last_moveresize_time = current_time;
   
   meta_topic (META_DEBUG_RESIZING,
-              " Doing move/resize now (%g of %g seconds elapsed)\n",
+              " Checked moveresize freq, allowing move/resize now (%g of %g seconds elapsed)\n",
               elapsed / 1000.0, 1.0 / max_resizes_per_second);
   
   return TRUE;
@@ -6561,7 +6562,10 @@ meta_window_begin_grab_op (MetaWindow *window,
                            Time        timestamp)
 {
   int x, y;
+  gulong grab_start_serial;
 
+  grab_start_serial = XNextRequest (window->display->xdisplay);
+  
   meta_window_raise (window);
 
   warp_grab_pointer (window,
@@ -6574,6 +6578,11 @@ meta_window_begin_grab_op (MetaWindow *window,
                               FALSE, 0, 0,
                               timestamp,
                               x, y);
+
+  /* We override the one set in display_begin_grab_op since we
+   * did additional stuff as part of the grabbing process
+   */
+  window->display->grab_start_serial = grab_start_serial;
 }
 
 void
@@ -6589,7 +6598,8 @@ meta_window_update_keyboard_resize (MetaWindow *window,
   {
     /* As we warped the pointer, we have to reset the anchor state,
      * since if the mouse moves we want to use those events to do the
-     * right thing.
+     * right thing. Also, this means that the motion notify
+     * from the pointer warp comes back as a no-op.
      */
     int dx, dy;
 
@@ -6598,10 +6608,18 @@ meta_window_update_keyboard_resize (MetaWindow *window,
     
     window->display->grab_anchor_root_x += dx;
     window->display->grab_anchor_root_y += dy;
-    window->display->grab_anchor_window_pos = window->rect;
-    meta_window_get_position (window,
-                              &window->display->grab_anchor_window_pos.x,
-                              &window->display->grab_anchor_window_pos.y);
+    if (window->display->grab_wireframe_active)
+      {
+        window->display->grab_anchor_window_pos =
+          window->display->grab_wireframe_rect;
+      }
+    else
+      {
+        window->display->grab_anchor_window_pos = window->rect;
+        meta_window_get_position (window,
+                                  &window->display->grab_anchor_window_pos.x,
+                                  &window->display->grab_anchor_window_pos.y);
+      }
   }
   
   if (update_cursor)
