@@ -48,6 +48,8 @@
 #define KEY_DISABLE_WORKAROUNDS "/apps/metacity/general/disable_workarounds"
 #define KEY_BUTTON_LAYOUT "/apps/metacity/general/button_layout"
 #define KEY_REDUCED_RESOURCES "/apps/metacity/general/reduced_resources"
+#define KEY_NORMAL_WINDOW_FOCUS_ON_MAP "/apps/metacity/rhel3_workarounds/normal_window_focus_on_map"
+#define KEY_DIALOG_WINDOW_FOCUS_ON_MAP "/apps/metacity/rhel3_workarounds/dialog_window_focus_on_map"
 
 #define KEY_COMMAND_PREFIX "/apps/metacity/keybinding_commands/command_"
 #define KEY_SCREEN_BINDINGS_PREFIX "/apps/metacity/global_keybindings"
@@ -75,7 +77,10 @@ static gboolean disable_workarounds = FALSE;
 static gboolean auto_raise = FALSE;
 static gboolean auto_raise_delay = 500;
 static gboolean reduced_resources = FALSE;
- 
+static gboolean normal_window_focus_on_map = TRUE;
+static gboolean dialog_window_focus_on_map = TRUE;
+
+
 static MetaButtonLayout button_layout = {
   {
     META_BUTTON_FUNCTION_MENU,
@@ -119,6 +124,8 @@ static gboolean update_command            (const char  *name,
 static gboolean update_workspace_name     (const char  *name,
                                            const char  *value);
 static gboolean update_reduced_resources  (gboolean     value);
+static gboolean update_normal_window_focus_on_map(gboolean     value);
+static gboolean update_dialog_window_focus_on_map(gboolean     value);
 
 static void change_notify (GConfClient    *client,
                            guint           cnxn_id,
@@ -367,6 +374,16 @@ meta_prefs_init (void)
                                     &err);
   cleanup_error (&err);
   update_reduced_resources (bool_val);
+
+  bool_val = gconf_client_get_bool (default_client, KEY_NORMAL_WINDOW_FOCUS_ON_MAP,
+				    &err);
+  cleanup_error (&err);
+  update_normal_window_focus_on_map (bool_val);
+
+  bool_val = gconf_client_get_bool (default_client, KEY_DIALOG_WINDOW_FOCUS_ON_MAP,
+				    &err);
+  cleanup_error (&err);
+  update_dialog_window_focus_on_map (bool_val);
 #endif /* HAVE_GCONF */
   
   /* Load keybindings prefs */
@@ -698,6 +715,38 @@ change_notify (GConfClient    *client,
 
       if (update_reduced_resources (b))
         queue_changed (META_PREF_REDUCED_RESOURCES);
+    }
+  else if (strcmp (key, KEY_NORMAL_WINDOW_FOCUS_ON_MAP) == 0)
+    {
+      gboolean b;
+
+      if (value && value->type != GCONF_VALUE_BOOL)
+        {
+          meta_warning (_("GConf key \"%s\" is set to an invalid type\n"),
+                        KEY_NORMAL_WINDOW_FOCUS_ON_MAP);
+          goto out;
+        }
+
+      b = value ? gconf_value_get_bool (value) : normal_window_focus_on_map;
+
+      if (update_normal_window_focus_on_map (b))
+        queue_changed (META_PREF_NORMAL_WINDOW_FOCUS_ON_MAP);
+    }
+  else if (strcmp (key, KEY_DIALOG_WINDOW_FOCUS_ON_MAP) == 0)
+    {
+      gboolean b;
+
+      if (value && value->type != GCONF_VALUE_BOOL)
+        {
+          meta_warning (_("GConf key \"%s\" is set to an invalid type\n"),
+                        KEY_DIALOG_WINDOW_FOCUS_ON_MAP);
+          goto out;
+        }
+
+      b = value ? gconf_value_get_bool (value) : dialog_window_focus_on_map;
+
+      if (update_dialog_window_focus_on_map (b))
+        queue_changed (META_PREF_DIALOG_WINDOW_FOCUS_ON_MAP);
     }
   else
     {
@@ -1172,6 +1221,26 @@ update_reduced_resources (gboolean value)
 
   return old != reduced_resources;
 }
+
+static gboolean
+update_normal_window_focus_on_map (gboolean value)
+{
+  gboolean old = normal_window_focus_on_map;
+
+  normal_window_focus_on_map = value;
+
+  return old != normal_window_focus_on_map;
+}
+
+static gboolean
+update_dialog_window_focus_on_map (gboolean value)
+{
+  gboolean old = dialog_window_focus_on_map;
+
+  dialog_window_focus_on_map = value;
+
+  return old != dialog_window_focus_on_map;
+}
 #endif /* HAVE_GCONF */
 
 #ifdef WITH_VERBOSE_MODE
@@ -1229,6 +1298,14 @@ meta_preference_to_string (MetaPreference pref)
 
     case META_PREF_REDUCED_RESOURCES:
       return "REDUCED_RESOURCES";
+      break;
+
+    case META_PREF_NORMAL_WINDOW_FOCUS_ON_MAP:
+      return "NORMAL_WINDOW_FOCUS_ON_MAP";
+      break;
+
+    case META_PREF_DIALOG_WINDOW_FOCUS_ON_MAP:
+      return "DIALOG_WINDOW_FOCUS_ON_MAP";
       break;
     }
 
@@ -1853,6 +1930,18 @@ gboolean
 meta_prefs_get_reduced_resources ()
 {
   return reduced_resources;
+}
+
+gboolean
+meta_prefs_get_normal_window_focus_on_map ()
+{
+  return normal_window_focus_on_map;
+}
+
+gboolean
+meta_prefs_get_dialog_window_focus_on_map ()
+{
+  return dialog_window_focus_on_map;
 }
 
 MetaKeyBindingAction

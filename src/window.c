@@ -1504,8 +1504,8 @@ window_takes_focus_on_map (MetaWindow *window)
       break;
     case META_WINDOW_NORMAL:
 
-      /* Always focus new windows */
-      return TRUE;
+      if (meta_prefs_get_normal_window_focus_on_map()) /* Always focus new windows */
+        return TRUE;
 
       /* Old Windows-XP style rule for reference */
       /* Focus only if the current focus is on a desktop element
@@ -1523,8 +1523,8 @@ window_takes_focus_on_map (MetaWindow *window)
     case META_WINDOW_DIALOG:
     case META_WINDOW_MODAL_DIALOG:
 
-      /* Always focus */
-      return TRUE;
+      if (meta_prefs_get_dialog_window_focus_on_map()) /* Always focus new windows */
+        return TRUE;
 
       /* Old Windows-XP style rule for reference */
       /* Focus only if the transient parent has focus */

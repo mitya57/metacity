@@ -43,7 +43,9 @@ typedef enum
   META_PREF_COMMANDS,
   META_PREF_BUTTON_LAYOUT,
   META_PREF_WORKSPACE_NAMES,
-  META_PREF_REDUCED_RESOURCES
+  META_PREF_REDUCED_RESOURCES,
+  META_PREF_NORMAL_WINDOW_FOCUS_ON_MAP,
+  META_PREF_DIALOG_WINDOW_FOCUS_ON_MAP
 } MetaPreference;
 
 typedef void (* MetaPrefsChangedFunc) (MetaPreference pref,
@@ -68,6 +70,8 @@ gboolean                    meta_prefs_get_disable_workarounds (void);
 gboolean                    meta_prefs_get_auto_raise         (void);
 int                         meta_prefs_get_auto_raise_delay   (void);
 gboolean                    meta_prefs_get_reduced_resources  (void);
+gboolean                    meta_prefs_get_normal_window_focus_on_map (void);
+gboolean                    meta_prefs_get_dialog_window_focus_on_map (void);
 
 const char*                 meta_prefs_get_command            (int i);
 

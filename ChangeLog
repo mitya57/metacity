@@ -1,5 +1,10 @@
 2004-06-16  Havoc Pennington  <hp@redhat.com>
 
+	* add hacky "no focus on map" pref patch (clearly labeled as a
+	hack only in rhel3)
+
+2004-06-16  Havoc Pennington  <hp@redhat.com>
+
 	* create a RHEL3 branch to manage layering on some patches from
 	our RPM, this is a dead-end branch for my convenience. Initially
 	commit all the RPM patches.

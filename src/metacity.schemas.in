@@ -225,6 +225,50 @@
       </locale>
     </schema>
 
+    <schema>
+      <key>/schemas/apps/metacity/rhel3_workarounds/normal_window_focus_on_map</key>
+      <applyto>/apps/metacity/rhel3_workarounds/normal_window_focus_on_map</applyto>
+      <owner>metacity</owner>
+      <type>bool</type>
+      <default>true</default>
+      <locale name="C">
+         <short>If true, newly mapped normal windows are focused</short>
+         <long>
+          If true, metacity will give focus to all newly mapped normal
+        windows. If false, metacity will only give focus to newly mapped
+        normal windows when you when the desktop or a dock application is
+        focused. This setting is a temporary workaround; in GNOME 2.8 and later,
+        it isn't required because the desktop should automatically determine whether 
+        focusing a new window is appropriate (i.e. we should fix broken cases on a 
+        case-by-case basis, not via global toggle).
+         </long>
+      </locale>
+    </schema>
+
+    <schema>
+      <key>/schemas/apps/metacity/rhel3_workarounds/dialog_window_focus_on_map</key>
+      <applyto>/apps/metacity/rhel3_workarounds/dialog_window_focus_on_map</applyto>
+      <owner>metacity</owner>
+      <type>bool</type>
+      <default>true</default>
+      <locale name="C">
+         <short>If true, newly mapped dialog windows are focused</short>
+         <long>
+          If true, metacity will give focus to all newly mapped dialog
+        windows. If false, metacity will only give focus to newly mapped
+        dialog windows when the desktop or a dock application is
+        focused or they are attached to the current main window that you have
+        focused.
+
+        This setting is a temporary workaround; in GNOME 2.8 and
+later,
+        it isn't required because the desktop should automatically determine whether 
+        focusing a new window is appropriate (i.e. we should fix broken cases on a 
+        case-by-case basis, not via global toggle).
+         </long>
+      </locale>
+    </schema>
+
     <!-- Window Keybindings -->
 
     <schema>
