@@ -27,6 +27,7 @@
 #include "frame.h"
 #include "place.h"
 #include "prefs.h"
+#include "effects.h"
 
 #include <X11/keysym.h>
 #include <string.h>
@@ -1691,8 +1692,20 @@ process_keyboard_move_grab (MetaDisplay *display,
   if (is_modifier (display, event->xkey.keycode))
     return TRUE;
 
-  meta_window_get_position (window, &x, &y);
+  if (display->grab_wireframe_active)
+    {
+      x = display->grab_wireframe_rect.x;
+      y = display->grab_wireframe_rect.y;
+    }
+  else
+    {
+      meta_window_get_position (window, &x, &y);
+    }
 
+  /* FIXME in wireframe mode the edge snapping is all fucked up
+   * since the edge-find routines use window->rect
+   */
+  
   smart_snap = (event->xkey.state & ShiftMask) != 0;
 
 #define SMALL_INCREMENT 1
@@ -1777,7 +1790,24 @@ process_keyboard_move_grab (MetaDisplay *display,
 
   if (handled)
     {
-      meta_window_move (window, TRUE, x, y);
+      if (display->grab_wireframe_active)
+        {
+          MetaRectangle new_xor;
+
+          new_xor = window->display->grab_wireframe_rect;
+          new_xor.x = x;
+          new_xor.y = y;
+
+          meta_effects_update_wireframe (window->screen,
+                                         &window->display->grab_wireframe_rect,
+                                         &new_xor);
+          window->display->grab_wireframe_rect = new_xor;
+        }
+      else
+        {
+          meta_window_move (window, TRUE, x, y);
+        }
+      
       meta_window_warp_pointer (window, display->grab_op);
     }
 
@@ -1933,13 +1963,27 @@ process_keyboard_resize_grab (MetaDisplay *display,
       return TRUE; 
     } 
 
-  meta_window_get_position (window, &orig_x, &orig_y);
-  x = orig_x;
-  y = orig_y;
-  width = window->rect.width;
-  height = window->rect.height;
+  if (display->grab_wireframe_active)
+    {
+      x = display->grab_wireframe_rect.x;
+      y = display->grab_wireframe_rect.y;
+      width = display->grab_wireframe_rect.width;
+      height = display->grab_wireframe_rect.height;
+    }
+  else
+    {
+      meta_window_get_position (window, &orig_x, &orig_y);
+      x = orig_x;
+      y = orig_y;
+      width = window->rect.width;
+      height = window->rect.height;
+    }
 
   gravity = meta_resize_gravity_from_grab_op (display->grab_op);
+
+  /* FIXME in wireframe mode the edge snapping is all fucked up
+   * since the edge-find routines use window->rect
+   */
   
   smart_snap = (event->xkey.state & ShiftMask) != 0;
 
@@ -2160,7 +2204,27 @@ process_keyboard_resize_grab (MetaDisplay *display,
   
   if (handled)
     {
-      meta_window_move_resize (window, TRUE, x, y, width, height);
+      if (display->grab_wireframe_active)
+        {
+          MetaRectangle new_xor;
+      
+          new_xor.x = x;
+          new_xor.y = y;
+          new_xor.width = width;
+          new_xor.height = height;
+
+          meta_effects_update_wireframe (window->screen,
+                                         &window->display->grab_wireframe_rect,
+                                         &new_xor);
+          window->display->grab_wireframe_rect = new_xor;
+
+          /* do this after drawing the wires, so we don't draw over it */
+          meta_window_refresh_resize_popup (window);
+        }
+      else
+        {
+          meta_window_move_resize (window, TRUE, x, y, width, height);
+        }
       meta_window_update_resize_grab_op (window, FALSE);
     }
 

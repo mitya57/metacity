@@ -539,10 +539,23 @@ meta_screen_new (MetaDisplay *display,
   screen->starting_corner = META_SCREEN_TOPLEFT;
 
   screen->showing_desktop = FALSE;
+
+  {
+    XGCValues gc_values;
+    
+    gc_values.subwindow_mode = IncludeInferiors;
+    gc_values.function = GXinvert;
+    gc_values.line_width = 2;
+    
+    screen->root_xor_gc = XCreateGC (screen->display->xdisplay,
+                                     screen->xroot,
+                                     GCSubwindowMode | GCFunction | GCLineWidth,
+                                     &gc_values);
+  }
   
   screen->xinerama_infos = NULL;
   screen->n_xinerama_infos = 0;
-  screen->last_xinerama_index = 0;
+  screen->last_xinerama_index = 0;  
   
   reload_xinerama_infos (screen);
   
@@ -680,6 +693,9 @@ meta_screen_free (MetaScreen *screen)
   
   if (screen->work_area_idle != 0)
     g_source_remove (screen->work_area_idle);
+
+  XFreeGC (screen->display->xdisplay,
+           screen->root_xor_gc);
   
   g_free (screen->screen_name);
   g_free (screen);

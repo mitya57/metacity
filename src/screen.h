@@ -108,6 +108,9 @@ struct _MetaScreen
   guint showing_desktop : 1;
   
   int closing;
+
+  /* gc for XOR on root window */
+  GC root_xor_gc;
 };
 
 MetaScreen*   meta_screen_new                 (MetaDisplay                *display,

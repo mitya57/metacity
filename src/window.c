@@ -1213,6 +1213,14 @@ window_should_be_showing (MetaWindow  *window)
         showing = FALSE;
     }
 
+#if 0
+  /* 5. See if we're drawing wireframe
+   */
+  if (window->display->grab_window == window &&
+      window->display->grab_wireframe_active)    
+    showing = FALSE;
+#endif
+  
   return showing;
 }
 
@@ -5699,7 +5707,25 @@ update_move (MetaWindow  *window,
       new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
     }
 
-  meta_window_move (window, TRUE, new_x, new_y);
+  if (window->display->grab_wireframe_active)
+    {
+      /* FIXME Horribly broken, does not honor position
+       * constraints
+       */
+      MetaRectangle new_xor;
+      new_xor = window->display->grab_wireframe_rect;
+      new_xor.x = new_x;
+      new_xor.y = new_y;
+
+      meta_effects_update_wireframe (window->screen,
+                                     &window->display->grab_wireframe_rect,
+                                     &new_xor);
+      window->display->grab_wireframe_rect = new_xor;
+    }
+  else
+    {
+      meta_window_move (window, TRUE, new_x, new_y);
+    }
 }
 
 static void
@@ -5710,6 +5736,7 @@ update_resize (MetaWindow *window,
   int new_w, new_h;
   int gravity;
   MetaRectangle old;
+  int new_x, new_y;
   
   window->display->grab_latest_motion_x = x;
   window->display->grab_latest_motion_y = y;
@@ -5720,6 +5747,10 @@ update_resize (MetaWindow *window,
   new_w = window->display->grab_initial_window_pos.width;
   new_h = window->display->grab_initial_window_pos.height;
 
+  /* FIXME this is only used in wireframe mode */
+  new_x = window->display->grab_initial_window_pos.x;
+  new_y = window->display->grab_initial_window_pos.y;
+  
   switch (window->display->grab_op)
     {
     case META_GRAB_OP_RESIZING_SE:
@@ -5738,6 +5769,7 @@ update_resize (MetaWindow *window,
     case META_GRAB_OP_KEYBOARD_RESIZING_SW:
     case META_GRAB_OP_KEYBOARD_RESIZING_W:
       new_w -= dx;
+      new_x += dx;
       break;
       
     default:
@@ -5762,6 +5794,7 @@ update_resize (MetaWindow *window,
     case META_GRAB_OP_KEYBOARD_RESIZING_NE:
     case META_GRAB_OP_KEYBOARD_RESIZING_NW:
       new_h -= dy;
+      new_y += dy;
       break;
     default:
       break;
@@ -5771,12 +5804,42 @@ update_resize (MetaWindow *window,
     return;
   
   old = window->rect;
-  
+
   /* compute gravity of client during operation */
   gravity = meta_resize_gravity_from_grab_op (window->display->grab_op);
   g_assert (gravity >= 0);
   
-  meta_window_resize_with_gravity (window, TRUE, new_w, new_h, gravity);
+  if (window->display->grab_wireframe_active)
+    {
+      /* FIXME This is crap. For example, the wireframe isn't
+       * constrained in the way that a real resize would be. An
+       * obvious elegant solution is to unmap the window during
+       * wireframe, but still resize it; however, that probably
+       * confuses broken clients that have problems with opaque
+       * resize, they probably don't track their visibility.
+       */
+      MetaRectangle new_xor;
+      
+      if ((new_x + new_w <= new_x) || (new_y + new_h <= new_y))
+        return;
+      
+      new_xor.x = new_x;
+      new_xor.y = new_y;
+      new_xor.width = new_w;
+      new_xor.height = new_h;
+
+      meta_effects_update_wireframe (window->screen,
+                                     &window->display->grab_wireframe_rect,
+                                     &new_xor);
+      window->display->grab_wireframe_rect = new_xor;
+
+      /* do this after drawing the wires, so we don't draw over it */
+      meta_window_refresh_resize_popup (window);
+    }
+  else
+    {
+      meta_window_resize_with_gravity (window, TRUE, new_w, new_h, gravity);
+    }
 
   /* If we don't actually resize the window, we clear the timestamp,
    * so we'll quickly try again.  Otherwise you get "stuck" because
@@ -6178,6 +6241,13 @@ meta_window_refresh_resize_popup (MetaWindow *window)
   if (window->display->grab_window != window)
     return;
 
+  /* FIXME for now we bail out when doing wireframe, because our
+   * server grab keeps us from being able to redraw the stuff
+   * underneath the resize popup.
+   */
+  if (window->display->grab_wireframe_active)
+    return;
+  
   switch (window->display->grab_op)
     {
     case META_GRAB_OP_RESIZING_SE:
@@ -6216,7 +6286,7 @@ meta_window_refresh_resize_popup (MetaWindow *window)
   if (window->display->grab_resize_popup != NULL)
     {
       int gravity;
-      int x, y;
+      int x, y, width, height;
       MetaFrameGeometry fgeom;
 
       if (window->frame)
@@ -6232,13 +6302,24 @@ meta_window_refresh_resize_popup (MetaWindow *window)
       gravity = meta_resize_gravity_from_grab_op (window->display->grab_op);
       g_assert (gravity >= 0);
 
-      meta_window_get_position (window, &x, &y);
+      if (window->display->grab_wireframe_active)
+        {
+          x = window->display->grab_wireframe_rect.x;
+          y = window->display->grab_wireframe_rect.y;
+          width = window->display->grab_wireframe_rect.width;
+          height = window->display->grab_wireframe_rect.height;
+        }
+      else
+        {
+          meta_window_get_position (window, &x, &y);
+          width = window->rect.width;
+          height = window->rect.height;
+        }
       
       meta_ui_resize_popup_set (window->display->grab_resize_popup,
                                 gravity,
                                 x, y,
-                                window->rect.width,
-                                window->rect.height,
+                                width, height,
                                 window->size_hints.base_width,
                                 window->size_hints.base_height,
                                 window->size_hints.min_width,
