@@ -1216,7 +1216,8 @@ event_callback (XEvent   *event,
        * goes to the frame.
        */
       frame_was_receiver = TRUE;
-      meta_topic (META_DEBUG_EVENTS, "Frame was receiver of event\n");
+      meta_topic (META_DEBUG_EVENTS, "Frame was receiver of event for %s\n",
+                  window->desc);
     }
 
 #ifdef HAVE_XSYNC
@@ -2780,8 +2781,9 @@ meta_display_begin_grab_op (MetaDisplay *display,
   Window grab_xwindow;
   
   meta_topic (META_DEBUG_WINDOW_OPS,
-              "Doing grab op %d on window %s button %d pointer already grabbed: %d\n",
-              op, window ? window->desc : "none", button, pointer_already_grabbed);
+              "Doing grab op %d on window %s button %d pointer already grabbed: %d pointer pos %d,%d\n",
+              op, window ? window->desc : "none", button, pointer_already_grabbed,
+              root_x, root_y);
   
   if (display->grab_op != META_GRAB_OP_NONE)
     {
@@ -2841,8 +2843,8 @@ meta_display_begin_grab_op (MetaDisplay *display,
   display->grab_xwindow = grab_xwindow;
   display->grab_button = button;
   display->grab_mask = modmask;
-  display->grab_initial_root_x = root_x;
-  display->grab_initial_root_y = root_y;
+  display->grab_anchor_root_x = root_x;
+  display->grab_anchor_root_y = root_y;
   display->grab_latest_motion_x = root_x;
   display->grab_latest_motion_y = root_y;
   display->grab_last_moveresize_time.tv_sec = 0;
@@ -2858,11 +2860,16 @@ meta_display_begin_grab_op (MetaDisplay *display,
       meta_window_get_position (display->grab_window,
                                 &display->grab_initial_window_pos.x,
                                 &display->grab_initial_window_pos.y);
+      display->grab_anchor_window_pos = display->grab_initial_window_pos;
 
+#if 0
       display->grab_wireframe_active =
         meta_grab_op_is_resizing (display->grab_op) ||
         meta_grab_op_is_moving (display->grab_op);
-
+#else
+      display->grab_wireframe_active = FALSE;
+#endif
+      
       if (display->grab_wireframe_active)
         {
           /* FIXME we should really display the outer frame rect,

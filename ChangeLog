@@ -1,3 +1,17 @@
+2003-07-20  Havoc Pennington  <hp@pobox.com>
+
+	Still broken in various ways, specifically EnterNotify that
+	occurred prior to XGrabPointer is processed as if it occurred
+	after.
+	
+	* src/window.c (meta_window_update_keyboard_move): add this
+	instead of meta_window_warp_pointer() crack
+
+	* src/effects.c (meta_effects_update_wireframe): draw a kind of
+	grid for the wireframe, instead of just a rectangle, like twm
+
+	* src/screen.c (meta_screen_new): line width of 3 for the XOR gc
+
 2003-07-18  Havoc Pennington  <hp@redhat.com>
 	
         "Reduced resources" mode based on wireframe patch from

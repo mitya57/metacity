@@ -1703,11 +1703,13 @@ process_keyboard_move_grab (MetaDisplay *display,
     }
 
   /* FIXME in wireframe mode the edge snapping is all fucked up
-   * since the edge-find routines use window->rect
-   */
-  
+   * since the edge-find routines use window->rect. Window
+   * constraints are also broken with wireframe.
+   */  
   smart_snap = (event->xkey.state & ShiftMask) != 0;
-
+  if (display->grab_wireframe_active)
+    smart_snap = FALSE;
+  
 #define SMALL_INCREMENT 1
 #define NORMAL_INCREMENT 10
 
@@ -1740,11 +1742,14 @@ process_keyboard_move_grab (MetaDisplay *display,
     case XK_KP_Prior:
     case XK_Up:
     case XK_KP_Up:
-      edge = meta_window_find_next_horizontal_edge (window, FALSE);
       y -= incr;
-          
-      if (smart_snap || ((edge > y) && ABS (edge - y) < incr))
-        y = edge;
+
+      if (!display->grab_wireframe_active)
+        {
+          edge = meta_window_find_next_horizontal_edge (window, FALSE);
+          if (smart_snap || ((edge > y) && ABS (edge - y) < incr))
+            y = edge;
+        }
           
       handled = TRUE;
       break;
@@ -1752,11 +1757,14 @@ process_keyboard_move_grab (MetaDisplay *display,
     case XK_KP_Next:
     case XK_Down:
     case XK_KP_Down:
-      edge = meta_window_find_next_horizontal_edge (window, TRUE);
       y += incr;
 
-      if (smart_snap || ((edge < y) && ABS (edge - y) < incr))
-        y = edge;
+      if (!display->grab_wireframe_active)
+        {
+          edge = meta_window_find_next_horizontal_edge (window, TRUE);
+          if (smart_snap || ((edge < y) && ABS (edge - y) < incr))
+            y = edge;
+        }
           
       handled = TRUE;
       break;
@@ -1768,11 +1776,14 @@ process_keyboard_move_grab (MetaDisplay *display,
     case XK_KP_End:
     case XK_Left:
     case XK_KP_Left:
-      edge = meta_window_find_next_vertical_edge (window, FALSE);
       x -= incr;
-          
-      if (smart_snap || ((edge > x) && ABS (edge - x) < incr))
-        x = edge;
+
+      if (!display->grab_wireframe_active)
+        {
+          edge = meta_window_find_next_vertical_edge (window, FALSE);
+          if (smart_snap || ((edge > x) && ABS (edge - x) < incr))
+            x = edge;
+        }
 
       handled = TRUE;
       break;
@@ -1780,35 +1791,43 @@ process_keyboard_move_grab (MetaDisplay *display,
     case XK_KP_Next:
     case XK_Right:
     case XK_KP_Right:
-      edge = meta_window_find_next_vertical_edge (window, TRUE);
       x += incr;
-      if (smart_snap || ((edge < x) && ABS (edge - x) < incr))
-        x = edge;
+
+      if (!display->grab_wireframe_active)
+        {
+          edge = meta_window_find_next_vertical_edge (window, TRUE);
+          if (smart_snap || ((edge < x) && ABS (edge - x) < incr))
+            x = edge;
+        }
+      
       handled = TRUE;
       break;
     }
 
   if (handled)
     {
+      meta_topic (META_DEBUG_KEYBINDINGS,
+                  "Computed new window location %d,%d due to keypress\n",
+                  x, y);
       if (display->grab_wireframe_active)
         {
           MetaRectangle new_xor;
 
-          new_xor = window->display->grab_wireframe_rect;
+          new_xor = display->grab_wireframe_rect;
           new_xor.x = x;
           new_xor.y = y;
-
+          
           meta_effects_update_wireframe (window->screen,
-                                         &window->display->grab_wireframe_rect,
+                                         &display->grab_wireframe_rect,
                                          &new_xor);
-          window->display->grab_wireframe_rect = new_xor;
+          display->grab_wireframe_rect = new_xor;
         }
       else
         {
           meta_window_move (window, TRUE, x, y);
         }
       
-      meta_window_warp_pointer (window, display->grab_op);
+      meta_window_update_keyboard_move (window);
     }
 
   return handled;
@@ -1959,7 +1978,7 @@ process_keyboard_resize_grab (MetaDisplay *display,
 
   if (handled)
     {
-      meta_window_update_resize_grab_op (window, TRUE);
+      meta_window_update_keyboard_resize (window, TRUE);
       return TRUE; 
     } 
 
@@ -1982,11 +2001,13 @@ process_keyboard_resize_grab (MetaDisplay *display,
   gravity = meta_resize_gravity_from_grab_op (display->grab_op);
 
   /* FIXME in wireframe mode the edge snapping is all fucked up
-   * since the edge-find routines use window->rect
-   */
-  
+   * since the edge-find routines use window->rect. Window
+   * constraints are also broken with wireframe.
+   */  
   smart_snap = (event->xkey.state & ShiftMask) != 0;
-
+  if (display->grab_wireframe_active)
+    smart_snap = FALSE;
+  
 #define SMALL_INCREMENT 1
 #define NORMAL_INCREMENT 10
 
@@ -2204,6 +2225,10 @@ process_keyboard_resize_grab (MetaDisplay *display,
   
   if (handled)
     {
+      meta_topic (META_DEBUG_KEYBINDINGS,
+                  "Computed new window location %d,%d %dx%d due to keypress\n",
+                  x, y, width, height);
+      
       if (display->grab_wireframe_active)
         {
           MetaRectangle new_xor;
@@ -2225,7 +2250,7 @@ process_keyboard_resize_grab (MetaDisplay *display,
         {
           meta_window_move_resize (window, TRUE, x, y, width, height);
         }
-      meta_window_update_resize_grab_op (window, FALSE);
+      meta_window_update_keyboard_resize (window, FALSE);
     }
 
   return handled;

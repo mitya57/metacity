@@ -231,8 +231,9 @@ struct _MetaDisplay
   MetaWindow *grab_window;
   Window      grab_xwindow;
   int         grab_button;
-  int         grab_initial_root_x;
-  int         grab_initial_root_y;
+  int         grab_anchor_root_x;
+  int         grab_anchor_root_y;
+  MetaRectangle grab_anchor_window_pos;
   int         grab_latest_motion_x;
   int         grab_latest_motion_y;
   gulong      grab_mask;

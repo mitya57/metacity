@@ -545,7 +545,7 @@ meta_screen_new (MetaDisplay *display,
     
     gc_values.subwindow_mode = IncludeInferiors;
     gc_values.function = GXinvert;
-    gc_values.line_width = 2;
+    gc_values.line_width = META_WIREFRAME_XOR_LINE_WIDTH;
     
     screen->root_xor_gc = XCreateGC (screen->display->xdisplay,
                                      screen->xroot,

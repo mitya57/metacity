@@ -1871,7 +1871,7 @@ meta_window_unmaximize (MetaWindow  *window)
       if (meta_grab_op_is_moving (window->display->grab_op) &&
           window->display->grab_window == window)
         {
-          window->display->grab_initial_window_pos = window->saved_rect;
+          window->display->grab_anchor_window_pos = window->saved_rect;
         }
 
       meta_window_move_resize (window,
@@ -5615,12 +5615,20 @@ update_move (MetaWindow  *window,
   window->display->grab_latest_motion_x = x;
   window->display->grab_latest_motion_y = y;
   
-  dx = x - window->display->grab_initial_root_x;
-  dy = y - window->display->grab_initial_root_y;
+  dx = x - window->display->grab_anchor_root_x;
+  dy = y - window->display->grab_anchor_root_y;
 
-  new_x = window->display->grab_initial_window_pos.x + dx;
-  new_y = window->display->grab_initial_window_pos.y + dy;
+  new_x = window->display->grab_anchor_window_pos.x + dx;
+  new_y = window->display->grab_anchor_window_pos.y + dy;
 
+  meta_verbose ("x,y = %d,%d anchor ptr %d,%d anchor pos %d,%d dx,dy %d,%d\n",
+                x, y,
+                window->display->grab_anchor_root_x,
+                window->display->grab_anchor_root_y,
+                window->display->grab_anchor_window_pos.x,
+                window->display->grab_anchor_window_pos.y,
+                dx, dy);
+  
   /* shake loose (unmaximize) maximized window if dragged beyond the threshold
    * in the Y direction. You can't pull a window loose via X motion.
    */
@@ -5700,13 +5708,6 @@ update_move (MetaWindow  *window,
   if (window->maximized)
     return;
 
-  if (mask & ShiftMask)
-    {
-      /* snap to edges */
-      new_x = meta_window_find_nearest_vertical_edge (window, new_x);
-      new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
-    }
-
   if (window->display->grab_wireframe_active)
     {
       /* FIXME Horribly broken, does not honor position
@@ -5724,6 +5725,14 @@ update_move (MetaWindow  *window,
     }
   else
     {
+      /* FIXME, edge snapping broken in wireframe mode */
+      if (mask & ShiftMask)
+        {
+          /* snap to edges */
+          new_x = meta_window_find_nearest_vertical_edge (window, new_x);
+          new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
+        }
+      
       meta_window_move (window, TRUE, new_x, new_y);
     }
 }
@@ -5741,15 +5750,15 @@ update_resize (MetaWindow *window,
   window->display->grab_latest_motion_x = x;
   window->display->grab_latest_motion_y = y;
   
-  dx = x - window->display->grab_initial_root_x;
-  dy = y - window->display->grab_initial_root_y;
+  dx = x - window->display->grab_anchor_root_x;
+  dy = y - window->display->grab_anchor_root_y;
 
-  new_w = window->display->grab_initial_window_pos.width;
-  new_h = window->display->grab_initial_window_pos.height;
+  new_w = window->display->grab_anchor_window_pos.width;
+  new_h = window->display->grab_anchor_window_pos.height;
 
   /* FIXME this is only used in wireframe mode */
-  new_x = window->display->grab_initial_window_pos.x;
-  new_y = window->display->grab_initial_window_pos.y;
+  new_x = window->display->grab_anchor_window_pos.x;
+  new_y = window->display->grab_anchor_window_pos.y;
   
   switch (window->display->grab_op)
     {
@@ -6446,53 +6455,70 @@ meta_window_is_ancestor_of_transient (MetaWindow *window,
   return d.found;
 }
 
+/* Warp pointer to location appropriate for grab,
+ * return root coordinates where pointer ended up.
+ */
 static gboolean
-warp_pointer (MetaWindow *window,
-              MetaGrabOp  grab_op,
-              int        *x,
-              int        *y)
+warp_grab_pointer (MetaWindow          *window,
+                   MetaGrabOp           grab_op,
+                   int                 *x,
+                   int                 *y)
 {
+  MetaRectangle rect;
+
+  /* We may not have done begin_grab_op yet, i.e. may not be in a grab
+   */
+  
+  if (window == window->display->grab_window &&
+      window->display->grab_wireframe_active)
+    rect = window->display->grab_wireframe_rect;
+  else
+    {
+      rect = window->rect;
+      meta_window_get_position (window, &rect.x, &rect.y);
+    }
+  
   switch (grab_op)
     {
       case META_GRAB_OP_KEYBOARD_MOVING:
       case META_GRAB_OP_KEYBOARD_RESIZING_UNKNOWN:
-        *x = window->rect.width / 2;
-        *y = window->rect.height / 2;
+        *x = rect.width / 2;
+        *y = rect.height / 2;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_S:
-        *x = window->rect.width / 2;
-        *y = window->rect.height;
+        *x = rect.width / 2;
+        *y = rect.height;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_N:
-        *x = window->rect.width / 2;
+        *x = rect.width / 2;
         *y = 0;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_W:
         *x = 0;
-        *y = window->rect.height / 2;
+        *y = rect.height / 2;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_E:
-        *x = window->rect.width;
-        *y = window->rect.height / 2;
+        *x = rect.width;
+        *y = rect.height / 2;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_SE:
-        *x = window->rect.width;
-        *y = window->rect.height;
+        *x = rect.width;
+        *y = rect.height;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_NE:
-        *x = window->rect.width;
+        *x = rect.width;
         *y = 0;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_SW:
         *x = 0;
-        *y = window->rect.height;
+        *y = rect.height;
         break;
 
       case META_GRAB_OP_KEYBOARD_RESIZING_NW:
@@ -6504,31 +6530,29 @@ warp_pointer (MetaWindow *window,
         return FALSE;
     }
 
+  *x += rect.x;
+  *y += rect.y;
+  
   meta_error_trap_push_with_return (window->display);
+
+  meta_topic (META_DEBUG_WINDOW_OPS,
+              "Warping pointer to %d,%d with window at %d,%d\n",
+              *x, *y, rect.x, rect.y);
   
   XWarpPointer (window->display->xdisplay,
                 None,
-                window->xwindow,
+                window->screen->xroot,
                 0, 0, 0, 0, 
-                *x,
-                *y);
+                *x, *y);
 
   if (meta_error_trap_pop_with_return (window->display, FALSE) != Success)
     {
-      meta_verbose ("Failed to warp pointer for window %s\n", window->desc);
+      meta_verbose ("Failed to warp pointer for window %s\n",
+                    window->desc);
       return FALSE;
     }
-
+  
   return TRUE;
-}
-
-gboolean
-meta_window_warp_pointer (MetaWindow *window,
-                          MetaGrabOp  grab_op)
-{
-  int x, y;
- 
-  return warp_pointer (window, grab_op, &x, &y); 
 }
 
 void
@@ -6536,13 +6560,12 @@ meta_window_begin_grab_op (MetaWindow *window,
                            MetaGrabOp  op,
                            Time        timestamp)
 {
-  int x, y, x_offset, y_offset;
-
-  meta_window_get_position (window, &x, &y);
+  int x, y;
 
   meta_window_raise (window);
 
-  warp_pointer (window, op, &x_offset, &y_offset);
+  warp_grab_pointer (window,
+                     op, &x, &y);
 
   meta_display_begin_grab_op (window->display,
                               window->screen,
@@ -6550,31 +6573,36 @@ meta_window_begin_grab_op (MetaWindow *window,
                               op,
                               FALSE, 0, 0,
                               timestamp,
-                              x + x_offset, 
-                              y + y_offset);
+                              x, y);
 }
 
 void
-meta_window_update_resize_grab_op (MetaWindow *window,
-                                   gboolean    update_cursor)
+meta_window_update_keyboard_resize (MetaWindow *window,
+                                    gboolean    update_cursor)
 {
-  int x, y, x_offset, y_offset;
-
-  meta_window_get_position (window, &x, &y);
+  int x, y;
   
-  warp_pointer (window, window->display->grab_op, &x_offset, &y_offset);
+  warp_grab_pointer (window,
+                     window->display->grab_op,
+                     &x, &y);
 
-  /* As we warped the pointer, we have to reset the apparent
-   * initial window state, since if the mouse moves we want
-   * to use those events to do the right thing.
-   */
-  if (window->display->grab_window == window)
-    {
-      window->display->grab_initial_root_x = x + x_offset;
-      window->display->grab_initial_root_y = y + y_offset;
-      
-      window->display->grab_initial_window_pos = window->rect;
-    }
+  {
+    /* As we warped the pointer, we have to reset the anchor state,
+     * since if the mouse moves we want to use those events to do the
+     * right thing.
+     */
+    int dx, dy;
+
+    dx = x - window->display->grab_anchor_root_x;
+    dy = y - window->display->grab_anchor_root_y;
+    
+    window->display->grab_anchor_root_x += dx;
+    window->display->grab_anchor_root_y += dy;
+    window->display->grab_anchor_window_pos = window->rect;
+    meta_window_get_position (window,
+                              &window->display->grab_anchor_window_pos.x,
+                              &window->display->grab_anchor_window_pos.y);
+  }
   
   if (update_cursor)
     {
@@ -6585,6 +6613,16 @@ meta_window_update_resize_grab_op (MetaWindow *window,
                                        window->display->grab_xwindow,
                                        meta_display_get_current_time (window->display));
     }
+}
+
+void
+meta_window_update_keyboard_move (MetaWindow *window)
+{
+  int x, y;
+  
+  warp_grab_pointer (window,
+                     window->display->grab_op,
+                     &x, &y);
 }
 
 void
