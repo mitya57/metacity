@@ -42,7 +42,8 @@ typedef enum
   META_PREF_DISABLE_WORKAROUNDS,
   META_PREF_COMMANDS,
   META_PREF_BUTTON_LAYOUT,
-  META_PREF_WORKSPACE_NAMES
+  META_PREF_WORKSPACE_NAMES,
+  META_PREF_REDUCED_RESOURCES
 } MetaPreference;
 
 typedef void (* MetaPrefsChangedFunc) (MetaPreference pref,
@@ -66,6 +67,7 @@ gboolean                    meta_prefs_get_application_based  (void);
 gboolean                    meta_prefs_get_disable_workarounds (void);
 gboolean                    meta_prefs_get_auto_raise         (void);
 int                         meta_prefs_get_auto_raise_delay   (void);
+gboolean                    meta_prefs_get_reduced_resources  (void);
 
 const char*                 meta_prefs_get_command            (int i);
 

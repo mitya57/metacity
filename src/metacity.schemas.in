@@ -114,7 +114,7 @@
       <applyto>/apps/metacity/general/theme</applyto>
       <owner>metacity</owner>
       <type>string</type>
-      <default>Simple</default>
+      <default>Bluecurve</default>
       <locale name="C">
          <short>Current theme</short>
          <long>
@@ -129,7 +129,7 @@
       <applyto>/apps/metacity/general/titlebar_uses_system_font</applyto>      
       <owner>metacity</owner>
       <type>bool</type>
-      <default>true</default>
+      <default>false</default>
       <locale name="C">
          <short>Use standard system font in window titles</short>
          <long> 
@@ -202,6 +202,25 @@
          <short>Name of workspace</short>
          <long>
           The name of a workspace.
+         </long>
+      </locale>
+    </schema>
+
+    <schema>
+      <key>/schemas/apps/metacity/general/reduced_resources</key>
+      <applyto>/apps/metacity/general/reduced_resources</applyto>
+      <owner>metacity</owner>
+      <type>bool</type>
+      <default>false</default>
+      <locale name="C">
+         <short>If true, trade off usability for less resource usage</short>
+         <long>
+          If true, metacity will give the user less feedback and 
+        less sense of "direct manipulation", by using wireframes, 
+        avoiding animations, or other means. This is a significant 
+        reduction in usability for many users, but may allow 
+        legacy applications and terminal servers to function 
+        when they would otherwise be impractical.
          </long>
       </locale>
     </schema>
@@ -1549,8 +1568,31 @@ you set
     </schema>
 
     <schema>
-      <key>/schemas/apps/metacity/global_keybindings/run_command</key>
+      <key>/schemas/apps/metacity/global_keybindings/run_command_1</key>
       <applyto>/apps/metacity/global_keybindings/run_command_1</applyto>
+      <owner>metacity</owner>
+      <type>string</type>
+      <default>&lt;Ctrl&gt;&lt;Alt&gt;Delete</default>
+      <locale name="C">
+         <short>Run a defined command</short>
+         <long>
+          The keybinding that runs the correspondingly-numbered
+          command in /apps/metacity/keybinding_commands
+
+          The format looks like "&lt;Control&gt;a" or
+          "&lt;Shift&gt;&lt;Alt&gt;F1.
+
+          The parser is fairly liberal and allows lower or upper case,
+          and also abbreviations such as "&lt;Ctl&gt;" and
+          "&lt;Ctrl&gt;". If you set the option to the special string
+          "disabled", then there will be no keybinding for this
+          action.
+         </long>
+      </locale>
+    </schema>
+
+    <schema>
+      <key>/schemas/apps/metacity/global_keybindings/run_command</key>
       <applyto>/apps/metacity/global_keybindings/run_command_2</applyto>
       <applyto>/apps/metacity/global_keybindings/run_command_3</applyto>
       <applyto>/apps/metacity/global_keybindings/run_command_4</applyto>
@@ -1586,8 +1628,24 @@ you set
     <!-- commands to run with the run_command keybindings -->
 
     <schema>
-      <key>/schemas/apps/metacity/keybinding_commands/command</key>
+      <key>/schemas/apps/metacity/keybinding_commands/command_1</key>
       <applyto>/apps/metacity/keybinding_commands/command_1</applyto>
+      <owner>metacity</owner>
+      <type>string</type>
+      <default>gnome-session-save --kill</default>
+      <locale name="C">
+         <short>Commands to run in response to keybindings</short>
+         <long>
+         The /apps/metacity/global_keybindings/run_command_N 
+         keys define keybindings that correspond to these commands.
+         Pressing the keybinding for run_command_N will 
+         execute command_N.
+         </long>
+      </locale>
+    </schema>
+
+    <schema>
+      <key>/schemas/apps/metacity/keybinding_commands/command</key>
       <applyto>/apps/metacity/keybinding_commands/command_2</applyto>
       <applyto>/apps/metacity/keybinding_commands/command_3</applyto>
       <applyto>/apps/metacity/keybinding_commands/command_4</applyto>

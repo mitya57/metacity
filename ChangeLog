@@ -1,3 +1,9 @@
+2004-06-16  Havoc Pennington  <hp@redhat.com>
+
+	* create a RHEL3 branch to manage layering on some patches from
+	our RPM, this is a dead-end branch for my convenience. Initially
+	commit all the RPM patches.
+	
 2004-06-14  Havoc Pennington  <hp@redhat.com>
 
 	* src/xprops.c (utf8_list_from_results): fix this to compile (1
