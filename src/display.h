@@ -238,11 +238,13 @@ struct _MetaDisplay
   gulong      grab_mask;
   guint       grab_have_pointer : 1;
   guint       grab_have_keyboard : 1;
+  guint       grab_wireframe_active : 1;
+  MetaRectangle grab_wireframe_rect;
   MetaRectangle grab_initial_window_pos;
   MetaResizePopup *grab_resize_popup;
   GTimeVal    grab_last_moveresize_time;
   Time        grab_motion_notify_time;
-
+  
   /* we use property updates as sentinels for certain window focus events
    * to avoid some race conditions on EnterNotify events
    */

@@ -1,3 +1,28 @@
+2003-07-18  Havoc Pennington  <hp@redhat.com>
+	
+        "Reduced resources" mode based on wireframe patch from
+	Erwann Chenede. Still pretty buggy.
+	
+	* src/keybindings.c (process_keyboard_move_grab)
+	(process_keyboard_resize_grab): add gruesome wireframe hacks
+
+	* src/display.c (meta_display_end_grab_op): end wireframe
+	(meta_display_begin_grab_op): begin wireframe
+
+	* src/effects.c (meta_effects_end_wireframe) 
+	(meta_effects_update_wireframe, meta_effects_begin_wireframe): 
+	routines to draw the wireframe stuff
+
+	* src/window.c (window_should_be_showing): hide window when 
+	doing wireframe, commented out as it breaks grab
+	* src/window.c (meta_window_refresh_resize_popup): handle wireframe
+
+	* src/screen.c (meta_screen_new): create a screen->root_xor_gc 
+	for use in drawing wireframes
+	
+	* src/frames.c (meta_frames_push_delay_exposes): repaint
+	everything before we delay
+
 2003-07-15  Havoc Pennington  <hp@redhat.com>
 
 	* NEWS: update

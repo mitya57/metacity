@@ -35,6 +35,7 @@
 #include "resizepopup.h"
 #include "workspace.h"
 #include "bell.h"
+#include "effects.h"
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
 #ifdef HAVE_SOLARIS_XINERAMA
@@ -2858,8 +2859,31 @@ meta_display_begin_grab_op (MetaDisplay *display,
                                 &display->grab_initial_window_pos.x,
                                 &display->grab_initial_window_pos.y);
 
+      display->grab_wireframe_active =
+        meta_grab_op_is_resizing (display->grab_op) ||
+        meta_grab_op_is_moving (display->grab_op);
+
+      if (display->grab_wireframe_active)
+        {
+          /* FIXME we should really display the outer frame rect,
+           * but that complicates all the move/resize code since
+           * it works in terms of window rect.
+           */
+          display->grab_wireframe_rect = window->rect;
+          if (window->frame)
+            {
+              display->grab_wireframe_rect.x += window->frame->rect.x;
+              display->grab_wireframe_rect.y += window->frame->rect.y;
+            }
+          
+          meta_window_calc_showing (display->grab_window);
+          meta_effects_begin_wireframe (display->grab_window->screen,
+                                        &display->grab_wireframe_rect);
+        }
+      
 #ifdef HAVE_XSYNC
-      if (meta_grab_op_is_resizing (display->grab_op) &&
+      if (!display->grab_wireframe_active &&
+          meta_grab_op_is_resizing (display->grab_op) &&
           display->grab_window->update_counter != None)
         {
           XSyncAlarmAttributes values;
@@ -2989,6 +3013,20 @@ meta_display_end_grab_op (MetaDisplay *display,
                          display->grab_update_alarm);
     }
 #endif /* HAVE_XSYNC */
+
+  if (display->grab_wireframe_active)
+    {
+      display->grab_wireframe_active = FALSE;
+      meta_effects_end_wireframe (display->grab_window->screen,
+                                  &display->grab_wireframe_rect);
+      meta_window_move_resize (display->grab_window,
+                               TRUE,
+                               display->grab_wireframe_rect.x,
+                               display->grab_wireframe_rect.y,
+                               display->grab_wireframe_rect.width,
+                               display->grab_wireframe_rect.height);
+      meta_window_calc_showing (display->grab_window);
+    }
   
   display->grab_window = NULL;
   display->grab_screen = NULL;

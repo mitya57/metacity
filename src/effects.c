@@ -409,5 +409,46 @@ meta_effects_draw_box_animation (MetaScreen     *screen,
   XFlush (context->screen->display->xdisplay);  
 }
 
+void
+meta_effects_begin_wireframe (MetaScreen          *screen,
+                              const MetaRectangle *rect)
+{
+  /* Grab the X server to avoid screen dirt */
+  meta_display_grab (screen->display);
+  meta_ui_push_delay_exposes (screen->ui);  
 
+  meta_effects_update_wireframe (screen, NULL, rect);
+}
+
+void
+meta_effects_update_wireframe (MetaScreen          *screen,
+                               const MetaRectangle *old_rect,
+                               const MetaRectangle *new_rect)
+{
+  if (old_rect)
+    XDrawRectangle (screen->display->xdisplay,
+                    screen->xroot,
+                    screen->root_xor_gc,
+                    old_rect->x, old_rect->y,
+                    old_rect->width, old_rect->height);
+
+  if (new_rect)
+    XDrawRectangle (screen->display->xdisplay,
+                    screen->xroot,
+                    screen->root_xor_gc,
+                    new_rect->x, new_rect->y,
+                    new_rect->width, new_rect->height);
+
+  XFlush (screen->display->xdisplay);
+}
+
+void
+meta_effects_end_wireframe (MetaScreen          *screen,
+                            const MetaRectangle *old_rect)
+{
+  meta_effects_update_wireframe (screen, old_rect, NULL);
+  
+  meta_display_ungrab (screen->display);
+  meta_ui_pop_delay_exposes (screen->ui);
+}
 
