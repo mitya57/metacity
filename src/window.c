@@ -1955,6 +1955,18 @@ meta_window_unshade (MetaWindow  *window)
   if (window->shaded)
     {
       window->shaded = FALSE;
+
+      /* This isn't correct; we need a more generic fix in
+       * meta_window_show/meta_window_hide (force a repaint on
+       * entire wireframe area, essentially?)
+       */
+      if (window->display->grab_wireframe_active)
+	{
+	  window->display->grab_wireframe_active = FALSE;
+	  meta_effects_end_wireframe (window->display->grab_window->screen,
+                                      &window->display->grab_wireframe_rect);
+	}
+      
       meta_window_queue_move_resize (window);
       meta_window_queue_calc_showing (window);
 

@@ -1,5 +1,11 @@
 2004-06-16  Havoc Pennington  <hp@redhat.com>
 
+	* src/window.c (meta_window_unshade): add temporary hack to fix an
+	artifact on unshading windows in wireframe resize mode; fix from 
+	Bernd Schmidt bernds@redhat.com
+
+2004-06-16  Havoc Pennington  <hp@redhat.com>
+
 	* add hacky "no focus on map" pref patch (clearly labeled as a
 	hack only in rhel3)
 
