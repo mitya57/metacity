@@ -1,3 +1,14 @@
+This is the 'constraints-experiments' branch of metacity. It is intended to try
+out some new ideas for implementing constraints.c  If you expect it to compile,
+let alone work, I will laugh in your face.
+
+To actually use this branch of metacity, you need to finish my implementation
+and then fix all the bugs.  I'll update this file when it's at least buildable.
+
+Old README file:
+
+
+
 Metacity is not a meta-City as in an urban center, but rather
 Meta-ness as in the state of being meta. i.e. metacity : meta as
 opacity : opaque. Also it may have something to do with the Meta key

@@ -2424,47 +2424,6 @@ static_gravity_works (MetaDisplay *display)
   return display->static_gravity_works;
 }
 
-static void
-get_mouse_deltas_for_resize (MetaWindow *window,
-                             int         resize_gravity,
-                             int         w,
-                             int         h,
-                             int        *x_delta,
-                             int        *y_delta)
-{
-  switch (meta_x_direction_from_gravity (resize_gravity))
-    {
-    case META_RESIZE_LEFT_OR_TOP:
-      *x_delta = window->rect.width - w;
-      break;
-    case META_RESIZE_RIGHT_OR_BOTTOM:
-      *x_delta = w - window->rect.width;
-      break;
-    case META_RESIZE_CENTER:
-      /* FIXME this implies that with center gravity you have to grow
-       * in increments of two
-       */
-      *x_delta = (w - window->rect.width) / 2;
-      break;
-    }
-  
-  switch (meta_y_direction_from_gravity (resize_gravity))
-    {
-    case META_RESIZE_LEFT_OR_TOP:
-      *y_delta = window->rect.height - h;
-      break;
-    case META_RESIZE_RIGHT_OR_BOTTOM:
-      *y_delta = h - window->rect.height;
-      break;
-    case META_RESIZE_CENTER:
-      /* FIXME this implies that with center gravity you have to grow
-       * in increments of two
-       */
-      *y_delta = (h - window->rect.height) / 2;
-      break;
-    }
-}
-
 #ifdef HAVE_XSYNC
 static void
 send_sync_request (MetaWindow *window)
@@ -2539,7 +2498,6 @@ meta_window_move_resize_internal (MetaWindow  *window,
   meta_window_unqueue_move_resize (window);
 
   old_rect = window->rect;
-  meta_window_get_position (window, &old_rect.x, &old_rect.y);
   
   meta_topic (META_DEBUG_GEOMETRY,
               "Move/resize %s to %d,%d %dx%d%s%s from %d,%d %dx%d\n",
@@ -2551,7 +2509,8 @@ meta_window_move_resize_internal (MetaWindow  *window,
   if (window->frame)
     meta_frame_calc_geometry (window->frame,
                               &fgeom);
-  
+
+#if 0  
   if (is_configure_request || do_gravity_adjust)
     {      
       adjust_for_gravity (window,
@@ -2571,42 +2530,38 @@ meta_window_move_resize_internal (MetaWindow  *window,
                   root_x_nw, root_y_nw);
     }
 
-  get_mouse_deltas_for_resize (window, resize_gravity, w, h,
-                               &x_delta, &y_delta);
-  
+#endif
+
+  new_rect.x = root_x_nw;
+  new_rect.y = root_y_nw;
+  new_rect.width  = w;
+  new_rect.height = h;
+
   meta_window_constrain (window,
                          window->frame ? &fgeom : NULL,
+                         is_configure_request || do_gravity_adjust,
+                         resize_gravity,
+                         is_user_action,
                          &old_rect,
-                         root_x_nw - old_rect.x,
-                         root_y_nw - old_rect.y,
-                         meta_x_direction_from_gravity (resize_gravity),
-                         x_delta,
-                         meta_y_direction_from_gravity (resize_gravity),
-                         y_delta,
-                         &new_rect);
+                         &new_rect)
 
-  w = new_rect.width;
-  h = new_rect.height;
-  root_x_nw = new_rect.x;
-  root_y_nw = new_rect.y;
-  
-  if (w != window->rect.width ||
-      h != window->rect.height)
+  if (new_rect.width  != window->rect.width ||
+      new_rect.height != window->rect.height)
     need_resize_client = TRUE;  
   
-  window->rect.width = w;
-  window->rect.height = h;
+  window->rect.width = new_rect.width;
+  window->rect.height = new_rect.height;
   
   if (window->frame)
     {
       int new_w, new_h;
 
-      new_w = window->rect.width + fgeom.left_width + fgeom.right_width;
+      new_w = window->rect.width;
 
       if (window->shaded)
         new_h = fgeom.top_height;
       else
-        new_h = window->rect.height + fgeom.top_height + fgeom.bottom_height;
+        new_h = window->rect.height;
 
       frame_size_dx = new_w - window->frame->rect.width;
       frame_size_dy = new_h - window->frame->rect.height;
@@ -2647,17 +2602,13 @@ meta_window_move_resize_internal (MetaWindow  *window,
       int new_x, new_y;
       int frame_pos_dx, frame_pos_dy;
       
-      /* Compute new frame coords */
-      new_x = root_x_nw - fgeom.left_width;
-      new_y = root_y_nw - fgeom.top_height;
-
-      frame_pos_dx = new_x - window->frame->rect.x;
-      frame_pos_dy = new_y - window->frame->rect.y;
+      frame_pos_dx = new_rect.x - window->frame->rect.x;
+      frame_pos_dy = new_rect.y - window->frame->rect.y;
 
       need_move_frame = (frame_pos_dx != 0 || frame_pos_dy != 0);
       
-      window->frame->rect.x = new_x;
-      window->frame->rect.y = new_y;      
+      window->frame->rect.x = new_rect.x;
+      window->frame->rect.y = new_rect.y;      
 
       /* If frame will both move and resize, then StaticGravity
        * on the child window will kick in and implicitly move
@@ -2728,12 +2679,12 @@ meta_window_move_resize_internal (MetaWindow  *window,
     }
   else
     {
-      if (root_x_nw != window->rect.x ||
-          root_y_nw != window->rect.y)
+      if (new_rect.x != window->rect.x ||
+          new_rect.y != window->rect.y)
         need_move_client = TRUE;
       
-      window->rect.x = root_x_nw;
-      window->rect.y = root_y_nw;
+      window->rect.x = new_rect.x;
+      window->rect.y = new_rect.y;
 
       client_move_x = window->rect.x;
       client_move_y = window->rect.y;

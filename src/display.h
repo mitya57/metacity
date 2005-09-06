@@ -43,17 +43,6 @@
 
 #define meta_XFree(p) do { if ((p)) XFree ((p)); } while (0)
 
-/* this doesn't really belong here, oh well. */
-typedef struct _MetaRectangle MetaRectangle;
-
-struct _MetaRectangle
-{
-  int x;
-  int y;
-  int width;
-  int height;
-};
-
 typedef struct MetaCompositor  MetaCompositor;
 typedef struct _MetaDisplay    MetaDisplay;
 typedef struct _MetaFrame      MetaFrame;
@@ -512,12 +501,6 @@ int meta_resize_gravity_from_grab_op (MetaGrabOp op);
 
 gboolean meta_grab_op_is_moving   (MetaGrabOp op);
 gboolean meta_grab_op_is_resizing (MetaGrabOp op);
-
-gboolean meta_rectangle_intersect (MetaRectangle *src1,
-                                   MetaRectangle *src2,
-                                   MetaRectangle *dest);
-gboolean meta_rectangle_equal (const MetaRectangle *src1,
-                               const MetaRectangle *src2);
 
 void meta_display_devirtualize_modifiers (MetaDisplay        *display,
                                           MetaVirtualModifier modifiers,

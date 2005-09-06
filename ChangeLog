@@ -1,3 +1,40 @@
+2005-09-06  Elijah Newren  <newren@gmail.com>
+
+	Start of new constraints_experiments branch.
+
+	* README:
+	Note that this branch is for trying out some ideas and doesn't
+	even build yet.
+
+	* constraints-ideas.txt:
+	Random notes about the rewrite.
+
+	* src/boxes.[ch]:
+	An initial idea that was way over engineered
+	(move_rectangle_into_region() & clip_rectangle_into_region() and
+	their helper functions are the crux of those files, and both are
+	much more complicated than necessary).  Basic ideas are fine, but
+	the implementation can be much simpler.  Code was never tested,
+	but might still be useful (for the ideas if nothing else)
+
+	* src/display.[ch]:
+	Move MetaRectangle, meta_rectangle_intersect(), and
+	meta_rectangle_equal() into boxes.[ch]
+
+	* src/window.c:
+	Remove get_mouse_deltas_for_resize(), comment out use of
+	adjust_for_gravity(), modify meta_window_move_resize_internal()
+	for new form of meta_window_constrain including the fact that I
+	think it's more intuitive to work with the whole window (client +
+	decorations) than just the client part
+	
+	* src/constraints.[ch]:
+	Lots of comments, new API for meta_window_constrain() (not quite
+	correct yet since I need more info to move adjust_for_gravity()
+	into constraints.c from window.c), some code salvaged from the old
+	constraints.c, lots of stub functions or random comments, totally
+	does not compile or anything.
+
 2005-09-05  Elijah Newren  <newren@gmail.com>
 
 	* configure.in: post-release version bump to 2.12.1

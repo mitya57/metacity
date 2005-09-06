@@ -1,0 +1,177 @@
+Bugs to fix:
+  unfiled - constraints.c is overly complicated
+  unfiled - constraints.c is not robust when all constraints cannot be met
+  unfiled - document our treating of gravities with center as a
+            size-increment constraint (or perhaps actually store the
+            reference point and don't require the
+            even-number-of-pixels in resize)
+  unfiled - get_outermost_onscreen_positions is decoration-unaware
+  unfiled - constraints.c documentation is difficult to understand
+  109553  - gravity w/ simultaneous move & resize doesn't work
+  113601  - maximize vert and horiz should toggle & be constrained
+  122196  - windows show up under vertical panels
+  143145  - clamp to screensize
+  143145? - make appear on screen
+  136307  - don't allow app resize off screen
+            (unless minimum size hints?  No...too big windows are fully clamped)
+  156699  - avoid struts when placing windows, if possible
+  194867  - fixed aspect ratio windows are difficult to resize
+            WARNING: nasty interaction with e.g. onscreen constraints in 2 dim's!
+  312007  - snap-resize moves windows with minimium size constraint
+  312104  - resize top causes bottom to grow
+
+  Maybe:
+    152898  - no way to move a window off the top of the screen
+              (warning: requires cleverness as user can accidentally
+              trigger alt+click moving; probably needs edge resistance
+              and other work first)
+    154706  - bouncing weirdness at screen edge w/ keyboard move or resize
+    124582  - shift-arrow erroneously moves window multi-dimensionally
+    122670  - jerky/random resizing of windows via keyboard
+              (drop extra events -- not really needed)
+     81704  - edge magnetism/resistance/snapping/etc.
+
+Some ideas:
+  - move_rectangle_into_region & clip_rectangle_into_region in
+    boxes.[ch] are way over-engineered; only need workarea &
+    best-window-area (via modified form of
+    get_outermost_onscreen_positions())
+  - update_position_limits looks like stupidity without current crufty
+    framework
+  - get_mouse_deltas_for_resize() shouldn't be necessary (window.c)
+  - adjust_for_gravity() ought to move to constraints.c, IMO
+
+  - onscreen cases:
+    - user resize: clip into valid region
+    - user move: move window into (fully extended) valid region
+    - user move & resize: someone lied about what's happening or who's doing it
+    <All three below can be handled via the resize algorithm; extras are no-ops>
+    - app resize: gravity adjust, clamp to workarea size, move into it
+    - app move: move into valid region
+    - app move & resize: clamp to workarea size, then move into valid region
+
+  - offscreen differences:
+    - user resize: don't allow size increase of offscreen sides
+    - user move: N/A
+    - user move & resize: N/A
+    <All three below can be handled via the resize algorithm; extras are no-ops>
+    - app resize, move, move&resize: same but with bigger region
+
+Constraints in constraints.c:
+  - place the window (huh?), including maximization after placement
+  - maximization constraints (both horiz & vert; window-size == workarea size)
+  - fullscreen constraints (window-size == xinerama size)
+  - desktop window constraints
+  - titlebar onscreen constraints
+  - min & max window size constraints (restore towards previous size)
+  - resize increment constraints (no need for restoration here; but adjust imp.)
+  - aspect ratio (geometric average of rects defined by x & y?)
+
+  <should also add>
+  - gravity
+  - really onscreen
+  - clamp to screen size
+
+Add a rectangle calculus packages
+  MetaRectangle  rectangle;
+  GList*         region;  // list of rectangles
+
+  gboolean rectangles_intersect
+  gboolean region_contains_rectangle
+  gboolean region_larger_than_rectangle
+  void     move_rectangle_into_region
+  void     clip_rectangle_into_region
+           region_expand                // takes screen region, add 75 -> have
+                                        // partially onscreen region contraint
+
+  ** NOTE: Trying to resize at left should not move bigger window onscreen **
+  ** NOTE: Resizing aspect ratio windows should resize to rect closest in
+           size to the previous one **
+  ** NOTE: Trying to resize minimum size window should attempt to restore
+           window to previous position, not just resize to minimum size or
+           else it could result in the window moving **
+  ** NOTE: Might be good to consider gravity somehow; Havoc has test program **
+  ** NOTE: Would probably be good to store optimal points, largest
+           rectangle(s) (area-wise?) that will fit, and some other stuff
+           that only changes when docks are added or removed... **
+  ** NOTE: How does application specified placement interact with
+           onscreen constraints? **
+
+Enumeration:
+  A simple enumeration with explicitly defined values, e.g.
+  typedef enum
+  {
+    PRIORITY_MINIMUM=0,
+    PRIORITY_ASPECT_RATIO=0,
+    PRIORITY_CLAMP_TO_WORKAREA=1,
+    PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA=1,
+    PRIORITY_MEET_MINIMIMUM_SIZE_HINTS=2,
+    PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA=3,
+    PRIORITY_TITLEBAR_PARTIALLY_VISIBLE_ON_WORKAREA=3
+    PRIORITY_MAXIMUM=3
+  }
+
+  Others: (large windows are auto-maximized, 
+           maximized windows follow struts,
+           fullscreen windows are screensize,
+           desktop window is screensize,...)
+
+Function form:
+  gboolean
+  meta_constrain_whatever (constraint_info info,
+                           int priority,
+                           gboolean check_only)
+  {
+    if (priority > PRIORITY_WHATEVER)
+      return TRUE;
+
+    if (check_only)
+      {
+        /* If constraints already satisfied return TRUE, otherwise FALSE */
+      }
+
+    /* Enforce constraints */
+
+    return TRUE; /* Though this is ignored when check_only is FALSE */
+  }
+
+Extra sanity checking:
+  It can be useful to define variables
+    <some>_corner_fixed   (where <some> = ne, nw, se, or sw)
+    window_size_fixed
+  To verify that size or aspect ratio or placement constraints affect
+  the correct variables
+
+Advantages:
+  - Easier to understand (can easily add/remove/reprioritize constraints)
+  - Can handle multi-dimensional constraints such as aspect ratio
+  - Can determine which constraints will be violated when there are too many
+    - We can even log the fact that constraints will be violated
+
+Minor disadvantage
+  - We don't get enforced sanity, but sanity checking is fairly easy
+
+Disadvantages:
+  - Major code overhaul
+
+
+
+Extra rationale:
+  - fully-onscreen trumping PPosition hints
+    Advantages:
+    - users are annoyed when they can't see the whole window they are
+      interacting with (note that this is why we raise on click too)
+    - needed to fully fix placement with vertical panels (bug 122196)
+    - needed to fully fix placement for accessibility with docks (bug 156699)
+    Disadvantages:
+    - apps may be trying to place dialogs relative to some other UI in
+      their main window, and it may annoy the users to have the
+      windows not align
+    Other notes:
+    - disable_workarounds totally ignores PPosition anyway
+    - PPosition is already overridden for totally offscreen or
+      titlebar offscreen cases (though, in these cases, the window is
+      placed as close as possible to the specified position)
+    - users should easily recognize why things don't align as they
+      might expect, and the fully-onscreen constraint should place the
+      window near the specified position
