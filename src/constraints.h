@@ -28,12 +28,11 @@
 #include "frame.h"
 
 void meta_window_constrain (MetaWindow          *window,
-                            MetaFrameGeometry   *fgeom,
-                            gboolean             adjust_for_gravity,
-                            int                  gravity,
-                            gboolean             is_user_interaction,
+                            MetaFrameGeometry   *orig_fgeom,
+                            MetaMoveResizeFlags  action_type,
+                            int                  resize_gravity,
                             const MetaRectangle *orig,
-                            MetaRectangle*       new);
+                            MetaRectangle       *new)
 
 #endif /* META_CONSTRAINTS_H */
 

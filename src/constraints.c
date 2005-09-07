@@ -225,12 +225,13 @@ typedef enum   FIXME--there's more than this...
 
 typedef struct
 {
-  MetaRectangle     orig;
-  MetaRectangle     current;
-  MetaFrameGeometry fgeom;
-  int               gravity;
-  MetaRectangle     work_area_xinerama; /* current xinerama only */
-  MetaRectangle     work_area_screen;   /* all xineramas */
+  MetaRectangle       orig;
+  MetaRectangle       current;
+  MetaFrameGeometry   fgeom;
+  MetaMoveResizeFlags action_type;
+  int                 resize_gravity;
+  MetaRectangle       work_area_xinerama; /* current xinerama only */
+  MetaRectangle       work_area_screen;   /* all xineramas */
   const MetaXineramaScreenInfo *xinerama_info;
 } ConstraintInfo;
 
@@ -270,22 +271,20 @@ static gboolean constrain_titlebar_onscreen (MetaWindow         *window,
 static void setup_constraint_info  (ConstraintInfo      *info,
                                     MetaWindow          *window,
                                     MetaFrameGeometry   *orig_fgeom,
-                                    gboolean             adjust_for_gravity,
-                                    int                  gravity,
-                                    gboolean             is_user_interaction,
+                                    MetaMoveResizeFlags  action_type,
+                                    int                  resize_gravity,
                                     const MetaRectangle *orig,
                                     MetaRectangle       *new);
 static void place_window_if_needed (MetaWindow     *window,
-                                    ConstraintInfo  info)
+                                    ConstraintInfo  info);
 
 
 
 void
 meta_window_constrain (MetaWindow          *window,
                        MetaFrameGeometry   *orig_fgeom,
-                       gboolean             adjust_for_gravity,
-                       int                  gravity,
-                       gboolean             is_user_interaction,
+                       MetaMoveResizeFlags  action_type,
+                       int                  resize_gravity,
                        const MetaRectangle *orig,
                        MetaRectangle       *new)
 {
@@ -301,9 +300,8 @@ meta_window_constrain (MetaWindow          *window,
   setup_constraint_info (&info,
                          window, 
                          orig_fgeom, 
-                         adjust_for_gravity,
-                         gravity,
-                         is_user_interaction,
+                         action_type,
+                         resize_gravity,
                          orig,
                          new);
   place_window_if_needed (window, info);
@@ -340,9 +338,8 @@ static void
 setup_constraint_info (ConstraintInfo      *info,
                        MetaWindow          *window,
                        MetaFrameGeometry   *orig_fgeom,
-                       gboolean             adjust_for_gravity,
-                       int                  gravity,
-                       gboolean             is_user_interaction,
+                       MetaMoveResizeFlags  action_type,
+                       int                  resize_gravity,
                        const MetaRectangle *orig,
                        MetaRectangle       *new)
 {
@@ -360,8 +357,8 @@ setup_constraint_info (ConstraintInfo      *info,
       info->fgeom.right_width = 0;
     }
 
-  info->adjust_for_gravity = adjust_for_gravity;
-  info->gravity = gravity;
+  info->action_type = action_type;
+  info->gravity = resize_gravity;
 
   meta_window_get_work_area_current_xinerama (window, &info->work_area_xinerama);
   meta_window_get_work_area_all_xineramas (window, &info->work_area_screen);

@@ -1,5 +1,15 @@
 2005-09-06  Elijah Newren  <newren@gmail.com>
 
+	* constraints.[ch] (struct ConstraintInfo, setup_constraint_info,
+	meta_window_constrain): take more info that will be needed to move
+	adjust_for_gravity() from window.c to constraints.c
+
+	* window.c (meta_window_move_resize_internal): pass extra
+	information needed to move adjust_for_gravity() from window.c to
+	constraints.c
+
+2005-09-06  Elijah Newren  <newren@gmail.com>
+
 	Start of new constraints_experiments branch.
 
 	* README:

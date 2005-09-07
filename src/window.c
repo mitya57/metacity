@@ -2539,9 +2539,8 @@ meta_window_move_resize_internal (MetaWindow  *window,
 
   meta_window_constrain (window,
                          window->frame ? &fgeom : NULL,
-                         is_configure_request || do_gravity_adjust,
+                         flags,
                          resize_gravity,
-                         is_user_action,
                          &old_rect,
                          &new_rect)
 
