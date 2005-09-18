@@ -27,6 +27,7 @@
 
 #include "boxes.h"
 
+#if 0
 static void   free_the_list                (GList *list);
 static GList* get_optimal_locations        (GList *region);
 static GList* remove_rectangle_from_region (const MetaRectangle *rect,
@@ -36,6 +37,7 @@ static void   clip_rectangle_away_from_spot(MetaRectangle       *rect,
 static void   move_rectangle_away_from_spot(MetaRectangle       *rect,
                                             const MetaRectangle *bad_rect,
                                             gboolean             shortest_path);
+#endif
 
 int
 meta_rectangle_area (const MetaRectangle *rect)
@@ -91,6 +93,61 @@ meta_rectangle_equal (const MetaRectangle *src1,
           (src1->height == src2->height));
 }
 
+gboolean
+meta_rectangle_vert_overlap (const MetaRectangle *rect1,
+                             const MetaRectangle *rect2)
+{
+  return (rect1->y <= rect2->y + rect2->height &&
+          rect2->y <= rect1->y + rect1->height);
+}
+
+gboolean
+meta_rectangle_horiz_overlap (const MetaRectangle *rect1,
+                              const MetaRectangle *rect2)
+{
+  return (rect1->x <= rect2->x + rect2->width &&
+          rect2->x <= rect1->x + rect1->width);
+}
+
+gboolean
+meta_rectangle_could_fit_rect (const MetaRectangle *outer_rect,
+                               const MetaRectangle *inner_rect)
+{
+  return (outer_rect->width  >= inner_rect->width &&
+          outer_rect->height >= inner_rect->height);
+}
+
+void
+meta_rectangle_clip_out_rect (MetaRectangle       *clipee,
+                              const MetaRectangle *bad_area,
+                              MetaRectDirection    clip_side)
+{
+  switch (clip_size) {
+  case META_RECTANGLE_LEFT:
+    int newx = MAX (clipee->x, bad_area->x + bad_area->width);
+    clipee->width -= (new_x - clipee->x);
+    clipee->x      = newx;
+    break;
+  case META_RECTANGLE_RIGHT:
+    clipee->width = MIN (clipee->width, 
+                         (bad_area->x + bad_area->width) - clipee->x);
+    break;
+  case META_RECTANGLE_TOP:
+    int newy = MAX (clipee->y, bad_area->y + bad_area->height);
+    clipee->height -= (new_y - clipee->y);
+    clipee->y       = newy;
+    break;
+  case META_RECTANGLE_BOTTOM:
+    clipee->height = MIN (clipee->height, 
+                          (bad_area->y + bad_area->height) - clipee->y);
+    break;
+  case default:
+    g_error ("This program was written by idiots.\n");
+  }
+}
+
+
+#if 0
 #if 0
 gboolean
 rectangles_intersect (const MetaRectangle *rect1, 
@@ -368,12 +425,12 @@ region_expand (GList             *region,
         {
           tmp->width  += expand_amount;
         }
-      if (directions & META_RECTANGLE_UP)
+      if (directions & META_RECTANGLE_TOP)
         {
           tmp->y      -= expand_amount;
           tmp->height += expand_amount;
         }
-      if (directions & META_RECTANGLE_DOWN)
+      if (directions & META_RECTANGLE_BOTTOM)
         {
           tmp->height += expand_amount;
         }
@@ -832,3 +889,4 @@ move_rectangle_away_from_spot(MetaRectangle       *rect,
         }
     }
 }
+#endif

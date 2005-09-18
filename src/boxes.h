@@ -36,8 +36,8 @@ typedef enum
 {
   META_RECTANGLE_LEFT      = 1 << 0,
   META_RECTANGLE_RIGHT     = 1 << 1,
-  META_RECTANGLE_UP        = 1 << 2,
-  META_RECTANGLE_DOWN      = 1 << 3
+  META_RECTANGLE_TOP       = 1 << 2,
+  META_RECTANGLE_BOTTOM    = 1 << 3
 } MetaRectDirection;
 
 int      meta_rectangle_area            (const MetaRectangle *rect);
@@ -46,6 +46,25 @@ gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
                                          MetaRectangle       *dest);
 gboolean meta_rectangle_equal           (const MetaRectangle *src1,
                                          const MetaRectangle *src2);
+gboolean meta_rectangle_vert_overlap    (const MetaRectangle *rect1,
+                                         const MetaRectangle *rect2);
+gboolean meta_rectangle_horiz_overlap   (const MetaRectangle *rect1,
+                                         const MetaRectangle *rect2);
+gboolean meta_rectangle_could_fit_rect  (const MetaRectangle *outer_rect,
+                                         const MetaRectangle *inner_rect);
+void     meta_rectangle_clip_out_rect   (MetaRectangle       *clipee,
+                                         const MetaRectangle *bad_area,
+                                         MetaRectDirection    clip_side);
+#if 0
+  May not be needed--depends on if constrain_clamp_size remains...
+gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
+                                         const MetaRectangle *inner_rect);
+gboolean meta_rectangle_clip_into_rect  (const MetaRectangle *orig_area,
+                                         const MetaRectangle *allowed_area,
+                                         MetaRectangle       *dest);
+#endif
+
+#if 0
 #if 0
 gboolean rectangles_intersect           (const MetaRectangle *rect1, 
                                          const MetaRectangle *rect2);
@@ -61,5 +80,6 @@ void     clip_rectangle_into_region     (MetaRectangle       *rect,
 void     region_expand                  (GList               *region,
                                          int                  expand_amount,
                                          MetaRectDirection    directions);
+#endif
 
 #endif /* META_BOXES_H */
