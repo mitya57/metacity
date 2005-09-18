@@ -1,3 +1,60 @@
+2005-09-18  Elijah Newren  <Newren@gmail.com>
+
+	* src/boxes.[hc]:
+
+	Add some new functions:
+	  meta_rectangle_vert_overlap
+	  meta_rectangle_horiz_overlap
+	  meta_rectangle_could_fit_rect
+	  meta_rectangle_contains_rect
+
+	Add some new function declarations (not yet implemented; may not
+	be needed as they currently stand):
+	  meta_rectangle_clip_out_rect
+	  meta_rectangle_clip_into_rect
+
+	Renaming fun:
+	  META_RECTANGLE_UP   -> META_RECTANGLE_TOP
+	  META_RECTANGLE_DOWN -> META_RECTANGLE_BOTTOM
+
+	Also, #ifdef out the old junk.
+
+	* src/constraints.c:
+
+	Renaming/splitting fun:
+	  PRIORITY_CLAMP_TO_WORKAREA -> PRIORITY_CLAMP_SIZE
+	  constrain_1d_size_hints    -> constrain_size_increments,
+	                                constrain_size_limits
+	  adjust_for_frame           -> extend_by_frame
+	  unadjust_for_frame         -> unextend_by_frame
+	Various reasons:
+	  PRIORITY_CLAMP_SIZE: match function name, less misleading
+	  constrain_size_*   : allow separate priorities
+	  *extend_by_frame   : clarify, make them work on single rect
+	
+	(struct ConstraintInfo, setup_constraint_info,
+	place_window_if_needed): replace the MetaXineramaScreenInfo*,
+	xinerama_info, with a MetaRectangle called entire_xinerama
+
+	(get_size_limits): New functions to get the min_size and max_size
+	size_hints, adjust by the size of the frame (packed into
+	MetaRectangle structs for convenience).
+
+	(get_outermost_onscreen_positions): Get the valid locations on the
+	screen for the current window (may not be contained in work_area
+	due to panels/docks that don't span the full screen width or
+	height).  May need tweaking later for the
+	constrain_to_single_xinerama stuff...
+
+	(place_window_if_needed): info-> not info.
+
+	(constrain_maximization, constrain_fullscreen,
+	constrain_clamp_size): implement these
+
+	(constrain_clamp_size): #ifdef this out and all references to it;
+	I think it's already covered by constrain_fully_onscreen and
+	constrain_titlebar_onscreen
+
 2005-09-17  Elijah Newren  <newren@gmail.com>
 
 	*** Changes to get the basics setup in constraints.c ***
