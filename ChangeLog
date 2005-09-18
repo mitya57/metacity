@@ -1,10 +1,83 @@
+2005-09-17  Elijah Newren  <newren@gmail.com>
+
+	*** Changes to get the basics setup in constraints.c ***
+
+	* src/constraints.c: 
+
+	(struct ConstraintInfo, meta_window_constrain,
+	setup_constraint_info): maximization may change the frame
+	geometry, and we need to make sure that the new value gets
+	recorded for when we finally return from meta_window_constrain()
+	[lack of real destructors and/or smart points kinda sucks]
+
+	(struct ConstraintInfo, setup_constraint_info): Track the
+	ActionType in ConstraintInfo as well (move, resize, or both).
+
+	(resize_with_gravity): New function
+
+	(setup_constraint_info): Track whether it's a user operation.
+	Also, get a pseduo_gravity for user resize operations (so that
+	user resize followed by min size hints don't end up moving window;
+	bug 312007); the pseudo_gravity may be used in
+	resize_with_gravity().
+
+	(meta_window_constrain, adjust_for_frame, unadjust_for_frame):
+	Adjust for the frame size so that we don't have to manually worry
+	about doing so for each constraint
+
+	*** Lots of fixes to make meta_window_move_resize_internal more sane ***
+
+	* src/window.c (meta_window_move_resize_internal): Add some
+	freakin' long comments about the weirdness of calling the
+	function; make sure the type of operation (move or resize) in the
+	flags is set correctly, undo all the changes to this function
+	noted in the previous two ChangeLog entries related to client
+	window vs. entire window.  Basically, due to the weirdness of how
+	this function is called, we can't rewrite it to just deal with the
+	outer window sizes--we'll have to have constraints.c manually work
+	around it instead.
+
+	* src/window.c
+	* src/constraints.h
+	(struct MetaMoveResizeFlags): Move MetaMoveResizeFlags enum to
+	constraints.h, rename META_USER_MOVE_RESIZE to
+	META_IS_USER_ACTION, and add META_IS_MOVE_ACTION and
+	META_IS_RESIZE_ACTION
+
+	* src/window.c (meta_window_new_with_attrs,
+	meta_window_apply_session_info, meta_window_resize,
+	meta_window_move, meta_window_move_resize,
+	meta_window_resize_with_gravity, meta_window_configure_request):
+	fix calls to meta_window_move_resize_internal to handle change to
+	MetaMoveResizeFlags enum
+
+	* src/display.c (handle_net_moveresize_window): Add a comment
+	about the brokenness of the function in its call to
+	meta_window_move_resize_internal
+
+	*** Miscellaneous changes ***
+
+	* src/window.c (meta_window_new_with_attrs): Add a comment about
+	the provided size and width of window in attrs,
+	(meta_window_begin_wireframe): Add a comment about the
+	inconsistency, albeit an innocuous one, in the implementation
+	here, (meta_window_configure_request): Add an update to a FIXME
+	comment explaining more about the need for the 'hack'.
+
+	* src/window.h (struct _MetaWindow): Clarify what rect,
+	saved_rect, and user_rect refer to
+
+	* constraints-ideas.txt: Add extra rationale on fully-onscreen and
+	on-single-xinerama vs. strictly following PPosition hints
+
 2005-09-06  Elijah Newren  <newren@gmail.com>
 
-	* constraints.[ch] (struct ConstraintInfo, setup_constraint_info,
-	meta_window_constrain): take more info that will be needed to move
-	adjust_for_gravity() from window.c to constraints.c
+	* src/constraints.[ch] (struct ConstraintInfo,
+	setup_constraint_info, meta_window_constrain): take more info that
+	will be needed to move adjust_for_gravity() from window.c to
+	constraints.c
 
-	* window.c (meta_window_move_resize_internal): pass extra
+	* src/window.c (meta_window_move_resize_internal): pass extra
 	information needed to move adjust_for_gravity() from window.c to
 	constraints.c
 

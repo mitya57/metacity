@@ -1345,6 +1345,10 @@ handle_net_moveresize_window (MetaDisplay* display,
 
   if (window)
     {
+      /* FIXME!!!!  I'm pretty sure this is wrong for the simultaneous
+       * move & resize case; see comment at beginning of
+       * meta_window_move_resize_internal()
+       */
       meta_window_get_gravity_position (window, &x, &y);
       width = window->rect.width;
       height = window->rect.height;

@@ -46,13 +46,13 @@ Some ideas:
     - user move: move window into (fully extended) valid region
     - user move & resize: someone lied about what's happening or who's doing it
     <All three below can be handled via the resize algorithm; extras are no-ops>
-    - app resize: gravity adjust, clamp to workarea size, move into it
+    - app resize: clamp to workarea size, move into it
     - app move: move into valid region
     - app move & resize: clamp to workarea size, then move into valid region
 
   - offscreen differences:
     - user resize: don't allow size increase of offscreen sides
-    - user move: N/A
+    - user move: N/A (valid region extended to include offscreen in both cases)
     - user move & resize: N/A
     <All three below can be handled via the resize algorithm; extras are no-ops>
     - app resize, move, move&resize: same but with bigger region
@@ -157,21 +157,60 @@ Disadvantages:
 
 
 Extra rationale:
-  - fully-onscreen trumping PPosition hints
+  - fully-onscreen vs. strictly following PPosition hints
     Advantages:
     - users are annoyed when they can't see the whole window they are
       interacting with (note that this is why we raise on click too)
     - needed to fully fix placement with vertical panels (bug 122196)
-    - needed to fully fix placement for accessibility with docks (bug 156699)
+    - needed to fully fix placement for accessibility with docks (bug
+      156699)
+    - can still benefit from PPosition by putting the window to the
+      position as close as possible to the point specified that still
+      satisfies the fully-onscreen constraint
+    Disadvantages:
+    - apps may be trying to place dialogs relative to some other UI in
+      their main window, and it may annoy the users to have the windows not
+      align exactly
+    Other notes:
+    - disable_workarounds totally ignores PPosition anyway
+    - PPosition is already overridden for totally offscreen or titlebar
+      offscreen cases (while keeping the window as close as possible to the
+      specified position)
+    - users should easily recognize why things don't align as they might
+      expect (since the window aligns with the edge of the workarea);
+      further, it shouldn't be too problematic as the window should be
+      close to the specified location
+    - users would still be allowed to manually move the window offscreen
+      (see bug 136307 comment 16 for how this works)
+
+  - keep-on-single-xinerama vs. strictly following PPosition hints
+    Advantages:
+    - users are annoyed when windows are split across xineramas
+    - can still benefit from PPosition by putting the window to the
+      position as close as possible to the point specified that still
+      satisfies the fully-onscreen constraint
+    - is consistent with fully-onscreen overriding strictly following
+      PPosition
     Disadvantages:
     - apps may be trying to place dialogs relative to some other UI in
       their main window, and it may annoy the users to have the
-      windows not align
+      windows not exactly align
     Other notes:
     - disable_workarounds totally ignores PPosition anyway
-    - PPosition is already overridden for totally offscreen or
-      titlebar offscreen cases (though, in these cases, the window is
-      placed as close as possible to the specified position)
-    - users should easily recognize why things don't align as they
-      might expect, and the fully-onscreen constraint should place the
-      window near the specified position
+    - PPosition is already overridden for totally offscreen or titlebar
+      offscreen cases (while keeping the window as close as possible to the
+      specified position)
+    - users should easily recognize why things don't align as they might
+      expect (since the window aligns with the edge of a monitor); further,
+      it shouldn't be too problematic as the window should be close to the
+      specified location
+    - users would still be allowed to manually move windows to an area
+      spanning multiple xineramas (see bug 136307 comment 16 for the idea
+      of how this works; it extends to the on-single-xinerama case easily).
+    - This constraint should probably not apply for windows with a parent
+      that spans multiple xineramas, unless that parent is a DESKTOP or
+      DOCK window.
+    Question:
+    - Should this constraint resize windows to make them fit?  (I'm
+      thinking no--but if it should for the general case, DESKTOP and DOCKS
+      will need to be exceptions)

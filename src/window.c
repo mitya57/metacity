@@ -47,13 +47,6 @@
 #include <X11/extensions/shape.h>
 #endif
 
-typedef enum
-{
-  META_IS_CONFIGURE_REQUEST = 1 << 0,
-  META_DO_GRAVITY_ADJUST    = 1 << 1,
-  META_USER_MOVE_RESIZE     = 1 << 2
-} MetaMoveResizeFlags;
-
 static int destroying_windows_disallowed = 0;
 
 
@@ -394,7 +387,11 @@ meta_window_new_with_attrs (MetaDisplay       *display,
 
   window->has_shape = has_shape;
   
-  /* Remember this rect is the actual window size */
+  /* The x & y correspond to the outer window (i.e. including frame), while
+   * width and height refer to the inner window (i.e. ignoring the frame).
+   * Stupid, stupid, stupid X.  See documentation for XWindowAttributes,
+   * XGetWindowAttributes, XMoveWindow, and XResizeWindow.
+   */
   window->rect.x = attrs->x;
   window->rect.y = attrs->y;
   window->rect.width = attrs->width;
@@ -686,8 +683,10 @@ meta_window_new_with_attrs (MetaDisplay       *display,
    * passing TRUE for is_configure_request, ICCCM says
    * initial map is handled same as configure request
    */
+  MetaMoveResizeFlags flags = 
+    META_IS_CONFIGURE_REQUEST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
   meta_window_move_resize_internal (window,
-                                    META_IS_CONFIGURE_REQUEST,
+                                    flags,
                                     NorthWestGravity,
                                     window->size_hints.x,
                                     window->size_hints.y,
@@ -864,8 +863,10 @@ meta_window_apply_session_info (MetaWindow *window,
                   "Restoring pos %d,%d size %d x %d for %s\n",
                   x, y, w, h, window->desc);
       
+      MetaMoveResizeFlags flags = 
+        META_DO_GRAVITY_ADJUST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
       meta_window_move_resize_internal (window,
-                                        META_DO_GRAVITY_ADJUST,
+                                        flags,
                                         NorthWestGravity,
                                         x, y, w, h);
     }
@@ -2281,8 +2282,10 @@ meta_window_activate (MetaWindow *window,
   meta_window_focus (window, timestamp);
 }
 
-/* returns values suitable for meta_window_move
- * i.e. static gravity
+/* Manually fix all the weirdness explained in the big comment at the
+ * beginning of meta_window_move_resize_internal() giving positions
+ * expected by meta_window_constrain (i.e. positions & sizes of the
+ * internal or client window).
  */
 static void
 adjust_for_gravity (MetaWindow        *window,
@@ -2463,6 +2466,35 @@ meta_window_move_resize_internal (MetaWindow  *window,
                                   int          w,
                                   int          h)
 {
+  /* meta_window_move_resize_internal absolutely sucks as far as what it
+   * accepts for the new position of the window.  w & h are always the
+   * area of the inner or client window (i.e. excluding the frame).
+   * root_x_nw and root_y_nw can be any of:
+   *
+   *   (1) Where the NW corner of outer (inc. frame) window should be
+   *       if resize_gravity was NorthWest (note that if gravity is not
+   *       NorthWest, that means root_x_nw and root_y_nw are almost
+   *       entirely meaningless--though we have enough information to fix
+   *       them; see adjust_for_gravity())
+   *   (2) NW corner of inner window
+   *   (3) Something completely wrong
+   *
+   * Here are the cases and what they yield
+   *   Case | Called from (flags; resize_gravity)
+   *   -----+-----------------------------------------------
+   *    1   | New window (ConfigureRequest; NorthWest)
+   *    1   | Session restore (GravityAdjust; NorthWest)
+   *    2   | meta_window_resize (UserAction || 0; NorthWest)
+   *    2   | meta_window_move (UserAction || 0; NorthWest)
+   *    2   | meta_window_move_resize (UserAction || 0; NorthWest)
+   *    2   | meta_window_resize_with_gravity (UserAction || 0; gravity)
+   *    3   | meta_window_move_resize via _NET_MOVERESIZE_WINDOW
+   *    1   | ConfigureRequest (ConfigureRequest; varies)
+   *
+   * Other than the (3) case, this is all cleaned up via use of
+   * adjust_for_gravity() to turn all (1) cases into (2) so that all
+   * position and size fields correspond to the inner or client window.
+   */
   XWindowChanges values;
   unsigned int mask;
   gboolean need_configure_notify;
@@ -2492,12 +2524,16 @@ meta_window_move_resize_internal (MetaWindow  *window,
   
   is_configure_request = (flags & META_IS_CONFIGURE_REQUEST) != 0;
   do_gravity_adjust = (flags & META_DO_GRAVITY_ADJUST) != 0;
-  is_user_action = (flags & META_USER_MOVE_RESIZE) != 0;
+  is_user_action = (flags & META_IS_USER_ACTION) != 0;
+
+  /* The action has to be a move or a resize or both... */
+  g_assert (flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION));
   
   /* We don't need it in the idle queue anymore. */
   meta_window_unqueue_move_resize (window);
 
   old_rect = window->rect;
+  meta_window_get_position (window, &old_rect.x, &old_rect.y);
   
   meta_topic (META_DEBUG_GEOMETRY,
               "Move/resize %s to %d,%d %dx%d%s%s from %d,%d %dx%d\n",
@@ -2510,7 +2546,6 @@ meta_window_move_resize_internal (MetaWindow  *window,
     meta_frame_calc_geometry (window->frame,
                               &fgeom);
 
-#if 0  
   if (is_configure_request || do_gravity_adjust)
     {      
       adjust_for_gravity (window,
@@ -2530,8 +2565,6 @@ meta_window_move_resize_internal (MetaWindow  *window,
                   root_x_nw, root_y_nw);
     }
 
-#endif
-
   new_rect.x = root_x_nw;
   new_rect.y = root_y_nw;
   new_rect.width  = w;
@@ -2544,23 +2577,28 @@ meta_window_move_resize_internal (MetaWindow  *window,
                          &old_rect,
                          &new_rect)
 
-  if (new_rect.width  != window->rect.width ||
-      new_rect.height != window->rect.height)
+  w = new_rect.width;
+  h = new_rect.height;
+  root_x_nw = new_rect.x;
+  root_y_nw = new_rect.y;
+  
+  if (w != window->rect.width ||
+      h != window->rect.height)
     need_resize_client = TRUE;  
   
-  window->rect.width = new_rect.width;
-  window->rect.height = new_rect.height;
+  window->rect.width = w;
+  window->rect.height = h;
   
   if (window->frame)
     {
       int new_w, new_h;
 
-      new_w = window->rect.width;
+      new_w = window->rect.width + fgeom.left_width + fgeom.right_width;
 
       if (window->shaded)
         new_h = fgeom.top_height;
       else
-        new_h = window->rect.height;
+        new_h = window->rect.height + fgeom.top_height + fgeom.bottom_height;
 
       frame_size_dx = new_w - window->frame->rect.width;
       frame_size_dy = new_h - window->frame->rect.height;
@@ -2601,13 +2639,17 @@ meta_window_move_resize_internal (MetaWindow  *window,
       int new_x, new_y;
       int frame_pos_dx, frame_pos_dy;
       
-      frame_pos_dx = new_rect.x - window->frame->rect.x;
-      frame_pos_dy = new_rect.y - window->frame->rect.y;
+      /* Compute new frame coords */
+      new_x = root_x_nw - fgeom.left_width;
+      new_y = root_y_nw - fgeom.top_height;
+
+      frame_pos_dx = new_x - window->frame->rect.x;
+      frame_pos_dy = new_y - window->frame->rect.y;
 
       need_move_frame = (frame_pos_dx != 0 || frame_pos_dy != 0);
       
-      window->frame->rect.x = new_rect.x;
-      window->frame->rect.y = new_rect.y;      
+      window->frame->rect.x = new_x;
+      window->frame->rect.y = new_y;      
 
       /* If frame will both move and resize, then StaticGravity
        * on the child window will kick in and implicitly move
@@ -2678,12 +2720,12 @@ meta_window_move_resize_internal (MetaWindow  *window,
     }
   else
     {
-      if (new_rect.x != window->rect.x ||
-          new_rect.y != window->rect.y)
+      if (root_x_nw != window->rect.x ||
+          root_y_nw != window->rect.y)
         need_move_client = TRUE;
       
-      window->rect.x = new_rect.x;
-      window->rect.y = new_rect.y;
+      window->rect.x = root_x_nw;
+      window->rect.y = root_y_nw;
 
       client_move_x = window->rect.x;
       client_move_y = window->rect.y;
@@ -2856,8 +2898,10 @@ meta_window_resize (MetaWindow  *window,
 
   meta_window_get_position (window, &x, &y);
   
+  MetaMoveResizeFlags flags = 
+    (user_op ? META_IS_USER_ACTION : 0) | META_IS_MOVE_ACTION;
   meta_window_move_resize_internal (window,
-                                    user_op ? META_USER_MOVE_RESIZE : 0,
+                                    flags,
                                     NorthWestGravity,
                                     x, y, w, h);
 }
@@ -2868,8 +2912,10 @@ meta_window_move (MetaWindow  *window,
                   int          root_x_nw,
                   int          root_y_nw)
 {
+  MetaMoveResizeFlags flags = 
+    (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
   meta_window_move_resize_internal (window,
-                                    user_op ? META_USER_MOVE_RESIZE : 0,
+                                    flags,
                                     NorthWestGravity,
                                     root_x_nw, root_y_nw,
                                     window->rect.width,
@@ -2884,8 +2930,11 @@ meta_window_move_resize (MetaWindow  *window,
                          int          w,
                          int          h)
 {
+  MetaMoveResizeFlags flags = 
+    (user_op ? META_IS_USER_ACTION : 0) | 
+    META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
   meta_window_move_resize_internal (window,
-                                    user_op ? META_USER_MOVE_RESIZE : 0,
+                                    flags,
                                     NorthWestGravity,
                                     root_x_nw, root_y_nw,
                                     w, h);
@@ -2902,8 +2951,10 @@ meta_window_resize_with_gravity (MetaWindow *window,
 
   meta_window_get_position (window, &x, &y);
   
+  MetaMoveResizeFlags flags = 
+    (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
   meta_window_move_resize_internal (window,
-                                    user_op ? META_USER_MOVE_RESIZE : 0,
+                                    flags,
                                     gravity,
                                     x, y, w, h);
 }
@@ -3329,6 +3380,9 @@ meta_window_begin_wireframe (MetaWindow *window)
 
   window->display->grab_wireframe_rect = window->rect;
 
+  /* FIXME: Uh, why not use meta_window_get_position() to be like all the
+   * other code in Metacity?
+   */
   if (window->frame)
     {
       window->display->grab_wireframe_rect.x += window->frame->rect.x;
@@ -3992,9 +4046,22 @@ meta_window_configure_request (MetaWindow *window,
    * don't make too much sense. I think I am doing the math in a couple
    * places and could do it in only one function, and remove some of the
    * move_resize_internal arguments.
+   *
+   * UPDATE (2005-09-17): See the huge comment at the beginning of
+   * meta_window_move_resize_internal() which explains why the current
+   * setup requires the only_resize thing.  Yeah, it'd be much better to
+   * have a different setup for meta_window_move_resize_internal()...
    */
   
-  meta_window_move_resize_internal (window, META_IS_CONFIGURE_REQUEST,
+  MetaMoveResizeFlags flags = 
+    META_IS_CONFIGURE_REQUEST;
+  if (event->xconfigurerequest.value_mask & (CWX | CWY))
+    flags |= META_IS_MOVE_ACTION;
+  if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight))
+    flags |= META_IS_RESIZE_ACTION;
+
+  meta_window_move_resize_internal (window, 
+                                    flags,
                                     only_resize ?
                                     window->size_hints.win_gravity : NorthWestGravity,
                                     window->size_hints.x,

@@ -286,24 +286,32 @@ struct _MetaWindow
    * to be its actual size on the server). The x, y are
    * the actual server-side x,y so are relative to the frame
    * or the root window as appropriate.
+   *
+   * In a format that I (Elijah) understand: The x & y are trying to
+   * provide the position of the upper-left corner of the client
+   * (i.e. inner) window, but may do so relative to where the upper
+   * left of the frame is if there is one.  The width and height are
+   * always of the client (i.e. inner) window.
    */
   MetaRectangle rect;
 
-  /* The geometry to restore when we unmaximize.
-   * The position is in root window coords, even if
-   * there's a frame, which contrasts with window->rect
-   * above.
+  /* The geometry to restore when we unmaximize.  The position is in
+   * root window coords, even if there's a frame, which contrasts with
+   * window->rect above.  Note that this gives the position and size
+   * of the client window (i.e. ignoring the frame).
    */
   MetaRectangle saved_rect;
 
   /* This is the geometry the window had after the last user-initiated
    * move/resize operations. We use this whenever we are moving the
-   * implicitly (for example, if we move to avoid a panel, we
-   * can snap back to this position if the panel moves again)
+   * implicitly (for example, if we move to avoid a panel, we can snap
+   * back to this position if the panel moves again).  Note that this
+   * gives the position and size of the client window (i.e. ignoring
+   * the frame).
    *
    * Position valid if user_has_moved, size valid if user_has_resized
    *
-   * Position always in root coords, unlike window->rect
+   * Position always in root coords, unlike window->rect.
    */
   MetaRectangle user_rect;
   

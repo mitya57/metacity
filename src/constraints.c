@@ -131,7 +131,7 @@
  *        user resize:        clip-to-workarea
  *        user move:          shove-into-(expanded)-workarea (see (1))
  *        user move & resize: who lied about what's happening or who's doing it?
- *        app  resize:        clamp size, gravity adjust, shove-into-workarea
+ *        app  resize:        clamp size, shove-into-workarea
  *        app  move:          shove-into-workarea
  *        app  move & resize: clamp size, shove-into-workarea
  *
@@ -174,7 +174,7 @@
  *  * priorities of other constraints in the definition of ConstraintInfo
  *  * for easier maintenance and shuffling of priorities.
  *  */
- * gboolean
+ * static gboolean
  * constrain_whatever (MetaWindow         *window,
  *                     ConstraintInfo     *info,
  *                     ConstraintPriority  priority,
@@ -213,7 +213,6 @@ typedef enum   FIXME--there's more than this...
   PRIORITY_ASPECT_RATIO=0,
   PRIORITY_CLAMP_TO_WORKAREA=1,
   PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA=1,
-  PRIORITY_GRAVITY_ADJUST=1,
   PRIORITY_SIZE_HINTS_INCREMENTS=1,
   PRIORITY_MAXIMIZATION=2,
   PRIORITY_FULLSCREEN=2
@@ -223,22 +222,26 @@ typedef enum   FIXME--there's more than this...
   PRIORITY_MAXIMUM=4   # Dummy value used for loop end = max(all priorities)
 } ConstraintPriority;
 
+typedef enum
+{
+  ACTION_MOVE,
+  ACTION_RESIZE,
+  ACTION_MOVE_AND_RESIZE
+} ActionType;
+
 typedef struct
 {
-  MetaRectangle       orig;
-  MetaRectangle       current;
-  MetaFrameGeometry   fgeom;
-  MetaMoveResizeFlags action_type;
-  int                 resize_gravity;
-  MetaRectangle       work_area_xinerama; /* current xinerama only */
-  MetaRectangle       work_area_screen;   /* all xineramas */
+  MetaRectangle        orig;
+  MetaRectangle        current;
+  MetaFrameGeometry   *fgeom;
+  ActionType           action_type;
+  gboolean             is_user_action;
+  int                  resize_gravity;
+  MetaRectangle        work_area_xinerama; /* current xinerama only */
+  MetaRectangle        work_area_screen;   /* all xineramas */
   const MetaXineramaScreenInfo *xinerama_info;
 } ConstraintInfo;
 
-static gboolean constrain_gravity_adjust    (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
 static gboolean constrain_maximization      (MetaWindow         *window,
                                              ConstraintInfo     *info,
                                              ConstraintPriority  priority,
@@ -271,19 +274,21 @@ static gboolean constrain_titlebar_onscreen (MetaWindow         *window,
 static void setup_constraint_info  (ConstraintInfo      *info,
                                     MetaWindow          *window,
                                     MetaFrameGeometry   *orig_fgeom,
-                                    MetaMoveResizeFlags  action_type,
+                                    MetaMoveResizeFlags  flags,
                                     int                  resize_gravity,
                                     const MetaRectangle *orig,
                                     MetaRectangle       *new);
 static void place_window_if_needed (MetaWindow     *window,
-                                    ConstraintInfo  info);
+                                    ConstraintInfo *info);
+static void adjust_for_frame       (ConstraintInfo *info);
+static void unadjust_for_frame     (ConstraintInfo *info);
 
 
 
 void
 meta_window_constrain (MetaWindow          *window,
                        MetaFrameGeometry   *orig_fgeom,
-                       MetaMoveResizeFlags  action_type,
+                       MetaMoveResizeFlags  flags,
                        int                  resize_gravity,
                        const MetaRectangle *orig,
                        MetaRectangle       *new)
@@ -300,17 +305,24 @@ meta_window_constrain (MetaWindow          *window,
   setup_constraint_info (&info,
                          window, 
                          orig_fgeom, 
-                         action_type,
+                         flags,
                          resize_gravity,
                          orig,
                          new);
-  place_window_if_needed (window, info);
+  place_window_if_needed (window, &info);
+
+  /* Most constraints apply to the whole window, i.e. client area + frame;
+   * but the data we were given only accounts for the client area, so we
+   * adjust here.  (Alternatively, we could just make all the constraints
+   * manually figure out the differences for the frame, but it's error
+   * prone as it's too easy to forget to handle info.fgeom)
+   */
+  adjust_for_frame (&info);
 
   ConstraintPriority priority = PRIORITY_MINIMUM;
   gboolean satisfied = false;
   while (!satisfied && priority <= PRIORITY_MAXIMUM) {
     gboolean check_only = FALSE;
-    constrain_gravity_adjust    (window, &info, priority, check_only);
     constrain_maximization      (window, &info, priority, check_only);
     constrain_fullscreen        (window, &info, priority, check_only);
     constrain_clamp_size        (window, &info, priority, check_only);
@@ -321,7 +333,6 @@ meta_window_constrain (MetaWindow          *window,
 
     check_only = TRUE;
     satisfied =
-      constrain_gravity_adjust    (window, &info, priority, check_only) &&
       constrain_maximization      (window, &info, priority, check_only) &&
       constrain_fullscreen        (window, &info, priority, check_only) &&
       constrain_clamp_size        (window, &info, priority, check_only) &&
@@ -332,13 +343,24 @@ meta_window_constrain (MetaWindow          *window,
 
     priority++;
   }
+
+  /* meta_window_move_resize_internal expects rectangles in terms of client
+   * area only, so undo the adjustments for the frame.
+   */
+  unadjust_for_frame (&info);
+
+  /* Ew, what an ugly way to do things.  Destructors (in a real OOP language,
+   * not gobject-style) or smart pointers would be so much nicer here.  *shrug*
+   */
+  if (!orig_fgeom)
+    g_free (info.fgeom);
 }
 
 static void
 setup_constraint_info (ConstraintInfo      *info,
                        MetaWindow          *window,
                        MetaFrameGeometry   *orig_fgeom,
-                       MetaMoveResizeFlags  action_type,
+                       MetaMoveResizeFlags  flags,
                        int                  resize_gravity,
                        const MetaRectangle *orig,
                        MetaRectangle       *new)
@@ -348,17 +370,53 @@ setup_constraint_info (ConstraintInfo      *info,
 
   /* Create a fake frame geometry if none really exists */
   if (orig_fgeom && !window->fullscreen)
-    info->fgeom = *orig_fgeom;
+    info->fgeom = orig_fgeom;
   else
-    {
-      info->fgeom.top_height = 0;
-      info->fgeom.bottom_height = 0;
-      info->fgeom.left_width = 0;
-      info->fgeom.right_width = 0;
-    }
+    info->fgeom = g_new0 (MetaFrameGeometry, 1);
 
-  info->action_type = action_type;
+  if (flags & META_IS_MOVE_ACTION && flags & META_IS_RESIZE_ACTION)
+    info->action_type = ACTION_MOVE_AND_RESIZE;
+  else if (flags & META_IS_RESIZE_ACTION)
+    info->action_type = ACTION_RESIZE;
+  else if (flags & META_IS_MOVE_ACTION)
+    info->action_type = ACTION_MOVE_AND_RESIZE;
+  else
+    g_error ("BAD, BAD developer!  No treat for you!  (Fix your calls to "
+             "meta_window_move_resize_internal()).\n");
+
+  info->is_user_action = (flags & META_USER_MOVE_RESIZE);
+
   info->gravity = resize_gravity;
+  /* We need to get a pseduo_gravity for user resize operations (so
+   * that user resize followed by min size hints don't end up moving
+   * window--see bug 312007).
+   *
+   * Note that only corner gravities are used here.  The reason is simply
+   * because we don't allow complex user resizing.  West gravity would
+   * correspond to resizing the right side, but since only one dimension is
+   * being changed by the user, we can lump this in with either NorthWest
+   * gravity or SouthWest.  Center gravity and Static gravity just don't
+   * make sense in this context.
+   */
+  if (info->is_user_action && info->action_type = ACTION_RESIZE)
+    {
+      int pseudo_gravity = NorthWestGravity;
+      if (orig->x == new->x)
+        {
+          if (orig->y == new->y)
+            pseduo_gravity = NorthWestGravity;
+          else if (orig->y + orig->height == new->y + new->height)
+            pseduo_gravity = SouthWestGravity;
+        }
+      else if (orig->x + orig->width == new->x + new->width)
+        {
+          if (orig->y == new->y)
+            pseduo_gravity = NorthEastGravity;
+          else if (orig->y + orig->height == new->y + new->height)
+            pseduo_gravity = SouthEastGravity;
+        }
+      info->gravity = pseudo_gravity;      
+    }
 
   meta_window_get_work_area_current_xinerama (window, &info->work_area_xinerama);
   meta_window_get_work_area_all_xineramas (window, &info->work_area_screen);
@@ -369,7 +427,7 @@ setup_constraint_info (ConstraintInfo      *info,
 
 static void
 place_window_if_needed(MetaWindow     *window,
-                       ConstraintInfo  info)
+                       ConstraintInfo *info)
 {
   gboolean did_placement;
 
@@ -386,7 +444,7 @@ place_window_if_needed(MetaWindow     *window,
     {
       MetaRectangle placed_rect = info.orig;
 
-      meta_window_place (window, orig_fgeom, info.orig.x, info.orig.y,
+      meta_window_place (window, info.fgeom, info.orig.x, info.orig.y,
                          &placed_rect.x, &placed_rect.y);
       did_placement = TRUE;
 
@@ -426,80 +484,127 @@ place_window_if_needed(MetaWindow     *window,
 
       /* maximization may have changed frame geometry */
       if (window->frame && !window->fullscreen)
-        meta_frame_calc_geometry (window->frame,
-                                  &info.fgeom);
+        meta_frame_calc_geometry (window->frame, info.fgeom);
     }
 }
 
-static gboolean
-constrain_gravity_adjust (MetaWindow         *window,
-                          ConstraintInfo     *info,
-                          ConstraintPriority  priority,
-                          gboolean            check_only)
+static void
+adjust_for_frame (ConstraintInfo *info)
 {
-  if (priority > PRIORITY_GRAVITY_ADJUST)
-    return TRUE;
+  info->orig->x -= fgeom.left_width;
+  info->orig->y -= fgeom.top_height;
+  info->orig->width  += fgeom.left_width + fgeom->right_width;
+  info->orig->height += fgeom.top_height + fgeom->bottom_height;
 
-  /* Exit if constraint doesn't apply */
-  if (!info->adjust_for_gravity)
-    return TRUE;
+  info->current->x -= fgeom.left_width;
+  info->current->y -= fgeom.top_height;
+  info->current->width  += fgeom.left_width + fgeom->right_width;
+  info->current->height += fgeom.top_height + fgeom->bottom_height;
+}
 
-  /* The only way you could have a situation that could be interpreted as
-   * violating this constraint is if the window is near the screen edge
-   * (but is fully onscreen) and adjusting according to gravity would send
-   * it off--but the onscreen constraints shove it back on.  I guess I
-   * could check old positions of the window versus new positions, but I
-   * don't care that much--I'll just say it always is.
-   */
-  if (check_only)
-    return TRUE;
+static void
+unadjust_for_frame (ConstraintInfo *info)
+{
+  info->orig->x += fgeom.left_width;
+  info->orig->y += fgeom.top_height;
+  info->orig->width  -= fgeom.left_width + fgeom->right_width;
+  info->orig->height -= fgeom.top_height + fgeom->bottom_height;
 
+  info->current->x += fgeom.left_width;
+  info->current->y += fgeom.top_height;
+  info->current->width  -= fgeom.left_width + fgeom->right_width;
+  info->current->height -= fgeom.top_height + fgeom->bottom_height;
+}
+
+static void
+resize_with_gravity (MetaRectangle     *rect,
+                     int                gravity,
+                     int                new_height,
+                     int                new_width)
+{
   /* Do the gravity adjustment */
 
-  return TRUE;
-}
-
-static gboolean
-constrain_gravity_adjust (MetaWindow         *window,
-                          ConstraintInfo     *info,
-                          ConstraintPriority  priority,
-                          gboolean            check_only)
-    constrain_gravity_adjust    (window, &info, priority, check_only);
-    constrain_maximization      (window, &info, priority, check_only);
-    constrain_fullscreen        (window, &info, priority, check_only);
-    constrain_clamp_size        (window, &info, priority, check_only);
-    constrain_1d_size_hints     (window, &info, priority, check_only);
-    constrain_aspect_ratio      (window, &info, priority, check_only);
-    constrain_fully_onscreen    (window, &info, priority, check_only);
-    constrain_titlebar_onscreen (window, &info, priority, check_only);
-
-static gboolean
-constrain_whatever (MetaWindow         *window,
-                    ConstraintInfo     *info,
-                    ConstraintPriority  priority,
-                    gboolean            check_only)
-{
-  if (priority > PRIORITY_WHATEVER)
-    return TRUE;
-
-  /* Determine whether constraint applies; note that if the constraint
-   * cannot possibly be satisfied, constraint_applies should be set to
-   * false.  If we don't do this, all constraints with a lesser priority
-   * will be dropped along with this one, and we'd rather apply as many as
-   * possible.
+  /* These formulas may look overly simplistic at first but you can work
+   * everything out with a left_frame_with, right_frame_width,
+   * border_width, and old and new client area widths (instead of old total
+   * width and new total width) and you come up with the same formulas.
+   *
+   * Also, note that the reason we can treat NorthWestGravity and
+   * StaticGravity the same is because we're not given a location at
+   * which to place the window--the window was already placed
+   * appropriately before.  So, NorthWestGravity for this function
+   * means to just leave the upper left corner of the outer window
+   * where it already is, and StaticGravity for this function means to
+   * just leave the upper left corner of the inner window where it
+   * already is.  But leaving either of those two corners where they
+   * already are will ensure that the other corner is fixed as well
+   * (since frame size doesn't change)--thus making the two
+   * equivalent.
    */
-  if (!constraint_applies)
-    return TRUE;
 
-  /* Determine whether constraint is already satisfied; if we're only
-   * checking the status of whether the constraint is satisfied, we end
-   * here.
+  /* First, the x direction */
+  int adjust = 0;
+  switch (gravity)
+    {
+    case NorthWestGravity:
+    case WestGravity:
+    case SouthWestGravity:
+      /* No need to modify rect->x */
+      break;
+
+    case NorthGravity:
+    case CenterGravity:
+    case SouthGravity:
+      rect->x += (rect->width - new_width)/2;
+      adjust = (rect->width - new_width) % 1;
+      break;
+
+    case NorthEastGravity:
+    case EastGravity:
+    case SouthEastGravity:
+      rect->x += (rect->width - new_width);
+      break;
+
+    case StaticGravity:
+    default:
+      /* No need to modify rect->x */
+      break;
+    }
+  /* FIXME; the need for adjust sucks but not using it would cause North,
+   * Center, and South gravity to break when resizing multiple times with
+   * odd differences in sizes.  So we instead treat it like a
+   * resize_increment kind of thing, though that's kinda weird.
    */
-  if (check_only || constraint_already_satisfied)
-    return constraint_already_satisfied;
+  rect->width = new_width - adjust;
+  
+  /* Next, the y direction */
+  adjust = 0;
+  switch (gravity)
+    {
+    case NorthWestGravity:
+    case NorthGravity:
+    case NorthEastGravity:
+      /* No need to modify rect->y */
+      break;
 
-  /* Enforce constraints */
+    case WestGravity:
+    case CenterGravity:
+    case EastGravity:
+      rect->y += (rect->height - new_height)/2;
+      adjust = (rect->height - new_height) % 1;
+      break;
 
-  return TRUE;
+    case SouthWestGravity:
+    case SouthGravity:
+    case SouthEastGravity:
+      rect->y += (rect->height - new_height);
+      break;
+
+    case StaticGravity:
+    default:
+      /* No need to modify rect->y */
+      break;
+    }
+  /* FIXME; this sucks; see previous FIXME in this function for details */
+  rect->height = new_height - adjust;
 }
-
