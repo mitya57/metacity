@@ -1,4 +1,30 @@
-2005-09-18  Elijah Newren  <Newren@gmail.com>
+2005-09-19  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt:
+
+	Add some basic ideas/problems that I recently thought of so I
+	don't forget them, add the bug(s) Davyd wanted fixed so I don't
+	forget to cover it too.
+
+	* src/constraints.c:
+
+	(setup_constraint_info): It's info->resize_gravity, not
+	info->gravity
+
+	(resize_with_gravity): declare it earlier, make the order of width
+	and height consistent with all the meta_window*resize* functions
+	in window.c
+
+	(constrain_maximization, constrain_fullscreen): try to exit before
+	doing any computations if possible to speed up the code in
+	general, fix a cut-and-paste bug by s/maximized/fullscreen/
+
+	(constrain_size_increments, constrain_size_limits,
+	constrain_aspect_ratio): implement these, though
+	constraints-ideas.txt discusses some problems that arose that need
+	to be addressed
+
+2005-09-18  Elijah Newren  <newren@gmail.com>
 
 	* src/boxes.[hc]:
 

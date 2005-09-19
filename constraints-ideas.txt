@@ -1,3 +1,36 @@
+Short-term TODO list/reminders:
+
+  - My aspect ratio resizing may still not work because perhaps
+    closest-in-area should trump whenever one of the two is very far
+    away in area (Think about grabbing the SE corner with the mouse,
+    resizing way to the right, not letting go of the left mouse
+    button, letting constraints catch up, then moving the mouse up
+    slightly to shrink the window: That results in a big height
+    reduction (since mouse position and window didn't align well), and
+    a corresponding massive width reduction since the shrinking window
+    stuff rules out the bigger of the two aspects).  Maybe
+    closest-in-area should ust always trump--except for some extra
+    slop for keyboard resizing?.
+
+  - My attempts to do all contraints in terms of the outer window are
+    mislead--most are actually relative to the inner window.
+    Comparisons:
+       constraint      window
+       size_increments inner
+       size_limits     inner
+       maximization    outer
+       fullscreen      inner
+       aspect_ratio    inner
+       onscreen        outer
+
+  - Dang, I started writing this list too late -- I know I had
+    something else in mind too.
+
+Extra window.h flags:
+  onscreen                         (136307)
+  vert_maximized, horiz_maximized  (113601)
+  on_single_xinerama               (unfiled)
+
 Bugs to fix:
   unfiled - constraints.c is overly complicated
   unfiled - constraints.c is not robust when all constraints cannot be met
@@ -7,6 +40,7 @@ Bugs to fix:
             even-number-of-pixels in resize)
   unfiled - get_outermost_onscreen_positions is decoration-unaware
   unfiled - constraints.c documentation is difficult to understand
+  unfiled - should try to keep windows on a single xinerama
   109553  - gravity w/ simultaneous move & resize doesn't work
   113601  - maximize vert and horiz should toggle & be constrained
   122196  - windows show up under vertical panels

@@ -292,6 +292,10 @@ static void extend_by_frame        (MetaRectangle           *rect,
                                     const MetaFrameGeometry *fgeom);
 static void unextend_by_frame      (MetaRectangle           *rect,
                                     const MetaFrameGeometry *fgeom);
+static void resize_with_gravity    (MetaRectangle     *rect,
+                                    int                gravity,
+                                    int                new_width,
+                                    int                new_height);
 inline void get_size_limits        (const MetaWindow        *window,
                                     const MetaFrameGeometry *fgeom,
                                     MetaRectangle *min_size,
@@ -410,7 +414,7 @@ setup_constraint_info (ConstraintInfo      *info,
 
   info->is_user_action = (flags & META_USER_MOVE_RESIZE);
 
-  info->gravity = resize_gravity;
+  info->resize_gravity = resize_gravity;
   /* We need to get a pseduo_gravity for user resize operations (so
    * that user resize followed by min size hints don't end up moving
    * window--see bug 312007).
@@ -439,7 +443,7 @@ setup_constraint_info (ConstraintInfo      *info,
           else if (orig->y + orig->height == new->y + new->height)
             pseduo_gravity = SouthEastGravity;
         }
-      info->gravity = pseudo_gravity;      
+      info->resize_gravity = pseudo_gravity;      
     }
 
   meta_window_get_work_area_current_xinerama (window, &info->work_area_xinerama);
@@ -543,8 +547,8 @@ unextend_by_frame (MetaRectangle           *rect,
 static void
 resize_with_gravity (MetaRectangle     *rect,
                      int                gravity,
-                     int                new_height,
-                     int                new_width)
+                     int                new_width,
+                     int                new_height)
 {
   /* Do the gravity adjustment */
 
@@ -738,12 +742,14 @@ constrain_maximization (MetaWindow         *window,
     return TRUE;
 
   /* Determine whether constraint applies; exit if it doesn't */
+  if (!window->maximized)
+    return TRUE;
   MetaRectangle min_size, max_size;
   MetaRectangle work_area = info->work_area_xinerama;
   get_size_limits (window, info->fgeom, &min_size, &max_size);
   gboolean too_big =   !meta_rectangle_could_fit_rect (work_area, min_size);
   gboolean too_small = !meta_rectangle_could_fit_rect (max_size, work_area);
-  if (!window->maximized || too_big || too_small)
+  if (too_big || too_small)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
@@ -767,13 +773,15 @@ constrain_fullscreen (MetaWindow         *window,
     return TRUE;
 
   /* Determine whether constraint applies; exit if it doesn't */
+  if (!window->fullscreen)
+    return TRUE;
   MetaRectangle min_size, max_size;
   MetaRectangle xinerama = info->entire_xinerama;
   extend_by_frame (&xinerama, info->fgeom);
   get_size_limits (window, info->fgeom, &min_size, &max_size);
   gboolean too_big =   !meta_rectangle_could_fit_rect (xinerama, min_size);
   gboolean too_small = !meta_rectangle_could_fit_rect (max_size, xinerama);
-  if (!window->maximized || too_big || too_small)
+  if (too_big || too_small)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
@@ -784,6 +792,7 @@ constrain_fullscreen (MetaWindow         *window,
 
   /*** Enforce constraint ***/
   info->current = info->xinerama;
+  return TRUE;
 }
 
 #if 0
@@ -828,3 +837,234 @@ constrain_clamp_size (MetaWindow         *window,
   return TRUE;
 }
 #endif
+
+static gboolean
+constrain_size_increments (MetaWindow         *window,
+                           ConstraintInfo     *info,
+                           ConstraintPriority  priority,
+                           gboolean            check_only);
+{
+  if (priority > PRIORITY_SIZE_HINTS_INCREMENTS)
+    return TRUE;
+
+  /* Determine whether constraint applies; exit if it doesn't */
+  if (window->maximized || window->fullscreen || 
+      info->action_type == ACTION_MOVE)
+    return TRUE;
+
+  /* Determine whether constraint is already satisfied; exit if it is */
+  int bh, hi, bw, wi, extra_height, extra_width;
+  bh = window->size_hints.base_height;
+  hi = window->size_hints.height_increment;
+  bw = window->size_hints.base_width;
+  wi = window->size_hints.width_increment;
+  extra_height = (info->current.height - bh) % hi;
+  extra_width  = (info->current.widht  - bw) % wi;
+  gboolean constraint_already_satisfied = 
+    (extra_height == 0 && extra_width == 0);
+
+  if (check_only || constraint_already_satisfied)
+    return constraint_already_satisfied;
+
+  /*** Enforce constraint ***/
+  /* Shrink to base + N * inc */
+  resize_with_gravity (info->current, 
+                       info->resize_gravity,
+                       info->current.width - extra_width,
+                       info->current.height - extra_height);
+  return TRUE;
+}
+
+static gboolean
+constrain_size_limits (MetaWindow         *window,
+                       ConstraintInfo     *info,
+                       ConstraintPriority  priority,
+                       gboolean            check_only);
+{
+  if (priority > PRIORITY_SIZE_HINTS_LIMITS)
+    return TRUE;
+
+  /* Determine whether constraint applies; exit if it doesn't.
+   *
+   * Note: The old code didn't apply this constraint for fullscreen or
+   * maximized windows--but that seems odd to me.  *shrug*
+   */
+  MetaRectangle min_size, max_size;
+  get_size_limits (window, info->fgeom, &min_size, &max_size);
+  gboolean limits_are_inconsistent =
+    min_size.width  > max_size.width  || min_size.height > max_size.height;
+  if (limits_are_inconsistent || info->action_type == ACTION_MOVE)
+    return TRUE;
+
+  /* Determine whether constraint is already satisfied; exit if it is */
+  gboolean too_big =   !meta_rectangle_could_fit_rect (info->current, min_size);
+  gboolean too_small = !meta_rectangle_could_fit_rect (max_size, info->current);
+  gboolean constraint_already_satisfied = !too_big && !too_small;
+  if (check_only || constraint_already_satisfied)
+    return constraint_already_satisfied;
+
+  /*** Enforce constraint ***/
+  int new_width  = MIN (max_size.width, 
+                        MAX (min_size.width,  info->current.width));
+  int new_height = MIN (max_size.height, 
+                        MAX (min_size.height, info->current.height));
+  resize_with_gravity (info->current, 
+                       info->resize_gravity,
+                       new_width,
+                       new_height);
+  return TRUE;
+}
+
+static gboolean
+constrain_aspect_ratio (MetaWindow         *window,
+                        ConstraintInfo     *info,
+                        ConstraintPriority  priority,
+                        gboolean            check_only)
+{
+  if (priority > PRIORITY_ASPECT_RATIO)
+    return TRUE;
+
+  /* Determine whether constraint applies; exit if it doesn't.
+  int min_ax, min_ay, max_ax, max_ay;
+  min_ax = window->size_hints.min_aspect.x;
+  min_ay = window->size_hints.min_aspect.y;
+  max_ax = window->size_hints.max_aspect.x;
+  max_ay = window->size_hints.max_aspect.y;
+  gboolean constraints_are_inconsistent =
+    min_ax / ((double)min_ay) > max_ax / ((double)max_ay);
+  if (constraints_are_inconsistent || window->maximized || window->fullscreen || 
+      info->action_type == ACTION_MOVE)
+    return TRUE;
+
+  /* Determine whether constraint is already satisfied; exit if it is */
+  int slop_allowed_for_min, slop_allowed_for_max;
+  slop_allowed_for_min = (min_ax % min_ay == 0) ? 0 : 1;
+  slop_allowed_for_max = (max_ax % max_ay == 0) ? 0 : 1;
+  /*       min_ax     width    max_ax
+   * Need: ------ <= ------ <= ------
+   *       min_ay    height    max_ay
+  gboolean constraint_already_satisfied = 
+    info->current.width >=
+      (info->current.height * min_ax / min_ay) - slop_allowed_for_min &&
+    info->current.width <=
+      (info->current.height * max_ax / max_ay) + slop_allowed_for_max;
+  if (check_only || constraint_already_satisfied)
+    return constraint_already_satisfied;
+
+  /*** Enforce constraint ***/
+#if 0
+  if (info->current.width == info->orig.width)
+    {
+      /* User changed height; change width to match */
+      int min_width, max_width, new_width;
+      min_width = info->current.height * min_ax / min_ay;
+      max_width = info->current.height * max_ax / max_ay;
+      new_width = MIN (max_width, MAX (min_width, info->current.width));
+      resize_with_gravity (info->current, 
+                           info->resize_gravity,
+                           new_width,
+                           info->current.height);
+    }
+  else if (info->current.height == info->orig.height)
+    {
+      /* User changed width; change height to match */
+      int min_height, max_height, new_height;
+      min_height = info->current.width * min_ay / min_ax;
+      max_height = info->current.width * max_ay / max_ax;
+      new_height = MIN (max_height, MAX (min_height, info->current.height));
+      resize_with_gravity (info->current, 
+                           info->resize_gravity,
+                           info->current.width,
+                           new_height);
+    }
+#endif
+
+  /* Pseduo-code:
+   *
+   * 1) Find new rect, A, based on keeping height fixed
+   * 2) Find new rect, B, based on keeping width fixed
+   * 3) If info->current is strictly larger than info->orig
+   *    (i.e. could contain it), then discard either of A and B
+   *    that represent an decrease of area relative to info->orig
+   * 4) If info->current is strictly smaller than info->orig
+   *    (i.e. could be contained in it), then discard either of A and
+   *    B that represent an increase of area relative to info->orig
+   * 5) If both A and B remain (possible in the cases of the user
+   *    changing both width and height simultaneously), choose the one
+   *    which is closer in area to info->orig.
+
+   MetaRectangle A, B;
+   int min_size, max_size, new_size;
+
+   /* Find new rect A */
+   A = B = info->current;
+   min_size = info->current.height * min_ax / min_ay;
+   max_size = info->current.height * max_ax / max_ay;
+   new_size = MIN (max_size, MAX (min_size, info->current.width));
+   A.width = new_size;
+
+   /* Find new rect B */
+   B = info->current;
+   min_size = info->current.width * min_ay / min_ax;
+   max_size = info->current.width * max_ay / max_ax;
+   new_size = MIN (max_size, MAX (min_size, info->current.height));
+   B.height = new_size;
+
+   gboolean a_valid, b_valid;
+   int ref_area, a_area, b_area;
+   a_valid = b_valid = true;
+   ref_area = meta_rectangle_area (info->orig);
+   a_area = meta_rectangle_area (&A);
+   b_area = meta_rectangle_area (&B);
+
+   /* Discard too-small rects if we're increasing in size */
+   if (meta_rectangle_could_fit_rect (info->current, info->orig))
+     {
+       if (a_area < ref_area)
+         a_valid = FALSE;
+
+       if (b_area < ref_area)
+         b_valid = FALSE;
+     }
+  
+   /* Discard too-large rects if we're decreasing in size */
+   if (meta_rectangle_could_fit_rect (info->orig, info->current))
+     {
+       if (a_area > ref_area)
+         a_valid = FALSE;
+
+       if (b_area > ref_area)
+         b_valid = FALSE;
+     }
+
+   /* If both are still valid, use the one closer in area to info->orig */
+   if (a_valid && b_valid)
+     {
+       if (abs (a_area - ref_area) < abs (b_area - ref_area))
+         b_valid = FALSE;
+       else
+         a_valid = FALSE;
+     }
+
+   if (!a_valid && !b_valid)
+     /* This should only be possible for initial placement; we just
+      * punt and pick one */
+     resize_with_gravity (info->current, 
+                          info->resize_gravity,
+                          A.width,
+                          A.height);
+   else if (!b_valid)
+     resize_with_gravity (info->current, 
+                          info->resize_gravity,
+                          A.width,
+                          A.height);
+   else if (!a_valid)     
+     resize_with_gravity (info->current, 
+                          info->resize_gravity,
+                          A.width,
+                          A.height);
+   else
+     g_error ("Was this programmed by monkeys?!?\n");
+
+   return TRUE;
+}
