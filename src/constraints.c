@@ -27,7 +27,69 @@
 
 /* Stupid disallowing of nested C comments makes a #if 0 mandatory... */
 #if 0
-/* There are a couple basic ideas behind how this code works:
+/* This is a huge comment with a brief overview of how to hack on it as
+ * quickly as possible, followed by much more in depth details of how it
+ * works, why it works that way, the ideas behind it, and comparisons to
+ * the previous way of doing things.
+ *
+ * BRIEF OVERVIEW OF HOW TO HACK ON THIS FILE
+ *
+ * This can basically be explained by showing how to add a new
+ * constraint, the steps of which are:
+ *   1) Add a new entry in the ConstraintPriority enum; higher values
+ *      have higher priority
+ *   2) Write a new function following the format of the example below,
+ *      "constrain_whatever".
+ *   3) Add your function to the loop in meta_window_constrain() in both
+ *      places.
+ * 
+ * An example constraint function, constrain_whatever:
+ *
+ * /* constrain_whatever does the following:
+ *  *   Quits (returning true) if priority is higher than PRIORITY_WHATEVER
+ *  *   If check_only is TRUE
+ *  *     Returns whether the constraint is satisfied or not
+ *  *   otherwise
+ *  *     Enforces the constraint
+ *  * Note that the value of PRIORITY_WHATEVER is centralized with the
+ *  * priorities of other constraints in the definition of ConstraintInfo
+ *  * for easier maintenance and shuffling of priorities.
+ *  */
+ * static gboolean
+ * constrain_whatever (MetaWindow         *window,
+ *                     ConstraintInfo     *info,
+ *                     ConstraintPriority  priority,
+ *                     gboolean            check_only)
+ * {
+ *   if (priority > PRIORITY_WHATEVER)
+ *     return TRUE;
+ *
+ *   /* Determine whether constraint applies; note that if the constraint
+ *    * cannot possibly be satisfied, constraint_applies should be set to
+ *    * false.  If we don't do this, all constraints with a lesser priority
+ *    * will be dropped along with this one, and we'd rather apply as many as
+ *    * possible.
+ *    */
+ *   if (!constraint_applies)
+ *     return TRUE;
+ *
+ *   /* Determine whether constraint is already satisfied; if we're only
+ *    * checking the status of whether the constraint is satisfied, we end
+ *    * here.
+ *    */
+ *   if (check_only || constraint_already_satisfied)
+ *     return constraint_already_satisfied;
+ *
+ *   /* Enforce constraints */
+ *   return TRUE;  /* Note that we exited early if check_only is FALSE; also,
+ *                  * we know we can return TRUE here because we exited early
+ *                  * if the constraint could not be satisfied. */
+ * }
+ *
+ * THE NASTY DETAILS (cue ominous music)
+ *
+ * There are a couple basic ideas behind how this code works and why
+ * it works that way:
  *
  *   1) Rely heavily on "workarea" (though we complicate it's meaning 
  *      with overloading, unfortunately)
@@ -158,52 +220,6 @@
  *      and treating it as a violation means that all constraints with a
  *      lesser priority also get dropped along with the impossible one if
  *      we don't do this.
- *
- * Now that you understand the basic ideas behind this code, the crux of
- * adding/modifying/removing constraints is to look at the functions called
- * in the loop inside meta_window_constrain().  All these functions are of
- * the following form:
- *
- * /* constrain_whatever does the following:
- *  *   Quits (returning true) if priority is higher than PRIORITY_WHATEVER
- *  *   If check_only is TRUE
- *  *     Returns whether the constraint is satisfied or not
- *  *   otherwise
- *  *     Enforces the constraint
- *  * Note that the value of PRIORITY_WHATEVER is centralized with the
- *  * priorities of other constraints in the definition of ConstraintInfo
- *  * for easier maintenance and shuffling of priorities.
- *  */
- * static gboolean
- * constrain_whatever (MetaWindow         *window,
- *                     ConstraintInfo     *info,
- *                     ConstraintPriority  priority,
- *                     gboolean            check_only)
- * {
- *   if (priority > PRIORITY_WHATEVER)
- *     return TRUE;
- *
- *   /* Determine whether constraint applies; note that if the constraint
- *    * cannot possibly be satisfied, constraint_applies should be set to
- *    * false.  If we don't do this, all constraints with a lesser priority
- *    * will be dropped along with this one, and we'd rather apply as many as
- *    * possible.
- *    */
- *   if (!constraint_applies)
- *     return TRUE;
- *
- *   /* Determine whether constraint is already satisfied; if we're only
- *    * checking the status of whether the constraint is satisfied, we end
- *    * here.
- *    */
- *   if (check_only || constraint_already_satisfied)
- *     return constraint_already_satisfied;
- *
- *   /* Enforce constraints */
- *   return TRUE;  /* Note that we exited early if check_only is FALSE; also,
- *                  * we know we can return TRUE here because we exited early
- *                  * if the constraint could not be satisfied. */
- * }
  */
 #endif
 
@@ -331,15 +347,6 @@ meta_window_constrain (MetaWindow          *window,
                          new);
   place_window_if_needed (window, &info);
 
-  /* Most constraints apply to the whole window, i.e. client area + frame;
-   * but the data we were given only accounts for the client area, so we
-   * adjust here.  (Alternatively, we could just make all the constraints
-   * manually figure out the differences for the frame, but it's error
-   * prone as it's too easy to forget to handle info.fgeom)
-   */
-  extend_by_frame (&info->orig,    info->fgeom);
-  extend_by_frame (&info->current, info->fgeom);
-
   ConstraintPriority priority = PRIORITY_MINIMUM;
   gboolean satisfied = false;
   while (!satisfied && priority <= PRIORITY_MAXIMUM) {
@@ -371,11 +378,11 @@ meta_window_constrain (MetaWindow          *window,
     priority++;
   }
 
-  /* meta_window_move_resize_internal expects rectangles in terms of client
-   * area only, so undo the adjustments for the frame.
+  /* We may need to update window->onscreen,
+   * window->on_single_xinerama, and perhaps other quantities if this
+   * was a user move or user move-and-resize operation.
    */
-  unextend_by_frame (&info->orig,    info->fgeom);
-  unextend_by_frame (&info->current, info->fgeom);
+  FIXME: Implement this.
 
   /* Ew, what an ugly way to do things.  Destructors (in a real OOP language,
    * not gobject-style) or smart pointers would be so much nicer here.  *shrug*
@@ -643,16 +650,25 @@ resize_with_gravity (MetaRectangle     *rect,
 static inline void
 get_size_limits (const MetaWindow        *window,
                  const MetaFrameGeometry *fgeom,
+                 gboolean                 include_frame,
                  MetaRectangle *min_size,
                  MetaRectangle *max_size)
 {
-  int fw = info->fgeom->left_width + info->fgeom->right_width;
-  int fh = info->fgeom->top_height + info->fgeom->bottom_height;
+  *min_size->width  = window->size_hints->min_width;
+  *min_size->height = window->size_hints->min_height;
+  *max_size->width  = window->size_hints->max_width;
+  *max_size->height = window->size_hints->max_height;
 
-  *min_size->width  = window->size_hints->min_width  + fw;
-  *min_size->height = window->size_hints->min_height + fh;
-  *max_size->width  = window->size_hints->max_width  + fw;
-  *max_size->height = window->size_hints->max_height + fh;
+  if (include_frame)
+    {
+      int fw = info->fgeom->left_width + info->fgeom->right_width;
+      int fh = info->fgeom->top_height + info->fgeom->bottom_height;
+
+      *min_size->width  += fw;
+      *min_size->height += fh;
+      *max_size->width  += fw;
+      *max_size->height += fh;
+    }
 }
 
 static void
@@ -746,7 +762,8 @@ constrain_maximization (MetaWindow         *window,
     return TRUE;
   MetaRectangle min_size, max_size;
   MetaRectangle work_area = info->work_area_xinerama;
-  get_size_limits (window, info->fgeom, &min_size, &max_size);
+  unextend_by_frame (&work_area, info->fgeom);
+  get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
   gboolean too_big =   !meta_rectangle_could_fit_rect (work_area, min_size);
   gboolean too_small = !meta_rectangle_could_fit_rect (max_size, work_area);
   if (too_big || too_small)
@@ -754,12 +771,12 @@ constrain_maximization (MetaWindow         *window,
 
   /* Determine whether constraint is already satisfied; exit if it is */
   gboolean constraint_already_satisfied =
-    meta_rectangle_equal (info->current, info->work_area_xinerama)
+    meta_rectangle_equal (info->current, work_area)
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
 
   /*** Enforce constraint ***/
-  info->current = info->work_area_xinerama;
+  info->current = work_area;
   return TRUE;
 }
 
@@ -777,8 +794,7 @@ constrain_fullscreen (MetaWindow         *window,
     return TRUE;
   MetaRectangle min_size, max_size;
   MetaRectangle xinerama = info->entire_xinerama;
-  extend_by_frame (&xinerama, info->fgeom);
-  get_size_limits (window, info->fgeom, &min_size, &max_size);
+  get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
   gboolean too_big =   !meta_rectangle_could_fit_rect (xinerama, min_size);
   gboolean too_small = !meta_rectangle_could_fit_rect (max_size, xinerama);
   if (too_big || too_small)
@@ -791,7 +807,7 @@ constrain_fullscreen (MetaWindow         *window,
     return constraint_already_satisfied;
 
   /*** Enforce constraint ***/
-  info->current = info->xinerama;
+  info->current = xinerama;
   return TRUE;
 }
 
@@ -805,7 +821,9 @@ constrain_clamp_size (MetaWindow         *window,
   if (priority > PRIORITY_CLAMP_SIZE)
     return TRUE;
 
-  /* FIXME -- NOT YET WRITTEN PAST HERE */
+  /* FIXME -- MAY BE NOT NEEDED; MAYBE WRONG--esp. w.r.t. size_limits & frames,
+   * but also the fact that resize changes onscreen_positions...
+   */
   MetaRectangle positions;
   get_outermost_onscreen_positions (window, info, &positions)
 
@@ -890,7 +908,7 @@ constrain_size_limits (MetaWindow         *window,
    * maximized windows--but that seems odd to me.  *shrug*
    */
   MetaRectangle min_size, max_size;
-  get_size_limits (window, info->fgeom, &min_size, &max_size);
+  get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
   gboolean limits_are_inconsistent =
     min_size.width  > max_size.width  || min_size.height > max_size.height;
   if (limits_are_inconsistent || info->action_type == ACTION_MOVE)

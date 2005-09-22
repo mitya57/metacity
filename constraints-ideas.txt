@@ -16,6 +16,7 @@ Short-term TODO list/reminders:
     mislead--most are actually relative to the inner window.
     Comparisons:
        constraint      window
+       --------------- ------
        size_increments inner
        size_limits     inner
        maximization    outer
@@ -23,8 +24,14 @@ Short-term TODO list/reminders:
        aspect_ratio    inner
        onscreen        outer
 
-  - Dang, I started writing this list too late -- I know I had
-    something else in mind too.
+  - Change documentation in constraints.c to target future maintainers
+    first, then explain the basic ideas behind the algorithm and how
+    it compares to the old method and why.
+
+  - Do I need the include_frame parameter to get_size_limits() anymore?
+
+  - Need to add the onscreen and on_single_xinerama flags and get them
+    all initialized and everything
 
 Extra window.h flags:
   onscreen                         (136307)

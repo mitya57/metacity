@@ -1,3 +1,31 @@
+2005-09-21  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: Add a little more to the short-term TODO list
+
+	* src/constraints.c: 
+
+	Order the big comment so as to put the information needed for
+	maintenance first, with the details of why it's that way and how
+	it compares to previous stuff later
+
+	(meta_window_constrain): So, I was totally misguided--most
+	constraints actually do apply to the client window and not the
+	outer window.  Doh.  Anyway, rip the extend_by_frame() and
+	unextend_by_frame() calls out and just let individual constraints
+	do that if they want.
+
+	(meta_window_constrain): Add a comment about setting of
+	window->onscreen and window->on_single_xinerama to try to help me
+	remember to do it.
+
+	(get_size_limits): Add a boolean on whether or not to include the
+	frame (may not be needed; it seems I always use FALSE for this)
+
+	(constrain_maximization, constrain_fullscreen,
+	constrain_clamp_size, constrain_size_limits): fix these up to
+	reflect that I'm working mainly in terms of the client window
+	instead of the outer window now
+
 2005-09-19  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt:
