@@ -121,17 +121,17 @@
  *      offscreen, and once offscreen the fully-onscreen constraints should
  *      no longer apply until manually moved back onscreen.  Application
  *      specified placement may override as well (haven't decided, but it
- *      would mean setting window->onscreen to FALSE in place.c somewhere).
- *      Also, minimum size hints might be bigger than screen size).  Thus,
- *      we use a method of "growing" the workarea so that the extended
- *      region provides the constraint.  (b) docks can remove otherwise
- *      valid space from the workarea.  This doesn't pose much problem for
- *      docks that either span the width or the height of the screen.  It
- *      does cause problems when they only span part of the width or height
- *      ("partial struts"), because then the workarea (the area used by
- *      e.g. maximized windows) leaves out some available holes that
- *      smaller windows could use.  So we have an auxiliary workarea that
- *      takes these into account using a combination of
+ *      would mean setting window->require_fully_onscreen to FALSE in
+ *      place.c somewhere).  Also, minimum size hints might be bigger than
+ *      screen size).  Thus, we use a method of "growing" the workarea so
+ *      that the extended region provides the constraint.  (b) docks can
+ *      remove otherwise valid space from the workarea.  This doesn't pose
+ *      much problem for docks that either span the width or the height of
+ *      the screen.  It does cause problems when they only span part of the
+ *      width or height ("partial struts"), because then the workarea (the
+ *      area used by e.g. maximized windows) leaves out some available
+ *      holes that smaller windows could use.  So we have an auxiliary
+ *      workarea that takes these into account using a combination of
  *      get_outermost_onscreen_constraints() from the old code plus
  *      possible workarea expansion as noted in (a).  Things will probably
  *      be kind of hosed for docks that appear in some small rectangle in
@@ -235,7 +235,6 @@ typedef enum   FIXME--there's more than this...
   PRIORITY_MAXIMIZATION=2,
   PRIORITY_FULLSCREEN=2
   PRIORITY_SIZE_HINTS_LIMITS=3,
-  PRIORITY_TITLEBAR_PARTIALLY_VISIBLE_ON_WORKAREA=4
   PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA=4,
   PRIORITY_MAXIMUM=4   # Dummy value used for loop end = max(all priorities)
 } ConstraintPriority;
@@ -260,40 +259,40 @@ typedef struct
   MetaRectangle        entire_xinerama;    /* current xinerama incl. struts */
 } ConstraintInfo;
 
-static gboolean constrain_maximization      (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
-static gboolean constrain_fullscreen        (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
+static gboolean constrain_maximization       (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_fullscreen         (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
 #if 0
-static gboolean constrain_clamp_size        (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
+static gboolean constrain_clamp_size         (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
 #endif
-static gboolean constrain_size_increments   (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
-static gboolean constrain_size_limits       (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
-static gboolean constrain_aspect_ratio      (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
-static gboolean constrain_fully_onscreen    (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
-static gboolean constrain_titlebar_onscreen (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             ConstraintPriority  priority,
-                                             gboolean            check_only);
+static gboolean constrain_size_increments    (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_size_limits        (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_aspect_ratio       (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_fully_onscreen     (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_partially_onscreen (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
 
 static void setup_constraint_info  (ConstraintInfo      *info,
                                     MetaWindow          *window,
@@ -351,41 +350,42 @@ meta_window_constrain (MetaWindow          *window,
   gboolean satisfied = false;
   while (!satisfied && priority <= PRIORITY_MAXIMUM) {
     gboolean check_only = FALSE;
-    constrain_maximization      (window, &info, priority, check_only);
-    constrain_fullscreen        (window, &info, priority, check_only);
+    constrain_maximization       (window, &info, priority, check_only);
+    constrain_fullscreen         (window, &info, priority, check_only);
 #if 0
-    constrain_clamp_size        (window, &info, priority, check_only);
+    constrain_clamp_size         (window, &info, priority, check_only);
 #endif
-    constrain_size_increments   (window, &info, priority, check_only);
-    constrain_size_limits       (window, &info, priority, check_only);
-    constrain_aspect_ratio      (window, &info, priority, check_only);
-    constrain_fully_onscreen    (window, &info, priority, check_only);
-    constrain_titlebar_onscreen (window, &info, priority, check_only);
+    constrain_size_increments    (window, &info, priority, check_only);
+    constrain_size_limits        (window, &info, priority, check_only);
+    constrain_aspect_ratio       (window, &info, priority, check_only);
+    constrain_fully_onscreen     (window, &info, priority, check_only);
+    constrain_partially_onscreen (window, &info, priority, check_only);
 
     check_only = TRUE;
     satisfied =
-      constrain_maximization      (window, &info, priority, check_only) &&
-      constrain_fullscreen        (window, &info, priority, check_only) &&
+      constrain_maximization       (window, &info, priority, check_only) &&
+      constrain_fullscreen         (window, &info, priority, check_only) &&
 #if 0
-      constrain_clamp_size        (window, &info, priority, check_only) &&
+      constrain_clamp_size         (window, &info, priority, check_only) &&
 #endif
-      constrain_size_increments   (window, &info, priority, check_only) &&
-      constrain_size_limits       (window, &info, priority, check_only) &&
-      constrain_aspect_ratio      (window, &info, priority, check_only) &&
-      constrain_fully_onscreen    (window, &info, priority, check_only) &&
-      constrain_titlebar_onscreen (window, &info, priority, check_only);
+      constrain_size_increments    (window, &info, priority, check_only) &&
+      constrain_size_limits        (window, &info, priority, check_only) &&
+      constrain_aspect_ratio       (window, &info, priority, check_only) &&
+      constrain_fully_onscreen     (window, &info, priority, check_only) &&
+      constrain_partially_onscreen (window, &info, priority, check_only);
 
     priority++;
   }
 
-  /* We may need to update window->onscreen,
-   * window->on_single_xinerama, and perhaps other quantities if this
-   * was a user move or user move-and-resize operation.
+  /* We may need to update window->require_fully_onscreen,
+   * window->require_on_single_xinerama, and perhaps other quantities
+   * if this was a user move or user move-and-resize operation.
    */
   FIXME: Implement this.
 
   /* Ew, what an ugly way to do things.  Destructors (in a real OOP language,
-   * not gobject-style) or smart pointers would be so much nicer here.  *shrug*
+   * not gobject-style--gobject would be more pain than it's worth) or
+   * smart pointers would be so much nicer here.  *shrug*
    */
   if (!orig_fgeom)
     g_free (info.fgeom);
@@ -673,7 +673,7 @@ get_size_limits (const MetaWindow        *window,
 
 static void
 get_outermost_onscreen_positions (const MetaWindow     *window,
-                                  const ConstraintInfo *info,
+                                  const MetaRectangle  *current,
                                   MetaRectangle        *positions)
 {
   GList *workspaces;
@@ -704,7 +704,7 @@ get_outermost_onscreen_positions (const MetaWindow     *window,
       while (stmp)
         {
           MetaRectangle *rect = (MetaRectangle*) stmp->data;
-          if (meta_rectangle_vert_overlap (rect, position))
+          if (meta_rectangle_vert_overlap (rect, current))
             meta_rectangle_clip_out_rect (position, rect, 
                                           META_RECTANGLE_LEFT);
           stmp = stmp->next;
@@ -714,7 +714,7 @@ get_outermost_onscreen_positions (const MetaWindow     *window,
       while (stmp)
         {
           MetaRectangle *rect = (MetaRectangle*) stmp->data;
-          if (meta_rectangle_vert_overlap (rect, position))
+          if (meta_rectangle_vert_overlap (rect, current))
             meta_rectangle_clip_out_rect (position, rect, 
                                           META_RECTANGLE_RIGHT);
           stmp = stmp->next;
@@ -724,10 +724,7 @@ get_outermost_onscreen_positions (const MetaWindow     *window,
       while (stmp)
         {
           MetaRectangle *rect = (MetaRectangle*) stmp->data;
-          /* here the strut matters if the titlebar is overlapping
-           * the window horizontally
-           */
-          if (meta_rectangle_horiz_overlap (rect, position))
+          if (meta_rectangle_horiz_overlap (rect, current))
             meta_rectangle_clip_out_rect (position, rect, 
                                           META_RECTANGLE_UP);
           stmp = stmp->next;
@@ -737,10 +734,7 @@ get_outermost_onscreen_positions (const MetaWindow     *window,
       while (stmp)
         {
           MetaRectangle *rect = (MetaRectangle*) stmp->data;
-          /* here the strut matters if the titlebar is overlapping
-           * the window horizontally
-           */
-          if (meta_rectangle_horiz_overlap (rect, position))
+          if (meta_rectangle_horiz_overlap (rect, current))
             meta_rectangle_clip_out_rect (position, rect, 
                                           META_RECTANGLE_DOWN);
           stmp = stmp->next;
@@ -907,14 +901,12 @@ constrain_size_limits (MetaWindow         *window,
    * Note: The old code didn't apply this constraint for fullscreen or
    * maximized windows--but that seems odd to me.  *shrug*
    */
-  MetaRectangle min_size, max_size;
-  get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
-  gboolean limits_are_inconsistent =
-    min_size.width  > max_size.width  || min_size.height > max_size.height;
-  if (limits_are_inconsistent || info->action_type == ACTION_MOVE)
+  if (info->action_type == ACTION_MOVE)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
+  MetaRectangle min_size, max_size;
+  get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
   gboolean too_big =   !meta_rectangle_could_fit_rect (info->current, min_size);
   gboolean too_small = !meta_rectangle_could_fit_rect (max_size, info->current);
   gboolean constraint_already_satisfied = !too_big && !too_small;
@@ -1085,4 +1077,100 @@ constrain_aspect_ratio (MetaWindow         *window,
      g_error ("Was this programmed by monkeys?!?\n");
 
    return TRUE;
+}
+
+static gboolean
+do_screen_and_xinerama_relative_constraints (MetaWindow         *window,
+                                             ConstraintInfo     *info,
+                                             gboolean            check_only)
+{
+  FIXME: I'm assuming totally onscreen, but using it for each of
+  totally_onscreen, partially_onscreen, and on_single_xinerama...
+  /* */
+
+  MetaRectangle outermost_positions;
+  get_outermost_onscreen_positions (window, info->current, &outermost_positions);
+
+  /* Determine whether constraint applies; exit if it doesn't */
+  MetaRectangle min_size, max_size;
+  MetaRectangle work_area = info->work_area_xinerama;
+  get_size_limits (window, info->fgeom, &min_size, &max_size);
+  gboolean too_big = 
+    !meta_rectangle_could_fit_rect (work_area, min_size) ||
+    !meta_rectangle_could_fit_rect (outermost_positions, min_size);
+  if (too_big)
+    return TRUE;
+
+  /* Determine whether constraint is already satisfied; exit if it is */
+  gboolean constraint_already_satisfied =
+    meta_rectangle_contains_rect (work_area, info->current) || 
+    meta_rectangle_contains_rect (outermost_positions, info->current);
+  if (check_only || constraint_already_satisfied)
+    return constraint_already_satisfied;
+
+  /* Enforce constraints */
+  /* First, make sure it can fit... */
+  if (!meta_rectangle_could_fit_rect (work_area,           info->current) &&
+      !meta_rectangle_could_fit_rect (outermost_positions, info->current))
+    {
+      /* We have to force it to fit into either work_area or
+       * outermost_positions, and we'd rather force it into the bigger one
+       * so as to shrink the window as little as possible.
+       */
+      if (meta_rectangle_area (work_area) >
+          meta_rectangle_area (outermost_positions))
+        {
+          info->current.width  = MIN (info->current.width,  work_area.width);
+          info->current.height = MIN (info->current.height, work_area.height);
+        }
+      else
+        {
+          int max_width  = outermost_positions.width;
+          int max_height = outermost_positions.height;
+          info->current.width  = MIN (info->current.width,  max_width);
+          info->current.height = MIN (info->current.height, max_height);
+        }
+    }
+
+  /* Now, either shove the rectangle onto the screen or clip it to the
+   * screen, as appropriate.
+   */
+
+  Try doing relative to both work_area and outermost_positions, then ???? determinedoing both; then determine which causes
+  MetaRectangle *relevant_rect;
+  if (meta_rectangle_contains_rect (work_area, info->orig))
+    relevant_rect = 
+  
+  return TRUE;
+}
+
+static gboolean
+constrain_fully_onscreen (MetaWindow         *window,
+                          ConstraintInfo     *info,
+                          ConstraintPriority  priority,
+                          gboolean            check_only)
+{
+  if (priority > PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA)
+    return TRUE;
+
+  /* Exit early if we know the constraint won't apply */
+  if (!window->require_fully_onscreen || 
+      (info->is_user_action && info->action_type != ACTION_RESIZE))
+    return TRUE;
+
+  /* FIXME: Somehow send the fact that this is fully_onscreen */
+  return do_screen_and_xinerama_relative_constraints (window, info, check_only);
+}
+
+static gboolean
+constrain_partially_onscreen (MetaWindow         *window,
+                              ConstraintInfo     *info,
+                              ConstraintPriority  priority,
+                              gboolean            check_only)
+{
+  if (priority > PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA)
+    return TRUE;
+
+  /* FIXME: Somehow send the fact that this is partially_onscreen */
+  return do_screen_and_xinerama_relative_constraints (window, info, check_only);
 }

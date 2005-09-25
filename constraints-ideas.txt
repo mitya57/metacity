@@ -1,5 +1,50 @@
 Short-term TODO list/reminders:
 
+  - Okay the on-single-xinerama/fully-onscreen/partially-onscreen
+    constraints aren't as simple as I thought, the boxes.[ch] is still the
+    wrong way to go about it and doesn't cover everything needed, and I
+    need something else big.  Ideas:
+      - Get minimal set of (maximally) covering rects:
+        - Start with relevant rect (screen/xinerama)
+        - Foreach strut, divide each rect in the set into up to three rects
+          (before-strut zone, overlap-strut zone, and after-strut zone)
+          - Each new rect must not include the strut
+          - If the strut begins where the original rect does, the
+            before-strut zone can be ignored; similarly for ending location
+            and after-strut zone.
+          - For a top or bottom strut, the before and after zones are
+            *just* horizontal shrinkages of the original rect while the
+            overlap zone is *just* a vertical shrinkage of the original
+            rect (do not make the mistake of horizontally shrinking the
+            overlap zone in this case).  The left and right struts are
+            similar in nature (vertical shrinkage for before and after,
+            horizontal shrinkage for overlap)
+      - Be careful not to move/clip in the wrong direction
+        - For user move, one does not want to shove a rect vertically to
+          force it fully onscreen if the user had only been moving the
+          window horizontally--even if moving it vertically would result in
+          less overall displacement.
+        - To do this, need notion of fixed sides:
+          - Move (App or user):
+            - Horizontal: Top and bottom are fixed
+            - Vertical: Left and right are fixed
+            - Diagonal: No sides are fixed
+          - User resize:
+            - Uni-directional: All sides but the given direction are fixed
+            - Bi-directional: The two other sides are fixed
+          - App resize -- acts like move as far as side fixing
+          - Move & resize -- no sides are fixed
+      - Regardless of clipping or shoving; there needs to be a good way to
+        pick the best of the (maximally) covering rects into which to clip
+        or shove.  
+        - Has-greatest-overlap-before-clipping/shoving sounds useful, but
+          note that a move operation could place the window entirely
+          offscreen (think about keyboard move for a very small window that
+          already nearly offscreen)
+        - Some other additional measure of closeness (e.g. distance between
+          rect edges, assuming that the covering rect could validly hold
+          the window)
+
   - My aspect ratio resizing may still not work because perhaps
     closest-in-area should trump whenever one of the two is very far
     away in area (Think about grabbing the SE corner with the mouse,

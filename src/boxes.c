@@ -117,6 +117,17 @@ meta_rectangle_could_fit_rect (const MetaRectangle *outer_rect,
           outer_rect->height >= inner_rect->height);
 }
 
+gboolean
+meta_rectangle_contains_rect  (const MetaRectangle *outer_rect,
+                               const MetaRectangle *inner_rect)
+{
+  return 
+    inner_rect->x                      >= outer_rect->x &&
+    inner_rect->y                      >= outer_rect->y &&
+    inner_rect->x + inner_rect->width  <= outer_rect->x + outer_rect->width &&
+    inner_rect->y + inner_rect->height <= outer_rect->y + outer_rect->height;
+}
+
 void
 meta_rectangle_clip_out_rect (MetaRectangle       *clipee,
                               const MetaRectangle *bad_area,

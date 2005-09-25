@@ -52,13 +52,13 @@ gboolean meta_rectangle_horiz_overlap   (const MetaRectangle *rect1,
                                          const MetaRectangle *rect2);
 gboolean meta_rectangle_could_fit_rect  (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
+gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
+                                         const MetaRectangle *inner_rect);
 void     meta_rectangle_clip_out_rect   (MetaRectangle       *clipee,
                                          const MetaRectangle *bad_area,
                                          MetaRectDirection    clip_side);
 #if 0
   May not be needed--depends on if constrain_clamp_size remains...
-gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
-                                         const MetaRectangle *inner_rect);
 gboolean meta_rectangle_clip_into_rect  (const MetaRectangle *orig_area,
                                          const MetaRectangle *allowed_area,
                                          MetaRectangle       *dest);

@@ -1,3 +1,46 @@
+2005-09-25  Elijah Newren  <newren@gmail.com>
+
+	* src/boxes.[ch] (meta_rectangle_contains_rect): implement this
+	function
+
+	* src/constraints.c 
+
+	fixup various comments throughout
+
+	(enum ConstraintPriority): remove
+	titlebar_partially_visible_on_workarea for now as it's covered by
+	the partially_onscreen stuff
+
+	(constrain_titlebar_onscreen): rename this unimplemented function
+	to constrain_partially_onscreen
+
+	(get_outermost_onscreen_positions): replace ConstraintInfo with a
+	rectangle so that this function can be called for multiple rects,
+	fix all the calls to *_overlap functions
+
+	(constrain_size_limits): no need to sanity check the size limits
+	as window-props.c already does that (grep for "cracksmoker" to see
+	where it does that)
+
+	(do_screen_and_xinerama_relative_constraints): new function, not
+	fully implemented, and fairly busted (see the new
+	constraints-ideas.txt writeup...)
+
+	(constrain_fully_onscreen, constrain_partially_onscreen):
+	implement these, but it's busted right now as both just call
+	do_screen_and_xinerama_relative_constraints without letting that
+	function know the difference between the two (see the new
+	constraints-ideas.txt writeup...)
+
+	* constraints-ideas.txt: So, my previous ideas for handling
+	on-single-xinerama, fully-onscreen, and partially-onscreen
+	constraints weren't going to cut it (neither the old
+	wrongly-engineered boxes.[ch] stuff nor the newer much simpler
+	idea I had in mind would work; both need to be thrown out).
+	Here's a big old writeup with a solution that I think will cover
+	all the nasty edge and corner cases and that I can start working
+	on implementing the next time I get some free time...
+
 2005-09-21  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Add a little more to the short-term TODO list
