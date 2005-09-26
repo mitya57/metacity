@@ -37,13 +37,43 @@ Short-term TODO list/reminders:
       - Regardless of clipping or shoving; there needs to be a good way to
         pick the best of the (maximally) covering rects into which to clip
         or shove.  
-        - Has-greatest-overlap-before-clipping/shoving sounds useful, but
-          note that a move operation could place the window entirely
-          offscreen (think about keyboard move for a very small window that
-          already nearly offscreen)
-        - Some other additional measure of closeness (e.g. distance between
-          rect edges, assuming that the covering rect could validly hold
-          the window)
+        - User resize (clip-into):
+          - Entirely determined by
+            greatest-area-conserved-when-clipping-unfixed-sides
+        - User move or app move (shove-into):
+          - Must be able to fit the rect, w/o changing fixed sides
+          - Prefer greatest-overlap-before-shoving
+          - Prefer short distance moves over long distance ones (this is
+            only needed in special cases, such as a move that causes the
+            window to be totally offscreen)
+        - App resize or user or app move-resize:
+          - May first need to clamp size down, then do user/app-move stuff
+          - If clamping is needed, clamp to the size of the rectangle that
+            preserves as much area in the rect as possible
+            - Note: this does not mean picking the largest covering rect
+            possible; it may be that the window is really long and skinny,
+            there's a covering rect that's long and skinny but
+            not-quite-long enough, and then another covering rect that is
+            square and overall the largest but not very long.  In this
+            case, the square rect should not be picked, because neither
+            dimension of the window size should ever be increased.
+
+    Extra notes:
+      - Write a get_elijah_region() function, returning a GList*
+        - elijah_region is defined as minimal set of possibly overlapping
+          rectangles for a region with the property that a window is
+          contained in the region iff it is contained in one of the
+          rectangles
+        - function should take: basic_rect (screen or xinerama), struts,
+          extend_amount (0 for fully-onscreen or on-single-xinerama, but
+          large relative-to-window amount for partially-onscreen
+          constraints; extra amount might be 4x1 array for each of four
+          directions)
+      - Need to handle minimum size constraints in all this
+      - The elijah_region thing would make is_titlebar_partially_onscreen()
+        fairly easy to write (get the elijah_region, find the titlebar
+        rect, do a whole bunch of intersection operations and see if we
+        ever get an intersection area greater than some threshold like 0)
 
   - My aspect ratio resizing may still not work because perhaps
     closest-in-area should trump whenever one of the two is very far
@@ -75,13 +105,13 @@ Short-term TODO list/reminders:
 
   - Do I need the include_frame parameter to get_size_limits() anymore?
 
-  - Need to add the onscreen and on_single_xinerama flags and get them
-    all initialized and everything
+  - Need to add the require_fully_onscreen and require_on_single_xinerama
+    flags and get them all initialized and everything
 
 Extra window.h flags:
-  onscreen                         (136307)
+  require_fully_onscreen           (136307)
   vert_maximized, horiz_maximized  (113601)
-  on_single_xinerama               (unfiled)
+  require_on_single_xinerama       (unfiled)
 
 Bugs to fix:
   unfiled - constraints.c is overly complicated

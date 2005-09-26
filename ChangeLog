@@ -1,5 +1,11 @@
 2005-09-25  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Flesh out the ideas for handling
+	on-single-xinerama, fully-onscreen, and partially-onscreen
+	constraints a little more.
+
+2005-09-25  Elijah Newren  <newren@gmail.com>
+
 	* src/boxes.[ch] (meta_rectangle_contains_rect): implement this
 	function
 
