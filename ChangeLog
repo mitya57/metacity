@@ -1,3 +1,47 @@
+2005-09-27  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: Record that I think I can nuke
+	work_area_screen somewhere so I don't lose it; mark which
+	short-term TODO items I think I've finished
+
+	* src/boxes.[ch] (meta_rectangle_overlap,
+	meta_rectangle_get_minimal_spanning_set_for_region): new
+	functions, (meta_rectangle_clip_out_rect): remove this since it
+	was only used by constraints.c:get_outermost_screen_positions()
+
+	* src/boxes.c (compare_rect_areas): new static helper function for
+	meta_rectangle_get_minimal_spanning_set_for_region()
+
+	* src/constraints.c:
+
+	(enum ConstraintPriority, constrain_clamp_size,
+	meta_window_constrain): remove all the clamp_size stuff
+
+	(enum FixedDirections, struct ConstraintInfo): create a new enum
+	for tracking fixed directions
+
+	(struct ConstraintInfo): add, cleanup, clarify comments
+
+	(setup_constraint_info): add a HUGE comment about fixed_directions
+	(which I tried to implement a bunch of different ways and had all
+	kinds of different ideas that I was working on until I figured out
+	the current relatively simple way that I think will make it all
+	work) and initialize it appropriately
+
+	(get_outermost_onscreen_positions): remove this function
+
+	(do_screen_and_xinerama_relative_constraints): #ifdef it out, for
+	now
+
+	(get_all_workspace_struts, get_screen_rect_size): simple helper
+	functions
+
+	(constrain_fully_onscreen): make use of get_all_workspace_struts()
+	and get_screen_rect_size() to get the necessary data for
+	meta_rectangle_get_minimal_spanning_set_for_region() so that we
+	can make do_screen_and_xinerama_relative_constraints() do all the
+	work
+
 2005-09-25  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Flesh out the ideas for handling
@@ -9,7 +53,7 @@
 	* src/boxes.[ch] (meta_rectangle_contains_rect): implement this
 	function
 
-	* src/constraints.c 
+	* src/constraints.c:
 
 	fixup various comments throughout
 

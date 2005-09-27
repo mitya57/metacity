@@ -46,6 +46,8 @@ gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
                                          MetaRectangle       *dest);
 gboolean meta_rectangle_equal           (const MetaRectangle *src1,
                                          const MetaRectangle *src2);
+gboolean meta_rectangle_overlap         (const MetaRectangle *rect1,
+                                         const MetaRectangle *rect2);
 gboolean meta_rectangle_vert_overlap    (const MetaRectangle *rect1,
                                          const MetaRectangle *rect2);
 gboolean meta_rectangle_horiz_overlap   (const MetaRectangle *rect1,
@@ -54,9 +56,15 @@ gboolean meta_rectangle_could_fit_rect  (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
 gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
-void     meta_rectangle_clip_out_rect   (MetaRectangle       *clipee,
-                                         const MetaRectangle *bad_area,
-                                         MetaRectDirection    clip_side);
+
+GList*   meta_rectangle_get_minimal_spanning_set_for_region (
+                                         const MetaRectangle *basic_rect,
+                                         const GSList        *all_struts,
+                                         const int            left_expand,
+                                         const int            right_expand,
+                                         const int            top_expand,
+                                         const int            bottom_expand);
+
 #if 0
   May not be needed--depends on if constrain_clamp_size remains...
 gboolean meta_rectangle_clip_into_rect  (const MetaRectangle *orig_area,

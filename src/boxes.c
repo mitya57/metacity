@@ -94,6 +94,19 @@ meta_rectangle_equal (const MetaRectangle *src1,
 }
 
 gboolean
+meta_rectangle_overlap (const MetaRectangle *rect1,
+                        const MetaRectangle *rect2)
+{
+  g_return_val_if_fail (rect1 != NULL, FALSE);
+  g_return_val_if_fail (rect2 != NULL, FALSE);
+
+  return (!(rect1->x + rect1->width  < rect2.x) ||
+           (rect2->x + rect2->width  < rect1.x) ||
+           (rect1->y + rect1->height < rect2.y) ||
+           (rect2->y + rect2->height < rect1.y));
+}
+
+gboolean
 meta_rectangle_vert_overlap (const MetaRectangle *rect1,
                              const MetaRectangle *rect2)
 {
@@ -128,35 +141,141 @@ meta_rectangle_contains_rect  (const MetaRectangle *outer_rect,
     inner_rect->y + inner_rect->height <= outer_rect->y + outer_rect->height;
 }
 
-void
-meta_rectangle_clip_out_rect (MetaRectangle       *clipee,
-                              const MetaRectangle *bad_area,
-                              MetaRectDirection    clip_side)
+/* Simple helper function for get_minimal_set_of_spanning_rectangles... */
+static gint
+compare_rect_areas (gconstpointer a, gconstpointer b)
 {
-  switch (clip_size) {
-  case META_RECTANGLE_LEFT:
-    int newx = MAX (clipee->x, bad_area->x + bad_area->width);
-    clipee->width -= (new_x - clipee->x);
-    clipee->x      = newx;
-    break;
-  case META_RECTANGLE_RIGHT:
-    clipee->width = MIN (clipee->width, 
-                         (bad_area->x + bad_area->width) - clipee->x);
-    break;
-  case META_RECTANGLE_TOP:
-    int newy = MAX (clipee->y, bad_area->y + bad_area->height);
-    clipee->height -= (new_y - clipee->y);
-    clipee->y       = newy;
-    break;
-  case META_RECTANGLE_BOTTOM:
-    clipee->height = MIN (clipee->height, 
-                          (bad_area->y + bad_area->height) - clipee->y);
-    break;
-  case default:
-    g_error ("This program was written by idiots.\n");
-  }
+  const MetaRectangle *a_rect = (gconstpointer) a;
+  const MetaRectangle *b_rect = (gconstpointer) b;
+
+  int a_area = meta_rectangle_area (a_rect);
+  int b_area = meta_rectangle_area (b_rect);
+
+  return a_area - b_area; /* positive ret value denotes a > b, ... */
 }
 
+/* This function is trying to find a "minimal spanning set (of rectangles)"
+ * for a given region.
+ *
+ * The region is given by basic_rect with all the rectangles in the
+ * all_struts list removed, and then expanded by the given number of pixels
+ * in each direction.
+ *
+ * A "minimal spanning set (of rectangles)" is the best name I could come
+ * up with for the concept I had in mind.  Basically, for a given region, I
+ * want a set of rectangles with the property that a window is contained in
+ * the region if and only if it is contained within at least one of the
+ * rectangles.
+ *
+ * The GList* returned will be a list of (allocated) MetaRectangles.
+ * The entire list will need to be freed by the caller (i.e. g_free
+ * each entry in the list as well as g_list_free on the list)
+ */
+GList*
+meta_rectangle_get_minimal_spanning_set_for_region (MetaRectangle *basic_rect,
+                                                    const GSList  *all_struts,
+                                                    const int      left_expand,
+                                                    const int      right_expand,
+                                                    const int      top_expand,
+                                                    const int      bottom_expand)
+{
+  GList         *ret;
+  GList         *tmp_list;
+  const GSList  *strut_iter;
+  MetaRectangle *temp_rect;
+
+  /* The algorithm is basically as follows:
+   *   Ignore directional expansions until the end
+   *   Initialize rectangle_set to basic_rect
+   *   Foreach strut:
+   *     Foreach rectangle in rectangle_set:
+   *       - Split the rectangle it into new rectangles that don't overlap
+   *         the strut (but which are as big as possible otherwise)
+   *   Now do directional expansion of all rectangles in rectangle_set
+   */
+
+  temp_rect = g_new (MetaRectangle, 1);
+  *temp_rect = *basic_rect;
+  ret = g_list_prepend (NULL, temp_rect);
+
+  strut_iter = all_struts;
+  while (strut_iter)
+    {
+      GList *rect_iter; 
+      MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
+      tmp_list = ret;
+      ret = NULL;
+      rect_iter = tmp_list;
+      while (rect_iter)
+        {
+          MetaRectangle *rect = (MetaRectangle*) rect_iter->data;
+          if (!meta_rectangle_overlap (rect, strut))
+            ret = g_list_prepend (ret, rect);
+          else
+            {
+              /* If there is area in rect left of strut */
+              if (rect->x < strut->x)
+                {
+                  temp_rect = g_new (MetaRectangle, 1);
+                  *temp_rect = *rect;
+                  temp_rect->width = strut->x - rect->x;
+                  ret = g_list_prepend (ret, temp_rect);
+                }
+              /* If there is area in rect right of strut */
+              if (rect->x + rect->width > strut->x + strut->width)
+                {
+                  int new_x;
+                  temp_rect = g_new (MetaRectangle, 1);
+                  *temp_rect = *rect;
+                  new_x = strut->x + strut->width;
+                  temp_rect->width = rect->width - new_x;
+                  temp_rect->x = new_x;
+                  ret = g_list_prepend (ret, temp_rect);
+                }
+              /* If there is area in rect above strut */
+              if (rect->y < strut->y)
+                {
+                  temp_rect = g_new (MetaRectangle, 1);
+                  *temp_rect = *rect;
+                  temp_rect->height = strut->y - rect->y;
+                  ret = g_list_prepend (ret, temp_rect);
+                }
+              /* If there is area in rect below strut */
+              if (rect->y + rect->height > strut->y + strut->height)
+                {
+                  int new_y;
+                  temp_rect = g_new (MetaRectangle, 1);
+                  *temp_rect = *rect;
+                  new_y = strut->y + strut->height;
+                  temp_rect->height = rect->height - new_y;
+                  temp_rect->y = new_y;
+                  ret = g_list_prepend (ret, temp_rect);
+                }
+              g_free (rect);
+            }
+          rect_iter = rect_iter->next;
+        }
+      g_list_free (tmp_list);
+      strut_iter = strut_iter->next;
+    }
+
+  /* Now it's time to do the directional expansion */
+  tmp_list = ret;
+  while (tmp_list)
+    {
+      MetaRectangle *rect = (MetaRectangle*) tmp_list->data;
+      rect->x      -= left_expand;
+      rect->width  += (left_expand + right_expand);
+      rect->y      -= top_expand;
+      rect->height += (top_expand + bottom_expand);
+      tmp_list = tmp_list->next;
+    }
+
+  /* Sort by maximal area, just because I feel like it... */
+  ret = g_list_sort (ret, compare_rect_areas);
+
+  return ret;
+}
 
 #if 0
 #if 0

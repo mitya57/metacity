@@ -1,10 +1,12 @@
 Short-term TODO list/reminders:
 
+  - It looks like I can nuke work_area_screen in ConstraintInfo
+
   - Okay the on-single-xinerama/fully-onscreen/partially-onscreen
     constraints aren't as simple as I thought, the boxes.[ch] is still the
     wrong way to go about it and doesn't cover everything needed, and I
     need something else big.  Ideas:
-      - Get minimal set of (maximally) covering rects:
+      X Get minimal set of (maximally) covering rects:
         - Start with relevant rect (screen/xinerama)
         - Foreach strut, divide each rect in the set into up to three rects
           (before-strut zone, overlap-strut zone, and after-strut zone)
@@ -19,7 +21,7 @@ Short-term TODO list/reminders:
             overlap zone in this case).  The left and right struts are
             similar in nature (vertical shrinkage for before and after,
             horizontal shrinkage for overlap)
-      - Be careful not to move/clip in the wrong direction
+      X Be careful not to move/clip in the wrong direction
         - For user move, one does not want to shove a rect vertically to
           force it fully onscreen if the user had only been moving the
           window horizontally--even if moving it vertically would result in
@@ -59,12 +61,12 @@ Short-term TODO list/reminders:
             dimension of the window size should ever be increased.
 
     Extra notes:
-      - Write a get_elijah_region() function, returning a GList*
-        - elijah_region is defined as minimal set of possibly overlapping
+      X Write a get_elijah_region() function, returning a GList*
+        X elijah_region is defined as minimal set of possibly overlapping
           rectangles for a region with the property that a window is
           contained in the region iff it is contained in one of the
           rectangles
-        - function should take: basic_rect (screen or xinerama), struts,
+        X function should take: basic_rect (screen or xinerama), struts,
           extend_amount (0 for fully-onscreen or on-single-xinerama, but
           large relative-to-window amount for partially-onscreen
           constraints; extra amount might be 4x1 array for each of four
@@ -87,7 +89,7 @@ Short-term TODO list/reminders:
     closest-in-area should ust always trump--except for some extra
     slop for keyboard resizing?.
 
-  - My attempts to do all contraints in terms of the outer window are
+  X My attempts to do all contraints in terms of the outer window are
     mislead--most are actually relative to the inner window.
     Comparisons:
        constraint      window
@@ -99,7 +101,7 @@ Short-term TODO list/reminders:
        aspect_ratio    inner
        onscreen        outer
 
-  - Change documentation in constraints.c to target future maintainers
+  X Change documentation in constraints.c to target future maintainers
     first, then explain the basic ideas behind the algorithm and how
     it compares to the old method and why.
 
