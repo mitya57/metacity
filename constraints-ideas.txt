@@ -124,7 +124,7 @@ Bugs to fix:
             even-number-of-pixels in resize)
   unfiled - get_outermost_onscreen_positions is decoration-unaware
   unfiled - constraints.c documentation is difficult to understand
-  unfiled - should try to keep windows on a single xinerama
+  142016, 143784 - should try to keep windows on a single xinerama
   109553  - gravity w/ simultaneous move & resize doesn't work
   113601  - maximize vert and horiz should toggle & be constrained
   122196  - windows show up under vertical panels
@@ -133,7 +133,7 @@ Bugs to fix:
   136307  - don't allow app resize off screen
             (unless minimum size hints?  No...too big windows are fully clamped)
   156699  - avoid struts when placing windows, if possible
-  194867  - fixed aspect ratio windows are difficult to resize
+  149867  - fixed aspect ratio windows are difficult to resize
             WARNING: nasty interaction with e.g. onscreen constraints in 2 dim's!
   312007  - snap-resize moves windows with minimium size constraint
   312104  - resize top causes bottom to grow
