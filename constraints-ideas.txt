@@ -148,6 +148,7 @@ Bugs to fix:
     122670  - jerky/random resizing of windows via keyboard
               (drop extra events -- not really needed)
      81704  - edge magnetism/resistance/snapping/etc.
+    151842  - maximize to fill feature...
 
 Some ideas:
   - move_rectangle_into_region & clip_rectangle_into_region in
