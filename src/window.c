@@ -430,6 +430,8 @@ meta_window_new_with_attrs (MetaDisplay       *display,
   window->maximized = FALSE;
   window->maximize_after_placement = FALSE;
   window->fullscreen = FALSE;
+  window->require_fully_onscreen = TRUE;
+  window->require_on_single_xinerama = TRUE;
   window->on_all_workspaces = FALSE;
   window->shaded = FALSE;
   window->initially_iconic = FALSE;
@@ -2517,8 +2519,6 @@ meta_window_move_resize_internal (MetaWindow  *window,
    */
   int client_move_x;
   int client_move_y;
-  int x_delta;
-  int y_delta;
   MetaRectangle new_rect;
   MetaRectangle old_rect;
   
@@ -2575,7 +2575,7 @@ meta_window_move_resize_internal (MetaWindow  *window,
                          flags,
                          resize_gravity,
                          &old_rect,
-                         &new_rect)
+                         &new_rect);
 
   w = new_rect.width;
   h = new_rect.height;

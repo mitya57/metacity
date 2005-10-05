@@ -25,6 +25,8 @@
 #include "workspace.h"
 #include "place.h"
 
+#include <stdlib.h>
+
 /* Stupid disallowing of nested C comments makes a #if 0 mandatory... */
 #if 0
 /* This is a huge comment with a brief overview of how to hack on it as
@@ -223,17 +225,17 @@
  */
 #endif
 
-typedef enum   FIXME--there's more than this...
+typedef enum
 {
-  PRIORITY_MINIMUM=0,  # Dummy value used for loop start = min(all priorities)
+  PRIORITY_MINIMUM=0, // Dummy value used for loop start = min(all priorities)
   PRIORITY_ASPECT_RATIO=0,
   PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA=1,
   PRIORITY_SIZE_HINTS_INCREMENTS=1,
   PRIORITY_MAXIMIZATION=2,
-  PRIORITY_FULLSCREEN=2
+  PRIORITY_FULLSCREEN=2,
   PRIORITY_SIZE_HINTS_LIMITS=3,
   PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA=4,
-  PRIORITY_MAXIMUM=4   # Dummy value used for loop end = max(all priorities)
+  PRIORITY_MAXIMUM=4  // Dummy value used for loop end = max(all priorities)
 } ConstraintPriority;
 
 typedef enum
@@ -242,12 +244,6 @@ typedef enum
   ACTION_RESIZE,
   ACTION_MOVE_AND_RESIZE
 } ActionType;
-
-typedef enum
-{
-  FIXED_DIRECTION_X = 1 << 0,
-  FIXED_DIRECTION_Y = 1 << 1,
-} FixedDirections;
 
 typedef struct
 {
@@ -318,8 +314,9 @@ static void resize_with_gravity    (MetaRectangle     *rect,
                                     int                gravity,
                                     int                new_width,
                                     int                new_height);
-inline void get_size_limits        (const MetaWindow        *window,
+static inline void get_size_limits (const MetaWindow        *window,
                                     const MetaFrameGeometry *fgeom,
+                                    gboolean                 include_frame,
                                     MetaRectangle *min_size,
                                     MetaRectangle *max_size);
 
@@ -333,7 +330,6 @@ meta_window_constrain (MetaWindow          *window,
                        MetaRectangle       *new)
 {
   ConstraintInfo info;
-  MetaRectangle current;
 
   meta_topic (META_DEBUG_GEOMETRY,
               "Constraining %s in move from %d,%d %dx%d to %d,%d %dx%d\n",
@@ -351,7 +347,7 @@ meta_window_constrain (MetaWindow          *window,
   place_window_if_needed (window, &info);
 
   ConstraintPriority priority = PRIORITY_MINIMUM;
-  gboolean satisfied = false;
+  gboolean satisfied = FALSE;
   while (!satisfied && priority <= PRIORITY_MAXIMUM) {
     gboolean check_only = FALSE;
     constrain_maximization       (window, &info, priority, check_only);
@@ -379,7 +375,7 @@ meta_window_constrain (MetaWindow          *window,
    * window->require_on_single_xinerama, and perhaps other quantities
    * if this was a user move or user move-and-resize operation.
    */
-  FIXME: Implement this.
+  /* FIXME: Implement this. */
 
   /* Ew, what an ugly way to do things.  Destructors (in a real OOP language,
    * not gobject-style--gobject would be more pain than it's worth) or
@@ -417,7 +413,7 @@ setup_constraint_info (ConstraintInfo      *info,
     g_error ("BAD, BAD developer!  No treat for you!  (Fix your calls to "
              "meta_window_move_resize_internal()).\n");
 
-  info->is_user_action = (flags & META_USER_MOVE_RESIZE);
+  info->is_user_action = (flags & META_IS_USER_ACTION);
 
   info->resize_gravity = resize_gravity;
   /* We need to get a pseduo_gravity for user resize operations (so
@@ -431,22 +427,22 @@ setup_constraint_info (ConstraintInfo      *info,
    * gravity or SouthWest.  Center gravity and Static gravity just don't
    * make sense in this context.
    */
-  if (info->is_user_action && info->action_type = ACTION_RESIZE)
+  if (info->is_user_action && info->action_type == ACTION_RESIZE)
     {
       int pseudo_gravity = NorthWestGravity;
       if (orig->x == new->x)
         {
           if (orig->y == new->y)
-            pseduo_gravity = NorthWestGravity;
+            pseudo_gravity = NorthWestGravity;
           else if (orig->y + orig->height == new->y + new->height)
-            pseduo_gravity = SouthWestGravity;
+            pseudo_gravity = SouthWestGravity;
         }
       else if (orig->x + orig->width == new->x + new->width)
         {
           if (orig->y == new->y)
-            pseduo_gravity = NorthEastGravity;
+            pseudo_gravity = NorthEastGravity;
           else if (orig->y + orig->height == new->y + new->height)
-            pseduo_gravity = SouthEastGravity;
+            pseudo_gravity = SouthEastGravity;
         }
       info->resize_gravity = pseudo_gravity;      
     }
@@ -594,21 +590,21 @@ place_window_if_needed(MetaWindow     *window,
     {
       window->maximize_after_placement = FALSE;
 
-      if (meta_rectangle_could_fit_rect (info->current, 
-                                         info->work_area_xinerama))
+      if (meta_rectangle_could_fit_rect (&info->current, 
+                                         &info->work_area_xinerama))
         {
           /* define a sane saved_rect so that the user can unmaximize
            * to something reasonable.
            */
-          new->width = .75 * info->work_area_xinerama.width;
-          new->height = .75 * info->work_area_xinerama.height;
-          new->x = info->work_area_xinerama.x +
+          info->current.width = .75 * info->work_area_xinerama.width;
+          info->current.height = .75 * info->work_area_xinerama.height;
+          info->current.x = info->work_area_xinerama.x +
                    .125 * info->work_area_xinerama.width;
-          new->y = info->work_area_xinerama.y +
+          info->current.y = info->work_area_xinerama.y +
                    .083 * info->work_area_xinerama.height;
         }
 
-      meta_window_maximize_internal (window, new);
+      meta_window_maximize_internal (window, &info->current);
 
       /* maximization may have changed frame geometry */
       if (window->frame && !window->fullscreen)
@@ -739,20 +735,20 @@ get_size_limits (const MetaWindow        *window,
                  MetaRectangle *min_size,
                  MetaRectangle *max_size)
 {
-  *min_size->width  = window->size_hints->min_width;
-  *min_size->height = window->size_hints->min_height;
-  *max_size->width  = window->size_hints->max_width;
-  *max_size->height = window->size_hints->max_height;
+  min_size->width  = window->size_hints.min_width;
+  min_size->height = window->size_hints.min_height;
+  max_size->width  = window->size_hints.max_width;
+  max_size->height = window->size_hints.max_height;
 
   if (include_frame)
     {
-      int fw = info->fgeom->left_width + info->fgeom->right_width;
-      int fh = info->fgeom->top_height + info->fgeom->bottom_height;
+      int fw = fgeom->left_width + fgeom->right_width;
+      int fh = fgeom->top_height + fgeom->bottom_height;
 
-      *min_size->width  += fw;
-      *min_size->height += fh;
-      *max_size->width  += fw;
-      *max_size->height += fh;
+      min_size->width  += fw;
+      min_size->height += fh;
+      max_size->width  += fw;
+      max_size->height += fh;
     }
 }
 
@@ -760,7 +756,7 @@ static gboolean
 constrain_maximization (MetaWindow         *window,
                         ConstraintInfo     *info,
                         ConstraintPriority  priority,
-                        gboolean            check_only);
+                        gboolean            check_only)
 {
   if (priority > PRIORITY_MAXIMIZATION)
     return TRUE;
@@ -772,14 +768,14 @@ constrain_maximization (MetaWindow         *window,
   MetaRectangle work_area = info->work_area_xinerama;
   unextend_by_frame (&work_area, info->fgeom);
   get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
-  gboolean too_big =   !meta_rectangle_could_fit_rect (work_area, min_size);
-  gboolean too_small = !meta_rectangle_could_fit_rect (max_size, work_area);
+  gboolean too_big =   !meta_rectangle_could_fit_rect (&work_area, &min_size);
+  gboolean too_small = !meta_rectangle_could_fit_rect (&max_size, &work_area);
   if (too_big || too_small)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
   gboolean constraint_already_satisfied =
-    meta_rectangle_equal (info->current, work_area)
+    meta_rectangle_equal (&info->current, &work_area);
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
 
@@ -792,7 +788,7 @@ static gboolean
 constrain_fullscreen (MetaWindow         *window,
                       ConstraintInfo     *info,
                       ConstraintPriority  priority,
-                      gboolean            check_only);
+                      gboolean            check_only)
 {
   if (priority > PRIORITY_FULLSCREEN)
     return TRUE;
@@ -803,14 +799,14 @@ constrain_fullscreen (MetaWindow         *window,
   MetaRectangle min_size, max_size;
   MetaRectangle xinerama = info->entire_xinerama;
   get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
-  gboolean too_big =   !meta_rectangle_could_fit_rect (xinerama, min_size);
-  gboolean too_small = !meta_rectangle_could_fit_rect (max_size, xinerama);
+  gboolean too_big =   !meta_rectangle_could_fit_rect (&xinerama, &min_size);
+  gboolean too_small = !meta_rectangle_could_fit_rect (&max_size, &xinerama);
   if (too_big || too_small)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
   gboolean constraint_already_satisfied =
-    meta_rectangle_equal (info->current, xinerama);
+    meta_rectangle_equal (&info->current, &xinerama);
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
 
@@ -823,7 +819,7 @@ static gboolean
 constrain_size_increments (MetaWindow         *window,
                            ConstraintInfo     *info,
                            ConstraintPriority  priority,
-                           gboolean            check_only);
+                           gboolean            check_only)
 {
   if (priority > PRIORITY_SIZE_HINTS_INCREMENTS)
     return TRUE;
@@ -836,11 +832,11 @@ constrain_size_increments (MetaWindow         *window,
   /* Determine whether constraint is already satisfied; exit if it is */
   int bh, hi, bw, wi, extra_height, extra_width;
   bh = window->size_hints.base_height;
-  hi = window->size_hints.height_increment;
+  hi = window->size_hints.height_inc;
   bw = window->size_hints.base_width;
-  wi = window->size_hints.width_increment;
+  wi = window->size_hints.width_inc;
   extra_height = (info->current.height - bh) % hi;
-  extra_width  = (info->current.widht  - bw) % wi;
+  extra_width  = (info->current.width  - bw) % wi;
   gboolean constraint_already_satisfied = 
     (extra_height == 0 && extra_width == 0);
 
@@ -849,7 +845,7 @@ constrain_size_increments (MetaWindow         *window,
 
   /*** Enforce constraint ***/
   /* Shrink to base + N * inc */
-  resize_with_gravity (info->current, 
+  resize_with_gravity (&info->current, 
                        info->resize_gravity,
                        info->current.width - extra_width,
                        info->current.height - extra_height);
@@ -860,7 +856,7 @@ static gboolean
 constrain_size_limits (MetaWindow         *window,
                        ConstraintInfo     *info,
                        ConstraintPriority  priority,
-                       gboolean            check_only);
+                       gboolean            check_only)
 {
   if (priority > PRIORITY_SIZE_HINTS_LIMITS)
     return TRUE;
@@ -876,8 +872,10 @@ constrain_size_limits (MetaWindow         *window,
   /* Determine whether constraint is already satisfied; exit if it is */
   MetaRectangle min_size, max_size;
   get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
-  gboolean too_big =   !meta_rectangle_could_fit_rect (info->current, min_size);
-  gboolean too_small = !meta_rectangle_could_fit_rect (max_size, info->current);
+  gboolean too_big =   
+    !meta_rectangle_could_fit_rect (&info->current, &min_size);
+  gboolean too_small = 
+    !meta_rectangle_could_fit_rect (&max_size, &info->current);
   gboolean constraint_already_satisfied = !too_big && !too_small;
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
@@ -887,7 +885,7 @@ constrain_size_limits (MetaWindow         *window,
                         MAX (min_size.width,  info->current.width));
   int new_height = MIN (max_size.height, 
                         MAX (min_size.height, info->current.height));
-  resize_with_gravity (info->current, 
+  resize_with_gravity (&info->current, 
                        info->resize_gravity,
                        new_width,
                        new_height);
@@ -903,7 +901,7 @@ constrain_aspect_ratio (MetaWindow         *window,
   if (priority > PRIORITY_ASPECT_RATIO)
     return TRUE;
 
-  /* Determine whether constraint applies; exit if it doesn't.
+  /* Determine whether constraint applies; exit if it doesn't. */
   int min_ax, min_ay, max_ax, max_ay;
   min_ax = window->size_hints.min_aspect.x;
   min_ay = window->size_hints.min_aspect.y;
@@ -922,6 +920,7 @@ constrain_aspect_ratio (MetaWindow         *window,
   /*       min_ax     width    max_ax
    * Need: ------ <= ------ <= ------
    *       min_ay    height    max_ay
+   */
   gboolean constraint_already_satisfied = 
     info->current.width >=
       (info->current.height * min_ax / min_ay) - slop_allowed_for_min &&
@@ -958,7 +957,7 @@ constrain_aspect_ratio (MetaWindow         *window,
     }
 #endif
 
-  /* Pseduo-code:
+  /* Pseudocode:
    *
    * 1) Find new rect, A, based on keeping height fixed
    * 2) Find new rect, B, based on keeping width fixed
@@ -971,7 +970,7 @@ constrain_aspect_ratio (MetaWindow         *window,
    * 5) If both A and B remain (possible in the cases of the user
    *    changing both width and height simultaneously), choose the one
    *    which is closer in area to info->orig.
-
+   */
    MetaRectangle A, B;
    int min_size, max_size, new_size;
 
@@ -991,13 +990,13 @@ constrain_aspect_ratio (MetaWindow         *window,
 
    gboolean a_valid, b_valid;
    int ref_area, a_area, b_area;
-   a_valid = b_valid = true;
-   ref_area = meta_rectangle_area (info->orig);
+   a_valid = b_valid = TRUE;
+   ref_area = meta_rectangle_area (&info->orig);
    a_area = meta_rectangle_area (&A);
    b_area = meta_rectangle_area (&B);
 
    /* Discard too-small rects if we're increasing in size */
-   if (meta_rectangle_could_fit_rect (info->current, info->orig))
+   if (meta_rectangle_could_fit_rect (&info->current, &info->orig))
      {
        if (a_area < ref_area)
          a_valid = FALSE;
@@ -1007,7 +1006,7 @@ constrain_aspect_ratio (MetaWindow         *window,
      }
   
    /* Discard too-large rects if we're decreasing in size */
-   if (meta_rectangle_could_fit_rect (info->orig, info->current))
+   if (meta_rectangle_could_fit_rect (&info->orig, &info->current))
      {
        if (a_area > ref_area)
          a_valid = FALSE;
@@ -1028,17 +1027,17 @@ constrain_aspect_ratio (MetaWindow         *window,
    if (!a_valid && !b_valid)
      /* This should only be possible for initial placement; we just
       * punt and pick one */
-     resize_with_gravity (info->current, 
+     resize_with_gravity (&info->current, 
                           info->resize_gravity,
                           A.width,
                           A.height);
    else if (!b_valid)
-     resize_with_gravity (info->current, 
+     resize_with_gravity (&info->current, 
                           info->resize_gravity,
                           A.width,
                           A.height);
    else if (!a_valid)     
-     resize_with_gravity (info->current, 
+     resize_with_gravity (&info->current, 
                           info->resize_gravity,
                           A.width,
                           A.height);
@@ -1068,13 +1067,13 @@ do_screen_and_xinerama_relative_constraints (
         how_far_it_can_be_smushed.height = min_size.height;
     }
   if (!meta_rectangle_could_be_contained_in_region (region_spanning_rectangles,
-                                                    how_far_it_can_be_smushed))
+                                                    &how_far_it_can_be_smushed))
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
-  constraint_satisfied = 
+  gboolean constraint_satisfied = 
     meta_rectangle_contained_in_region (region_spanning_rectangles,
-                                        info->current);
+                                        &info->current);
   if (constraint_satisfied || check_only)
     return constraint_satisfied;
 
@@ -1089,7 +1088,7 @@ do_screen_and_xinerama_relative_constraints (
       meta_rectangle_clamp_to_fit_into_region (region_spanning_rectangles,
                                                info->fixed_directions,
                                                &info->current,
-                                               min_size);
+                                               &min_size);
     }
 
   if (info->is_user_action && info->action_type == ACTION_RESIZE)
@@ -1109,7 +1108,7 @@ do_screen_and_xinerama_relative_constraints (
 static GSList*
 get_all_workspace_struts (const MetaWorkspace *workspace)
 {
-  GList *all_struts;
+  GSList *all_struts;
   all_struts = g_slist_concat (g_slist_copy (workspace->left_struts),
                                NULL);
   all_struts = g_slist_concat (g_slist_copy (workspace->right_struts),
@@ -1149,9 +1148,9 @@ constrain_fully_onscreen (MetaWindow         *window,
   get_screen_rect_size (window->screen, &whole_screen);
   all_struts = get_all_workspace_struts (window->screen->active_workspace);
   GList *fully_onscreen_region =
-    get_minimal_set_of_spanning_rectangles (&whole_screen,
-                                            all_struts,
-                                            0, 0, 0, 0);
+    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
+                                                        all_struts,
+                                                        0, 0, 0, 0);
   /* Generic function to handle the constraint for us */
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
@@ -1161,7 +1160,9 @@ constrain_fully_onscreen (MetaWindow         *window,
 
   /* Free up the data we allocated */
   g_slist_free (all_struts);
-  g_list_foreach (fully_onscreen_region, g_free, NULL);
+  g_list_foreach (fully_onscreen_region, 
+                  (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
+                  NULL);
   g_list_free (fully_onscreen_region);
   return retval;
 }
@@ -1175,6 +1176,45 @@ constrain_partially_onscreen (MetaWindow         *window,
   if (priority > PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA)
     return TRUE;
 
-  /* FIXME: Somehow send the fact that this is partially_onscreen */
-  return do_screen_and_xinerama_relative_constraints (window, info, check_only);
+  /* No special reasons, other than possibly priority, for this not applying */
+
+  /* Determine how much offscreen things are allowed.  We use 25% window
+   * width/height but clamp to the range of (10,75) pixels.  This is
+   * somewhat of a seat of my pants random guess at what might look good.
+   */
+  int horiz_amount = info->current.width  / 4;
+  int vert_amount  = info->current.height / 4;
+  horiz_amount = MAX (10, MIN (75, horiz_amount));
+  vert_amount  = MAX (10, MIN (75, vert_amount));
+
+  /* FIXME!!!! I need to change amounts for user resize so that user
+   * doesn't move the window further offscreen than it already is.
+   */
+
+  /* Gather some data for a generic constraint_handler */
+  MetaRectangle  whole_screen;
+  GSList         *all_struts;
+  get_screen_rect_size (window->screen, &whole_screen);
+  all_struts = get_all_workspace_struts (window->screen->active_workspace);
+  GList *partially_onscreen_region =
+    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
+                                                        all_struts,
+                                                        horiz_amount,
+                                                        horiz_amount, 
+                                                        vert_amount,
+                                                        vert_amount);
+  /* Generic function to handle the constraint for us */
+  gboolean retval =
+    do_screen_and_xinerama_relative_constraints (window, 
+                                                 partially_onscreen_region,
+                                                 info,
+                                                 check_only);
+
+  /* Free up the data we allocated */
+  g_slist_free (all_struts);
+  g_list_foreach (partially_onscreen_region, 
+                  (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
+                  NULL);
+  g_list_free (partially_onscreen_region);
+  return retval;
 }

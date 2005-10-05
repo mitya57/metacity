@@ -22,6 +22,8 @@
 #ifndef META_BOXES_H
 #define META_BOXES_H
 
+#include <glib.h>
+
 typedef struct _MetaRectangle MetaRectangle;
 
 struct _MetaRectangle
@@ -39,6 +41,12 @@ typedef enum
   META_RECTANGLE_TOP       = 1 << 2,
   META_RECTANGLE_BOTTOM    = 1 << 3
 } MetaRectDirection;
+
+typedef enum
+{
+  FIXED_DIRECTION_X = 1 << 0,
+  FIXED_DIRECTION_Y = 1 << 1,
+} FixedDirections;
 
 int      meta_rectangle_area            (const MetaRectangle *rect);
 gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
@@ -75,10 +83,10 @@ void     meta_rectangle_clamp_to_fit_into_region (
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect,
                                          const MetaRectangle *min_size);
-gboolean meta_rectangle_clip_to_region  (const GList         *spanning_rects,
+void     meta_rectangle_clip_to_region  (const GList         *spanning_rects,
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect);
-gboolean meta_rectangle_shove_into_region(
+void     meta_rectangle_shove_into_region(
                                          const GList         *spanning_rects,
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect);

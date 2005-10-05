@@ -13,6 +13,8 @@ metacity_SOURCES= 				\
 	async-getprop.h				\
 	bell.h					\
 	bell.c					\
+	boxes.h					\
+	boxes.c					\
 	common.h				\
 	compositor.c				\
 	compositor.h				\

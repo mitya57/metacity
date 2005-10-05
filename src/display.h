@@ -32,6 +32,7 @@
 #include <X11/Xlib.h>
 #include "eventqueue.h"
 #include "common.h"
+#include "boxes.h"
 
 #ifdef HAVE_STARTUP_NOTIFICATION
 #include <libsn/sn.h>

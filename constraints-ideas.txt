@@ -71,7 +71,7 @@ Short-term TODO list/reminders:
           large relative-to-window amount for partially-onscreen
           constraints; extra amount might be 4x1 array for each of four
           directions)
-      - Need to handle minimum size constraints in all this
+      X Need to handle minimum size constraints in all this
       - The elijah_region thing would make is_titlebar_partially_onscreen()
         fairly easy to write (get the elijah_region, find the titlebar
         rect, do a whole bunch of intersection operations and see if we

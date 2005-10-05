@@ -1,5 +1,28 @@
 2005-10-04  Elijah Newren  <newren@gmail.com>
 
+	* src/Makefile.am: include boxes.[ch]
+
+	* src/constraints.c (constrain_partially_onscreen): do the rest of
+	the implementation of this function, other than handling amount
+	offscreen that user resize operations are allowed
+
+	* src/window.h (struct _MetaWindow): add require_fully_onscreen
+	and require_on_single_xinerama flags
+
+	* src/window.c (meta_window_new_with_attrs): intialize
+	require_fully_onscreen and require_on_single_xinerama flags for
+	the window
+
+	* src/boxes.[ch]:
+	* src/constraints.[ch]:
+	* src/window.[ch]:
+	* src/display.h:
+	Massive changes all over the place to make everything compile.  No
+	it doesn't work, and don't worry, I'll break the compilation again
+	soon.
+
+2005-10-04  Elijah Newren  <newren@gmail.com>
+
 	Finally got the onscreen constraint written, minus the need for
 	setting the require_fully_onscreen flag.
 

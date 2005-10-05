@@ -116,6 +116,12 @@ struct _MetaWindow
   /* Whether we're fullscreen */
   guint fullscreen : 1;
   
+  /* Whether we're trying to constrain the window to be fully onscreen */
+  guint require_fully_onscreen : 1;
+
+  /* Whether we're trying to constrain the window to be on a single xinerama */
+  guint require_on_single_xinerama : 1;
+
   /* Whether we're sticky in the multi-workspace sense
    * (vs. the not-scroll-with-viewport sense, we don't
    * have no stupid viewports)

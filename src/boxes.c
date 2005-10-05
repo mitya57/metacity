@@ -26,6 +26,7 @@
  */
 
 #include "boxes.h"
+#include "util.h"
 
 #if 0
 static void   free_the_list                (GList *list);
@@ -100,10 +101,10 @@ meta_rectangle_overlap (const MetaRectangle *rect1,
   g_return_val_if_fail (rect1 != NULL, FALSE);
   g_return_val_if_fail (rect2 != NULL, FALSE);
 
-  return (!(rect1->x + rect1->width  < rect2.x) ||
-           (rect2->x + rect2->width  < rect1.x) ||
-           (rect1->y + rect1->height < rect2.y) ||
-           (rect2->y + rect2->height < rect1.y));
+  return (!(rect1->x + rect1->width  < rect2->x) ||
+           (rect2->x + rect2->width  < rect1->x) ||
+           (rect1->y + rect1->height < rect2->y) ||
+           (rect2->y + rect2->height < rect1->y));
 }
 
 gboolean
@@ -172,12 +173,13 @@ compare_rect_areas (gconstpointer a, gconstpointer b)
  * each entry in the list as well as g_list_free on the list)
  */
 GList*
-meta_rectangle_get_minimal_spanning_set_for_region (MetaRectangle *basic_rect,
-                                                    const GSList  *all_struts,
-                                                    const int      left_expand,
-                                                    const int      right_expand,
-                                                    const int      top_expand,
-                                                    const int      bottom_expand)
+meta_rectangle_get_minimal_spanning_set_for_region (
+  const MetaRectangle *basic_rect,
+  const GSList  *all_struts,
+  const int      left_expand,
+  const int      right_expand,
+  const int      top_expand,
+  const int      bottom_expand)
 {
   GList         *ret;
   GList         *tmp_list;
@@ -284,7 +286,8 @@ meta_rectangle_could_be_contained_in_region (const GList         *spanning_rects
   const GList *temp;
   gboolean     could_be_contained;
 
-  contained = TRUE;
+  temp = spanning_rects;
+  could_be_contained = TRUE;
   while (could_be_contained && temp != NULL)
     {
       could_be_contained = 
@@ -302,6 +305,7 @@ meta_rectangle_contained_in_region (const GList         *spanning_rects,
   const GList *temp;
   gboolean     contained;
 
+  temp = spanning_rects;
   contained = TRUE;
   while (contained && temp != NULL)
     {
@@ -318,7 +322,7 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
                                          MetaRectangle       *rect,
                                          const MetaRectangle *min_size)
 {
-  GList *temp;
+  const GList *temp;
   const MetaRectangle *best_rect = NULL;
   int                  best_overlap = 0;
 
@@ -329,14 +333,14 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
   while (temp)
     {
       int factor = 1;
-      MetaRectangle *compare = temp->data;
+      MetaRectangle *compare_rect = temp->data;
       int            maximal_overlap_amount_for_compare;
       
       /* If x is fixed and the entire width of rect doesn't fit in compare, set
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_X) &&
-          (compare->x > rect->x || 
+          (compare_rect->x > rect->x || 
            compare_rect->x + compare_rect->width < rect->x + rect->width))
         factor = 0;
         
@@ -344,7 +348,7 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_Y) &&
-          (compare->y > rect->y || 
+          (compare_rect->y > rect->y || 
            compare_rect->y + compare_rect->height < rect->y + rect->height))
         factor = 0;
 
@@ -379,12 +383,12 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
     }
 }
 
-gboolean
+void
 meta_rectangle_clip_to_region (const GList         *spanning_rects,
                                FixedDirections      fixed_directions,
                                MetaRectangle       *rect)
 {
-  GList *temp;
+  const GList *temp;
   const MetaRectangle *best_rect = NULL;
   int                  best_overlap = 0;
 
@@ -395,7 +399,7 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
   while (temp)
     {
       int factor = 1;
-      MetaRectangle *compare = temp->data;
+      MetaRectangle *compare_rect = temp->data;
       MetaRectangle  overlap;
       int            maximal_overlap_amount_for_compare;
       
@@ -403,7 +407,7 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_X) &&
-          (compare->x > rect->x || 
+          (compare_rect->x > rect->x || 
            compare_rect->x + compare_rect->width < rect->x + rect->width))
         factor = 0;
         
@@ -411,7 +415,7 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_Y) &&
-          (compare->y > rect->y || 
+          (compare_rect->y > rect->y || 
            compare_rect->y + compare_rect->height < rect->y + rect->height))
         factor = 0;
 
@@ -463,12 +467,12 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
     }
 }
 
-gboolean
+void
 meta_rectangle_shove_into_region (const GList         *spanning_rects,
                                   FixedDirections      fixed_directions,
                                   MetaRectangle       *rect)
 {
-  GList *temp;
+  const GList *temp;
   const MetaRectangle *best_rect = NULL;
   int                  best_overlap = 0;
 
@@ -479,14 +483,14 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
   while (temp)
     {
       int factor = 1;
-      MetaRectangle *compare = temp->data;
+      MetaRectangle *compare_rect = temp->data;
       int            maximal_overlap_amount_for_compare;
       
       /* If x is fixed and the entire width of rect doesn't fit in compare, set
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_X) &&
-          (compare->x > rect->x || 
+          (compare_rect->x > rect->x || 
            compare_rect->x + compare_rect->width < rect->x + rect->width))
         factor = 0;
         
@@ -494,7 +498,7 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
        * factor to 0.
        */
       if ((fixed_directions & FIXED_DIRECTION_Y) &&
-          (compare->y > rect->y || 
+          (compare_rect->y > rect->y || 
            compare_rect->y + compare_rect->height < rect->y + rect->height))
         factor = 0;
 
@@ -988,7 +992,7 @@ get_optimal_locations (GList *region)
                       /* Record point stored in new_rectangle */
                       locations = g_list_prepend (locations, new_rectangle);
 
-                      /* Create a new point, copied from the old
+                      /* Create a new point, copied from the old */
                       temp = *new_rectangle;
                       new_rectangle = g_new (MetaRectangle, 1);
                       *new_rectangle = temp;
@@ -1055,7 +1059,7 @@ get_optimal_locations (GList *region)
                       /* Record point stored in new_rectangle */
                       locations = g_list_prepend (locations, new_rectangle);
 
-                      /* Create a new point, copied from the old
+                      /* Create a new point, copied from the old */
                       temp = *new_rectangle;
                       new_rectangle = g_new (MetaRectangle, 1);
                       *new_rectangle = temp;
