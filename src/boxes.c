@@ -157,9 +157,9 @@ compare_rect_areas (gconstpointer a, gconstpointer b)
 /* This function is trying to find a "minimal spanning set (of rectangles)"
  * for a given region.
  *
- * The region is given by basic_rect with all the rectangles in the
- * all_struts list removed, and then expanded by the given number of pixels
- * in each direction.
+ * The region is given by taking basic_rect, then removing the areas
+ * covered by all the rectangles in the all_struts list, and then expanding
+ * the resulting region by the given number of pixels in each direction.
  *
  * A "minimal spanning set (of rectangles)" is the best name I could come
  * up with for the concept I had in mind.  Basically, for a given region, I
@@ -275,6 +275,278 @@ meta_rectangle_get_minimal_spanning_set_for_region (MetaRectangle *basic_rect,
   ret = g_list_sort (ret, compare_rect_areas);
 
   return ret;
+}
+
+gboolean
+meta_rectangle_could_be_contained_in_region (const GList         *spanning_rects,
+                                             const MetaRectangle *rect)
+{
+  const GList *temp;
+  gboolean     could_be_contained;
+
+  contained = TRUE;
+  while (could_be_contained && temp != NULL)
+    {
+      could_be_contained = 
+        could_be_contained && meta_rectangle_could_fit_rect (temp->data, rect);
+      temp = temp->next;
+    }
+
+  return could_be_contained;
+}
+
+gboolean
+meta_rectangle_contained_in_region (const GList         *spanning_rects,
+                                    const MetaRectangle *rect)
+{
+  const GList *temp;
+  gboolean     contained;
+
+  contained = TRUE;
+  while (contained && temp != NULL)
+    {
+      contained = contained && meta_rectangle_contains_rect (temp->data, rect);
+      temp = temp->next;
+    }
+
+  return contained;
+}
+
+void
+meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
+                                         FixedDirections      fixed_directions,
+                                         MetaRectangle       *rect,
+                                         const MetaRectangle *min_size)
+{
+  GList *temp;
+  const MetaRectangle *best_rect = NULL;
+  int                  best_overlap = 0;
+
+  /* First, find best rectangle from spanning_rects to which we can clamp
+   * rect to fit into.
+   */
+  temp = spanning_rects;
+  while (temp)
+    {
+      int factor = 1;
+      MetaRectangle *compare = temp->data;
+      int            maximal_overlap_amount_for_compare;
+      
+      /* If x is fixed and the entire width of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_X) &&
+          (compare->x > rect->x || 
+           compare_rect->x + compare_rect->width < rect->x + rect->width))
+        factor = 0;
+        
+      /* If y is fixed and the entire height of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_Y) &&
+          (compare->y > rect->y || 
+           compare_rect->y + compare_rect->height < rect->y + rect->height))
+        factor = 0;
+
+      /* If compare can't hold the min_size window, set factor to 0 */
+      if (compare_rect->width  < min_size->width ||
+          compare_rect->height < min_size->height)
+        factor = 0;
+
+      /* Determine maximal overlap amount */
+      maximal_overlap_amount_for_compare =
+        MIN (rect->width,  compare_rect->width) *
+        MIN (rect->height, compare_rect->height);
+      maximal_overlap_amount_for_compare *= factor;
+
+      /* See if this is the best rect so far */
+      if (maximal_overlap_amount_for_compare > best_overlap)
+        {
+          best_rect    = compare_rect;
+          best_overlap = maximal_overlap_amount_for_compare;
+        }
+
+      temp = temp->next;
+    }
+
+  /* Clamp rect appropriately */
+  if (best_rect == NULL)
+    meta_warning ("No rect whose size to clamp to found!\n");
+  else
+    {
+      rect->width  = MIN (rect->width,  best_rect->width);
+      rect->height = MIN (rect->height, best_rect->height);
+    }
+}
+
+gboolean
+meta_rectangle_clip_to_region (const GList         *spanning_rects,
+                               FixedDirections      fixed_directions,
+                               MetaRectangle       *rect)
+{
+  GList *temp;
+  const MetaRectangle *best_rect = NULL;
+  int                  best_overlap = 0;
+
+  /* First, find best rectangle from spanning_rects to which we will clip
+   * rect into.
+   */
+  temp = spanning_rects;
+  while (temp)
+    {
+      int factor = 1;
+      MetaRectangle *compare = temp->data;
+      MetaRectangle  overlap;
+      int            maximal_overlap_amount_for_compare;
+      
+      /* If x is fixed and the entire width of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_X) &&
+          (compare->x > rect->x || 
+           compare_rect->x + compare_rect->width < rect->x + rect->width))
+        factor = 0;
+        
+      /* If y is fixed and the entire height of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_Y) &&
+          (compare->y > rect->y || 
+           compare_rect->y + compare_rect->height < rect->y + rect->height))
+        factor = 0;
+
+      /* Determine maximal overlap amount */
+      meta_rectangle_intersect (rect, compare_rect, &overlap);
+      maximal_overlap_amount_for_compare = meta_rectangle_area (&overlap);
+      maximal_overlap_amount_for_compare *= factor;
+
+      /* See if this is the best rect so far */
+      if (maximal_overlap_amount_for_compare > best_overlap)
+        {
+          best_rect    = compare_rect;
+          best_overlap = maximal_overlap_amount_for_compare;
+        }
+
+      temp = temp->next;
+    }
+
+  /* Clip rect appropriately */
+  if (best_rect == NULL)
+    meta_warning ("No rect to shove into found!\n");
+  else
+    {
+      /* Extra precaution with checking fixed direction shouldn't be needed
+       * due to logic above, but it shouldn't hurt either.
+       */
+      if (!(fixed_directions & FIXED_DIRECTION_X))
+        {
+          /* Clip the left, if needed */
+          rect->x = MAX (rect->x, best_rect->x);
+
+          /* Clip the right, if needed */
+          rect->width = MIN (rect->width, 
+                             (best_rect->x + best_rect->width) - rect->x);
+        }
+
+      /* Extra precaution with checking fixed direction shouldn't be needed
+       * due to logic above, but it shouldn't hurt either.
+       */
+      if (!(fixed_directions & FIXED_DIRECTION_Y))
+        {
+          /* Clip the top, if needed */
+          rect->y = MAX (rect->y, best_rect->y);
+
+          /* Clip the bottom, if needed */
+          rect->height = MIN (rect->height, 
+                              (best_rect->y + best_rect->height) - rect->y);
+        }
+    }
+}
+
+gboolean
+meta_rectangle_shove_into_region (const GList         *spanning_rects,
+                                  FixedDirections      fixed_directions,
+                                  MetaRectangle       *rect)
+{
+  GList *temp;
+  const MetaRectangle *best_rect = NULL;
+  int                  best_overlap = 0;
+
+  /* First, find best rectangle from spanning_rects to which we will shove
+   * rect into.
+   */
+  temp = spanning_rects;
+  while (temp)
+    {
+      int factor = 1;
+      MetaRectangle *compare = temp->data;
+      int            maximal_overlap_amount_for_compare;
+      
+      /* If x is fixed and the entire width of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_X) &&
+          (compare->x > rect->x || 
+           compare_rect->x + compare_rect->width < rect->x + rect->width))
+        factor = 0;
+        
+      /* If y is fixed and the entire height of rect doesn't fit in compare, set
+       * factor to 0.
+       */
+      if ((fixed_directions & FIXED_DIRECTION_Y) &&
+          (compare->y > rect->y || 
+           compare_rect->y + compare_rect->height < rect->y + rect->height))
+        factor = 0;
+
+      /* Determine maximal overlap amount */
+      maximal_overlap_amount_for_compare =
+        MIN (rect->width,  compare_rect->width) *
+        MIN (rect->height, compare_rect->height);
+      maximal_overlap_amount_for_compare *= factor;
+
+      /* See if this is the best rect so far */
+      if (maximal_overlap_amount_for_compare > best_overlap)
+        {
+          best_rect    = compare_rect;
+          best_overlap = maximal_overlap_amount_for_compare;
+        }
+
+      temp = temp->next;
+    }
+
+  /* Shove rect appropriately */
+  if (best_rect == NULL)
+    meta_warning ("No rect to shove into found!\n");
+  else
+    {
+      /* Extra precaution with checking fixed direction shouldn't be needed
+       * due to logic above, but it shouldn't hurt either.
+       */
+      if (!(fixed_directions & FIXED_DIRECTION_X))
+        {
+          /* Shove to the right, if needed */
+          if (best_rect->x > rect->x)
+            rect->x = best_rect->x;
+
+          /* Shove to the left, if needed */
+          if (best_rect->x + best_rect->width < rect->x + rect->width)
+            rect->x = (best_rect->x + best_rect->width) - rect->width;
+        }
+
+      /* Extra precaution with checking fixed direction shouldn't be needed
+       * due to logic above, but it shouldn't hurt either.
+       */
+      if (!(fixed_directions & FIXED_DIRECTION_Y))
+        {
+          /* Shove down, if needed */
+          if (best_rect->y > rect->y)
+            rect->y = best_rect->y;
+
+          /* Shove up, if needed */
+          if (best_rect->y + best_rect->height < rect->y + rect->height)
+            rect->y = (best_rect->y + best_rect->height) - rect->height;
+        }
+    }
 }
 
 #if 0

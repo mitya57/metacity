@@ -489,8 +489,8 @@ setup_constraint_info (ConstraintInfo      *info,
    *
    * Note that fixed directions might (though I haven't thought it
    * completely through) give an impossible to fulfill constraint; if they
-   * do, then they will get temporarily thrown out with the constraint
-   * tried again.
+   * do, then we could temporarily throw them out and retry the constraint
+   * again.
    *
    * Now, some nasty details:
    *
@@ -1048,77 +1048,68 @@ constrain_aspect_ratio (MetaWindow         *window,
    return TRUE;
 }
 
-#if 0
 static gboolean
-do_screen_and_xinerama_relative_constraints (MetaWindow         *window,
-                                             ConstraintInfo     *info,
-                                             gboolean            check_only)
+do_screen_and_xinerama_relative_constraints (
+  MetaWindow     *window,
+  GList          *region_spanning_rectangles,
+  ConstraintInfo *info,
+  gboolean        check_only)
 {
-  FIXME: I'm assuming totally onscreen, but using it for each of
-  totally_onscreen, partially_onscreen, and on_single_xinerama...
-  /* */
-
-  MetaRectangle outermost_positions;
-  get_outermost_onscreen_positions (window, info->current, &outermost_positions);
-
   /* Determine whether constraint applies; exit if it doesn't */
-  MetaRectangle min_size, max_size;
-  MetaRectangle work_area = info->work_area_xinerama;
-  get_size_limits (window, info->fgeom, &min_size, &max_size);
-  gboolean too_big = 
-    !meta_rectangle_could_fit_rect (work_area, min_size) ||
-    !meta_rectangle_could_fit_rect (outermost_positions, min_size);
-  if (too_big)
+  MetaRectangle how_far_it_can_be_smushed, min_size, max_size;
+  how_far_it_can_be_smushed = info->current;
+  get_size_limits (window, info->fgeom, TRUE, &min_size, &max_size);
+  if (info->action_type != ACTION_MOVE)
+    {
+      if (!(info->fixed_directions & FIXED_DIRECTION_X))
+        how_far_it_can_be_smushed.width = min_size.width;
+
+      if (!(info->fixed_directions & FIXED_DIRECTION_Y))
+        how_far_it_can_be_smushed.height = min_size.height;
+    }
+  if (!meta_rectangle_could_be_contained_in_region (region_spanning_rectangles,
+                                                    how_far_it_can_be_smushed))
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
-  gboolean constraint_already_satisfied =
-    meta_rectangle_contains_rect (work_area, info->current) || 
-    meta_rectangle_contains_rect (outermost_positions, info->current);
-  if (check_only || constraint_already_satisfied)
-    return constraint_already_satisfied;
+  constraint_satisfied = 
+    meta_rectangle_contained_in_region (region_spanning_rectangles,
+                                        info->current);
+  if (constraint_satisfied || check_only)
+    return constraint_satisfied;
 
-  /* Enforce constraints */
-  /* First, make sure it can fit... */
-  if (!meta_rectangle_could_fit_rect (work_area,           info->current) &&
-      !meta_rectangle_could_fit_rect (outermost_positions, info->current))
+  /* Enforce constraint */
+
+  /* Clamp rectangle size for user move+resize, app move+resize, and
+   * app resize
+   */
+  if (info->action_type == ACTION_MOVE_AND_RESIZE ||
+      (info->is_user_action && info->action_type == ACTION_RESIZE))
     {
-      /* We have to force it to fit into either work_area or
-       * outermost_positions, and we'd rather force it into the bigger one
-       * so as to shrink the window as little as possible.
-       */
-      if (meta_rectangle_area (work_area) >
-          meta_rectangle_area (outermost_positions))
-        {
-          info->current.width  = MIN (info->current.width,  work_area.width);
-          info->current.height = MIN (info->current.height, work_area.height);
-        }
-      else
-        {
-          int max_width  = outermost_positions.width;
-          int max_height = outermost_positions.height;
-          info->current.width  = MIN (info->current.width,  max_width);
-          info->current.height = MIN (info->current.height, max_height);
-        }
+      meta_rectangle_clamp_to_fit_into_region (region_spanning_rectangles,
+                                               info->fixed_directions,
+                                               &info->current,
+                                               min_size);
     }
 
-  /* Now, either shove the rectangle onto the screen or clip it to the
-   * screen, as appropriate.
-   */
+  if (info->is_user_action && info->action_type == ACTION_RESIZE)
+    /* For user resize, clip to the relevant region */
+    meta_rectangle_clip_to_region (region_spanning_rectangles,
+                                   info->fixed_directions,
+                                   &info->current);
+  else
+    /* For everything else, shove the rectangle into the relevant region */
+    meta_rectangle_shove_into_region (region_spanning_rectangles,
+                                      info->fixed_directions,
+                                      &info->current);
 
-  Try doing relative to both work_area and outermost_positions, then ???? determinedoing both; then determine which causes
-  MetaRectangle *relevant_rect;
-  if (meta_rectangle_contains_rect (work_area, info->orig))
-    relevant_rect = 
-  
   return TRUE;
 }
-#endif
-
 
 static GSList*
 get_all_workspace_struts (const MetaWorkspace *workspace)
 {
+  GList *all_struts;
   all_struts = g_slist_concat (g_slist_copy (workspace->left_struts),
                                NULL);
   all_struts = g_slist_concat (g_slist_copy (workspace->right_struts),
@@ -1168,6 +1159,7 @@ constrain_fully_onscreen (MetaWindow         *window,
                                                  info,
                                                  check_only);
 
+  /* Free up the data we allocated */
   g_slist_free (all_struts);
   g_list_foreach (fully_onscreen_region, g_free, NULL);
   g_list_free (fully_onscreen_region);

@@ -64,6 +64,24 @@ GList*   meta_rectangle_get_minimal_spanning_set_for_region (
                                          const int            right_expand,
                                          const int            top_expand,
                                          const int            bottom_expand);
+gboolean meta_rectangle_could_be_contained_in_region (
+                                         const GList         *spanning_rects,
+                                         const MetaRectangle *rect);
+gboolean meta_rectangle_contained_in_region (
+                                         const GList         *spanning_rects,
+                                         const MetaRectangle *rect);
+void     meta_rectangle_clamp_to_fit_into_region (
+                                         const GList         *spanning_rects,
+                                         FixedDirections      fixed_directions,
+                                         MetaRectangle       *rect,
+                                         const MetaRectangle *min_size);
+gboolean meta_rectangle_clip_to_region  (const GList         *spanning_rects,
+                                         FixedDirections      fixed_directions,
+                                         MetaRectangle       *rect);
+gboolean meta_rectangle_shove_into_region(
+                                         const GList         *spanning_rects,
+                                         FixedDirections      fixed_directions,
+                                         MetaRectangle       *rect);
 
 #if 0
   May not be needed--depends on if constrain_clamp_size remains...

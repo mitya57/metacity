@@ -1,3 +1,28 @@
+2005-10-04  Elijah Newren  <newren@gmail.com>
+
+	Finally got the onscreen constraint written, minus the need for
+	setting the require_fully_onscreen flag.
+
+	* constraints-ideas.txt: minor clarification; mark one section as
+	done
+
+	* src/boxes.[ch]
+	(meta_rectangle_get_minimal_spanning_set_for_region): clarify what
+	the region is in the comments,
+	(meta_rectangle_could_be_contained_in_region,
+	meta_rectangle_contained_in_region,
+	meta_rectangle_clamp_to_fit_into_region,
+	meta_rectangle_clip_to_region, meta_rectangle_shove_into_region):
+	new functions
+
+	* src/constraints.c (do_screen_and_xinerama_relative_constraints):
+	re-write in terms of
+	meta_rectangle_could_be_contained_in_region(),
+	meta_rectangle_contained_in_region(),
+	meta_rectangle_clamp_to_fit_into_region(),
+	meta_rectangle_clip_to_region(), and
+	meta_rectangle_shove_into_region()
+
 2005-10-01  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Small updates to some bug numbers

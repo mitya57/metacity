@@ -35,8 +35,8 @@ Short-term TODO list/reminders:
             - Uni-directional: All sides but the given direction are fixed
             - Bi-directional: The two other sides are fixed
           - App resize -- acts like move as far as side fixing
-          - Move & resize -- no sides are fixed
-      - Regardless of clipping or shoving; there needs to be a good way to
+          - Move & resize -- unsure, perhaps no sides are fixed?
+      X Regardless of clipping or shoving; there needs to be a good way to
         pick the best of the (maximally) covering rects into which to clip
         or shove.  
         - User resize (clip-into):
