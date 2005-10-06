@@ -1,5 +1,16 @@
 2005-10-06  Elijah Newren  <newren@gmail.com>
 
+	* README: Update--it builds, but doesn't remotely work
+
+	* constraints-ideas.txt: add a bug to the list, make a good long
+	list for explaining to people why this rewrite exists, if needed
+	(though I guess I could let Havoc answer those questions)--it also
+	has a couple notes on how the old version worked (meaning the
+	version before the version before this rewrite, ca. Gnome 2.2 or
+	so)
+
+2005-10-06  Elijah Newren  <newren@gmail.com>
+
 	Add the constrain_to_single_xinerama constraint.
 
 	* src/constraints.c (enum ConstraintPriority): add

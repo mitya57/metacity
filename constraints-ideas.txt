@@ -149,6 +149,7 @@ Bugs to fix:
               (drop extra events -- not really needed)
      81704  - edge magnetism/resistance/snapping/etc.
     151842  - maximize to fill feature...
+    302456  - dragging offscreen too restrictive
 
 Some ideas:
   - move_rectangle_into_region & clip_rectangle_into_region in
@@ -333,3 +334,31 @@ Extra rationale:
     - Should this constraint resize windows to make them fit?  (I'm
       thinking no--but if it should for the general case, DESKTOP and DOCKS
       will need to be exceptions)
+
+
+General notes on the rewrite:
+  Old comments on how to do the rewrite and how it used to work (wish I would
+  have seen all these before I embarked on the project...):
+    http://bugzilla.gnome.org/show_bug.cgi?id=106740#c62
+    http://bugzilla.gnome.org/show_bug.cgi?id=106740#c75
+    http://bugzilla.gnome.org/show_bug.cgi?id=106740#c101
+    http://bugzilla.gnome.org/show_bug.cgi?id=123838#c2
+
+  Havoc considers the current implementation broken:
+    http://log.ometer.com/2004-05.html
+    http://bugzilla.gnome.org/show_bug.cgi?id=136307#c20
+    http://bugzilla.gnome.org/show_bug.cgi?id=152898#c2
+    http://bugzilla.gnome.org/show_bug.cgi?id=152898#c7
+    http://bugzilla.gnome.org/show_bug.cgi?id=130834#c1
+    http://bugzilla.gnome.org/show_bug.cgi?id=126872#c1
+    http://bugzilla.gnome.org/show_bug.cgi?id=116601#c1
+
+  ...to the point that he's more or less admitted he's unwilling to
+  review patches for it:
+    http://bugzilla.gnome.org/show_bug.cgi?id=136307#c18
+
+  Havoc wants it rewritten:
+    http://bugzilla.gnome.org/show_bug.cgi?id=149867#c2
+
+  Note that I'm not referring to this earlier rewrite:
+    http://bugzilla.gnome.org/show_bug.cgi?id=107010

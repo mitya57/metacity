@@ -1,9 +1,16 @@
-This is the 'constraints-experiments' branch of metacity. It is intended to try
-out some new ideas for implementing constraints.c  If you expect it to compile,
-let alone work, I will laugh in your face.
+This is the 'constraints-experiments' branch of metacity. It is intended to
+try out some new ideas for implementing constraints.c.  If you expect it to
+compile, let alone work, I will laugh in your face.
 
-To actually use this branch of metacity, you need to finish my implementation
-and then fix all the bugs.  I'll update this file when it's at least buildable.
+To actually use this branch of metacity, you need to finish my
+implementation and then fix all the bugs.  I'll update this file when it's
+at least buildable.
+
+UPDATE: As of 2005-10-05, it does build now.  It even runs--just not
+anywhere close to correctly.  This is because it isn't complete and it
+isn't anywhere close to being debugged (I haven't debugged or tested
+anything yet, other than to verify that it doesn't crash on start).  I
+probably won't break the build again, but no guarantees at this point.
 
 Old README file:
 
