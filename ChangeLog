@@ -1,3 +1,22 @@
+2005-10-06  Elijah Newren  <newren@gmail.com>
+
+	* src/boxes.c
+	(meta_rectangle_get_minimal_spanning_set_for_region): note new
+	meta_rectangle_free_spanning_set() function in comment,
+
+	* src/boxes.[ch] (meta_rectangle_free_spanning_set): new function
+	to deallocate memory allocated by
+	meta_rectangle_get_minimal_spanning_set_for_region()
+
+	* src/constraints.c (update_onscreen_requirements): new function,
+	(meta_window_constrain): call update_onscreen_requirements(),
+	(get_screen_relative_spanning_rects): new function factored out
+	from constrain_fully_onscreen() and
+	constrain_partially_onscreen(), (constrain_fully_onscreen,
+	constrain_partially_onscreen): make use of new
+	get_screen_relative_spanning_rects() and
+	meta_rectangle_free_spanning_set()
+
 2005-10-04  Elijah Newren  <newren@gmail.com>
 
 	* src/Makefile.am: include boxes.[ch]

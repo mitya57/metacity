@@ -169,8 +169,9 @@ compare_rect_areas (gconstpointer a, gconstpointer b)
  * rectangles.
  *
  * The GList* returned will be a list of (allocated) MetaRectangles.
- * The entire list will need to be freed by the caller (i.e. g_free
- * each entry in the list as well as g_list_free on the list)
+ * The list will need to be freed by calling
+ * meta_rectangle_free_spanning_set() on it (or by manually
+ * implementing that function...)
  */
 GList*
 meta_rectangle_get_minimal_spanning_set_for_region (
@@ -277,6 +278,15 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   ret = g_list_sort (ret, compare_rect_areas);
 
   return ret;
+}
+
+void
+meta_rectangle_free_spanning_set (GList *spanning_rects)
+{
+  g_list_foreach (spanning_rects, 
+                  (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
+                  NULL);
+  g_list_free (spanning_rects);
 }
 
 gboolean

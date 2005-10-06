@@ -297,28 +297,36 @@ static gboolean constrain_partially_onscreen (MetaWindow         *window,
                                               ConstraintPriority  priority,
                                               gboolean            check_only);
 
-static void setup_constraint_info  (ConstraintInfo      *info,
-                                    MetaWindow          *window,
-                                    MetaFrameGeometry   *orig_fgeom,
-                                    MetaMoveResizeFlags  flags,
-                                    int                  resize_gravity,
-                                    const MetaRectangle *orig,
-                                    MetaRectangle       *new);
-static void place_window_if_needed (MetaWindow     *window,
-                                    ConstraintInfo *info);
-static void extend_by_frame        (MetaRectangle           *rect,
-                                    const MetaFrameGeometry *fgeom);
-static void unextend_by_frame      (MetaRectangle           *rect,
-                                    const MetaFrameGeometry *fgeom);
-static void resize_with_gravity    (MetaRectangle     *rect,
-                                    int                gravity,
-                                    int                new_width,
-                                    int                new_height);
-static inline void get_size_limits (const MetaWindow        *window,
-                                    const MetaFrameGeometry *fgeom,
-                                    gboolean                 include_frame,
-                                    MetaRectangle *min_size,
-                                    MetaRectangle *max_size);
+static void setup_constraint_info        (ConstraintInfo      *info,
+                                          MetaWindow          *window,
+                                          MetaFrameGeometry   *orig_fgeom,
+                                          MetaMoveResizeFlags  flags,
+                                          int                  resize_gravity,
+                                          const MetaRectangle *orig,
+                                          MetaRectangle       *new);
+static void place_window_if_needed       (MetaWindow     *window,
+                                          ConstraintInfo *info);
+static void update_onscreen_requirements (MetaWindow     *window,
+                                          ConstraintInfo *info);
+static void extend_by_frame              (MetaRectangle           *rect,
+                                          const MetaFrameGeometry *fgeom);
+static void unextend_by_frame            (MetaRectangle           *rect,
+                                          const MetaFrameGeometry *fgeom);
+static void resize_with_gravity          (MetaRectangle     *rect,
+                                          int                gravity,
+                                          int                new_width,
+                                          int                new_height);
+static inline void get_size_limits       (const MetaWindow        *window,
+                                          const MetaFrameGeometry *fgeom,
+                                          gboolean include_frame,
+                                          MetaRectangle *min_size,
+                                          MetaRectangle *max_size);
+static GList* get_screen_relative_spanning_rects (
+                                          const MetaScreen *screen,
+                                          const int         left_expand,
+                                          const int         right_expand,
+                                          const int         top_expand,
+                                          const int         bottom_expand);
 
 
 void
@@ -375,7 +383,7 @@ meta_window_constrain (MetaWindow          *window,
    * window->require_on_single_xinerama, and perhaps other quantities
    * if this was a user move or user move-and-resize operation.
    */
-  /* FIXME: Implement this. */
+  update_onscreen_requirements (window, &info);
 
   /* Ew, what an ugly way to do things.  Destructors (in a real OOP language,
    * not gobject-style--gobject would be more pain than it's worth) or
@@ -610,6 +618,42 @@ place_window_if_needed(MetaWindow     *window,
       if (window->frame && !window->fullscreen)
         meta_frame_calc_geometry (window->frame, info->fgeom);
     }
+}
+
+static void
+update_onscreen_requirements (MetaWindow     *window,
+                              ConstraintInfo *info)
+{
+  /* FIXME: Naturally, I only want these flags to become false due to
+   * user interactions (which is allowed since certain constraints are
+   * ignored for user interactions regardless of the setting of these
+   * flags).  However, do I want these flags to become true due to
+   * just an application interaction?  It's possible that users may
+   * find that strange since two application interactions that resize
+   * in opposite ways don't end up cancelling--but it may also be
+   * strange for the user to have an application resize the window so
+   * that it's onscreen, the user forgets about it, and then later the
+   * app is able to resize itself off the screen.  Anyway, for now,
+   * I'm think the latter is the more problematic case but this may
+   * need to be revisited.
+   */
+
+  /* Update whether we want future constraint runs to require the
+   * window to be on fully onscreen.
+   */
+  GList *fully_onscreen_region = 
+    get_screen_relative_spanning_rects (window->screen, 0, 0, 0, 0);
+  window->require_fully_onscreen =
+    meta_rectangle_contained_in_region (fully_onscreen_region,
+                                        &info->current);
+  meta_rectangle_free_spanning_set (fully_onscreen_region);
+
+  /* Update whether we want future constraint runs to require the
+   * window to be on a single xinerama.
+   */
+  window->require_on_single_xinerama =
+    meta_rectangle_contains_rect (&info->entire_xinerama,
+                                  &info->current);
 }
 
 static void
@@ -1128,6 +1172,31 @@ get_screen_rect_size (const MetaScreen *screen, MetaRectangle *rect)
   rect->height = screen->height;
 }
 
+static GList*
+get_screen_relative_spanning_rects (const MetaScreen *screen,
+                                    const int         left_expand,
+                                    const int         right_expand,
+                                    const int         top_expand,
+                                    const int         bottom_expand)
+{
+  MetaRectangle  whole_screen;
+  GSList         *all_struts;
+  GList          *fully_onscreen_region;
+
+  get_screen_rect_size (screen, &whole_screen);
+  all_struts = get_all_workspace_struts (screen->active_workspace);
+  fully_onscreen_region =
+    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
+                                                        all_struts,
+                                                        left_expand,
+                                                        right_expand,
+                                                        top_expand,
+                                                        bottom_expand);
+  g_slist_free (all_struts);
+
+  return fully_onscreen_region;
+}
+
 static gboolean
 constrain_fully_onscreen (MetaWindow         *window,
                           ConstraintInfo     *info,
@@ -1142,16 +1211,9 @@ constrain_fully_onscreen (MetaWindow         *window,
       (info->is_user_action && info->action_type != ACTION_RESIZE))
     return TRUE;
 
-  /* Gather some data for a generic constraint_handler */
-  MetaRectangle  whole_screen;
-  GSList         *all_struts;
-  get_screen_rect_size (window->screen, &whole_screen);
-  all_struts = get_all_workspace_struts (window->screen->active_workspace);
-  GList *fully_onscreen_region =
-    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
-                                                        all_struts,
-                                                        0, 0, 0, 0);
-  /* Generic function to handle the constraint for us */
+  /* Have a helper function handle the constraint for us */
+  GList *fully_onscreen_region = 
+    get_screen_relative_spanning_rects (window->screen, 0, 0, 0, 0);
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
                                                  fully_onscreen_region,
@@ -1159,11 +1221,7 @@ constrain_fully_onscreen (MetaWindow         *window,
                                                  check_only);
 
   /* Free up the data we allocated */
-  g_slist_free (all_struts);
-  g_list_foreach (fully_onscreen_region, 
-                  (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
-                  NULL);
-  g_list_free (fully_onscreen_region);
+  meta_rectangle_free_spanning_set (fully_onscreen_region);
   return retval;
 }
 
@@ -1191,19 +1249,14 @@ constrain_partially_onscreen (MetaWindow         *window,
    * doesn't move the window further offscreen than it already is.
    */
 
-  /* Gather some data for a generic constraint_handler */
-  MetaRectangle  whole_screen;
-  GSList         *all_struts;
-  get_screen_rect_size (window->screen, &whole_screen);
-  all_struts = get_all_workspace_struts (window->screen->active_workspace);
-  GList *partially_onscreen_region =
-    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
-                                                        all_struts,
-                                                        horiz_amount,
-                                                        horiz_amount, 
-                                                        vert_amount,
-                                                        vert_amount);
-  /* Generic function to handle the constraint for us */
+  /* Have a helper function handle the constraint for us */
+  GList *partially_onscreen_region;
+  partially_onscreen_region = 
+    get_screen_relative_spanning_rects (window->screen,
+                                        horiz_amount,
+                                        horiz_amount, 
+                                        vert_amount,
+                                        vert_amount);
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
                                                  partially_onscreen_region,
@@ -1211,10 +1264,6 @@ constrain_partially_onscreen (MetaWindow         *window,
                                                  check_only);
 
   /* Free up the data we allocated */
-  g_slist_free (all_struts);
-  g_list_foreach (partially_onscreen_region, 
-                  (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
-                  NULL);
-  g_list_free (partially_onscreen_region);
+  meta_rectangle_free_spanning_set (partially_onscreen_region);
   return retval;
 }
