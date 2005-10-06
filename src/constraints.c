@@ -229,6 +229,7 @@ typedef enum
 {
   PRIORITY_MINIMUM=0, // Dummy value used for loop start = min(all priorities)
   PRIORITY_ASPECT_RATIO=0,
+  PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA=0,
   PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA=1,
   PRIORITY_SIZE_HINTS_INCREMENTS=1,
   PRIORITY_MAXIMIZATION=2,
@@ -285,6 +286,10 @@ static gboolean constrain_size_limits        (MetaWindow         *window,
                                               ConstraintPriority  priority,
                                               gboolean            check_only);
 static gboolean constrain_aspect_ratio       (MetaWindow         *window,
+                                              ConstraintInfo     *info,
+                                              ConstraintPriority  priority,
+                                              gboolean            check_only);
+static gboolean constrain_to_single_xinerama (MetaWindow         *window,
                                               ConstraintInfo     *info,
                                               ConstraintPriority  priority,
                                               gboolean            check_only);
@@ -363,6 +368,7 @@ meta_window_constrain (MetaWindow          *window,
     constrain_size_increments    (window, &info, priority, check_only);
     constrain_size_limits        (window, &info, priority, check_only);
     constrain_aspect_ratio       (window, &info, priority, check_only);
+    constrain_to_single_xinerama (window, &info, priority, check_only);
     constrain_fully_onscreen     (window, &info, priority, check_only);
     constrain_partially_onscreen (window, &info, priority, check_only);
 
@@ -373,6 +379,7 @@ meta_window_constrain (MetaWindow          *window,
       constrain_size_increments    (window, &info, priority, check_only) &&
       constrain_size_limits        (window, &info, priority, check_only) &&
       constrain_aspect_ratio       (window, &info, priority, check_only) &&
+      constrain_to_single_xinerama (window, &info, priority, check_only) &&
       constrain_fully_onscreen     (window, &info, priority, check_only) &&
       constrain_partially_onscreen (window, &info, priority, check_only);
 
@@ -1195,6 +1202,39 @@ get_screen_relative_spanning_rects (const MetaScreen *screen,
   g_slist_free (all_struts);
 
   return fully_onscreen_region;
+}
+
+static gboolean
+constrain_to_single_xinerama (MetaWindow         *window,
+                              ConstraintInfo     *info,
+                              ConstraintPriority  priority,
+                              gboolean            check_only)
+{
+  if (priority > PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA)
+    return TRUE;
+
+  /* Exit early if we know the constraint won't apply */
+  if (!window->require_on_single_xinerama || info->is_user_action)
+    return TRUE;
+
+  /* Have a helper function handle the constraint for us */
+  GSList         *all_struts;
+  GList          *single_xinerama_region;
+  all_struts = get_all_workspace_struts (window->screen->active_workspace);
+  single_xinerama_region =
+    meta_rectangle_get_minimal_spanning_set_for_region (&info->entire_xinerama,
+                                                        all_struts,
+                                                        0, 0, 0, 0);
+  gboolean retval =
+    do_screen_and_xinerama_relative_constraints (window, 
+                                                 single_xinerama_region,
+                                                 info,
+                                                 check_only);
+
+  /* Free up the data we allocated */
+  meta_rectangle_free_spanning_set (single_xinerama_region);
+  g_slist_free (all_struts);
+  return retval;
 }
 
 static gboolean

@@ -1,5 +1,14 @@
 2005-10-06  Elijah Newren  <newren@gmail.com>
 
+	Add the constrain_to_single_xinerama constraint.
+
+	* src/constraints.c (enum ConstraintPriority): add
+	PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA,
+	(constrain_to_single_xinerama): new function,
+	(meta_window_constrain): call constrain_to_single_xinerama() too
+
+2005-10-06  Elijah Newren  <newren@gmail.com>
+
 	* src/boxes.c
 	(meta_rectangle_get_minimal_spanning_set_for_region): note new
 	meta_rectangle_free_spanning_set() function in comment,
