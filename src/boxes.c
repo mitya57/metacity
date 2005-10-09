@@ -40,6 +40,24 @@ static void   move_rectangle_away_from_spot(MetaRectangle       *rect,
                                             gboolean             shortest_path);
 #endif
 
+#define PRINT_DEBUG
+#ifdef PRINT_DEBUG
+static const char*
+rect2String (const MetaRectangle *rect)
+{
+  static char* little_string = NULL;
+
+  if (little_string == NULL)
+    little_string = g_new(char, 100);
+
+  sprintf(little_string, 
+          "%d,%d +%d,%d",
+          rect->x, rect->y, rect->width, rect->height);
+
+  return little_string;
+}
+#endif
+
 int
 meta_rectangle_area (const MetaRectangle *rect)
 {
@@ -101,7 +119,7 @@ meta_rectangle_overlap (const MetaRectangle *rect1,
   g_return_val_if_fail (rect1 != NULL, FALSE);
   g_return_val_if_fail (rect2 != NULL, FALSE);
 
-  return (!(rect1->x + rect1->width  < rect2->x) ||
+  return !((rect1->x + rect1->width  < rect2->x) ||
            (rect2->x + rect2->width  < rect1->x) ||
            (rect1->y + rect1->height < rect2->y) ||
            (rect2->y + rect2->height < rect1->y));
@@ -152,7 +170,7 @@ compare_rect_areas (gconstpointer a, gconstpointer b)
   int a_area = meta_rectangle_area (a_rect);
   int b_area = meta_rectangle_area (b_rect);
 
-  return a_area - b_area; /* positive ret value denotes a > b, ... */
+  return b_area - a_area; /* positive ret value denotes b > a, ... */
 }
 
 /* This function is trying to find a "minimal spanning set (of rectangles)"
@@ -200,20 +218,34 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   temp_rect = g_new (MetaRectangle, 1);
   *temp_rect = *basic_rect;
   ret = g_list_prepend (NULL, temp_rect);
+#ifdef PRINT_DEBUG
+  printf("Initialized spanning set with %s.\n", rect2String (basic_rect));
+#endif
 
   strut_iter = all_struts;
   while (strut_iter)
     {
       GList *rect_iter; 
       MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
+#ifdef PRINT_DEBUG
+      printf("Dealing with strut %s.\n", rect2String (strut));
+#endif
       tmp_list = ret;
       ret = NULL;
       rect_iter = tmp_list;
       while (rect_iter)
         {
           MetaRectangle *rect = (MetaRectangle*) rect_iter->data;
+#ifdef PRINT_DEBUG
+          printf("  Looking if we need to chop up %s.\n", rect2String (rect));
+#endif
           if (!meta_rectangle_overlap (rect, strut))
+            {
             ret = g_list_prepend (ret, rect);
+#ifdef PRINT_DEBUG
+            printf("    No chopping of %s.\n", rect2String (rect));
+#endif
+            }
           else
             {
               /* If there is area in rect left of strut */
@@ -223,6 +255,9 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   *temp_rect = *rect;
                   temp_rect->width = strut->x - rect->x;
                   ret = g_list_prepend (ret, temp_rect);
+#ifdef PRINT_DEBUG
+                  printf("    Added %s.\n", rect2String (temp_rect));
+#endif
                 }
               /* If there is area in rect right of strut */
               if (rect->x + rect->width > strut->x + strut->width)
@@ -231,9 +266,12 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect = g_new (MetaRectangle, 1);
                   *temp_rect = *rect;
                   new_x = strut->x + strut->width;
-                  temp_rect->width = rect->width - new_x;
+                  temp_rect->width = rect->x + rect->width - new_x;
                   temp_rect->x = new_x;
                   ret = g_list_prepend (ret, temp_rect);
+#ifdef PRINT_DEBUG
+                  printf("    Added %s.\n", rect2String (temp_rect));
+#endif
                 }
               /* If there is area in rect above strut */
               if (rect->y < strut->y)
@@ -242,6 +280,9 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   *temp_rect = *rect;
                   temp_rect->height = strut->y - rect->y;
                   ret = g_list_prepend (ret, temp_rect);
+#ifdef PRINT_DEBUG
+                  printf("    Added %s.\n", rect2String (temp_rect));
+#endif
                 }
               /* If there is area in rect below strut */
               if (rect->y + rect->height > strut->y + strut->height)
@@ -250,9 +291,12 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect = g_new (MetaRectangle, 1);
                   *temp_rect = *rect;
                   new_y = strut->y + strut->height;
-                  temp_rect->height = rect->height - new_y;
+                  temp_rect->height = rect->y + rect->height - new_y;
                   temp_rect->y = new_y;
                   ret = g_list_prepend (ret, temp_rect);
+#ifdef PRINT_DEBUG
+                  printf("    Added %s.\n", rect2String (temp_rect));
+#endif
                 }
               g_free (rect);
             }
@@ -385,7 +429,13 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
 
   /* Clamp rect appropriately */
   if (best_rect == NULL)
-    meta_warning ("No rect whose size to clamp to found!\n");
+    {
+      meta_warning ("No rect whose size to clamp to found!\n");
+
+      /* If it doesn't fit, at least make it no bigger than it has to be */
+      rect->width  = min_size->width;
+      rect->height = min_size->height;
+    }
   else
     {
       rect->width  = MIN (rect->width,  best_rect->width);
@@ -513,6 +563,18 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
         factor = 0;
 
       /* Determine maximal overlap amount */
+
+      /************************************************************
+       *              FFFFF IIIII X   X M   M EEEEE !             *
+       *              F       I    X X  MM MM E     !             *
+       *              FFF     I     X   MM MM EEEEE !             *
+       *              F       I    X X  M M M E                   *
+       *              F     IIIII X   X M M M EEEEE !             *
+       *                                                          *
+       * This stupid code is supposed to find MINIMAL MOVEMENT,   *
+       * not maximal area overlap.  Sheesh.                       *
+       ************************************************************/
+
       maximal_overlap_amount_for_compare =
         MIN (rect->width,  compare_rect->width) *
         MIN (rect->height, compare_rect->height);

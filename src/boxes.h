@@ -48,23 +48,47 @@ typedef enum
   FIXED_DIRECTION_Y = 1 << 1,
 } FixedDirections;
 
+/* Basic comparison functions */
 int      meta_rectangle_area            (const MetaRectangle *rect);
 gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
                                          const MetaRectangle *src2,
                                          MetaRectangle       *dest);
 gboolean meta_rectangle_equal           (const MetaRectangle *src1,
                                          const MetaRectangle *src2);
+
+/* overlap is similar to intersect but doesn't provide location of
+ * intersection information.
+ */
 gboolean meta_rectangle_overlap         (const MetaRectangle *rect1,
                                          const MetaRectangle *rect2);
+
+/* vert_overlap means is there a way to shift either window horizontally so
+ * that the two overlap.  horiz_overlap is similar.
+ */
 gboolean meta_rectangle_vert_overlap    (const MetaRectangle *rect1,
                                          const MetaRectangle *rect2);
 gboolean meta_rectangle_horiz_overlap   (const MetaRectangle *rect1,
                                          const MetaRectangle *rect2);
+
+/* could_fit_rect determines whether "outer_rect" is big enough to contain
+ * inner_rect.  contains_rect checks whether it actually contains it.
+ */
 gboolean meta_rectangle_could_fit_rect  (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
 gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
 
+/* find a list of rectangles with the property that a window is contained
+ * in the given region if and only if it is contained in one of the
+ * rectangles in the list.
+ *
+ * In this case, the region is given by taking basic_rect, removing from
+ * it the intersections with all the rectangles in the all_struts list,
+ * then expanding all the rectangles in the resulting list by the given
+ * amounts on each side.
+ *
+ * See boxes.c for more details.
+ */
 GList*   meta_rectangle_get_minimal_spanning_set_for_region (
                                          const MetaRectangle *basic_rect,
                                          const GSList        *all_struts,
@@ -72,21 +96,38 @@ GList*   meta_rectangle_get_minimal_spanning_set_for_region (
                                          const int            right_expand,
                                          const int            top_expand,
                                          const int            bottom_expand);
+
+/* Free the list created by
+ * meta_rectangle_get_minimal_spanning_set_for_region()
+ */
 void     meta_rectangle_free_spanning_set (GList *spanning_rects);
+
 gboolean meta_rectangle_could_be_contained_in_region (
                                          const GList         *spanning_rects,
                                          const MetaRectangle *rect);
 gboolean meta_rectangle_contained_in_region (
                                          const GList         *spanning_rects,
                                          const MetaRectangle *rect);
+
+/* Make the rectangle small enough to fit into one of the spanning_rects,
+ * but make it no smaller than min_size.
+ */
 void     meta_rectangle_clamp_to_fit_into_region (
                                          const GList         *spanning_rects,
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect,
                                          const MetaRectangle *min_size);
+
+/* Clip the rectangle so that it fits into one of the spanning_rects, assuming
+ * it overlaps with at least one of them
+ */
 void     meta_rectangle_clip_to_region  (const GList         *spanning_rects,
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect);
+
+/* Shove the rectangle into one of the spanning_rects, assuming it fits in
+ * one of them.
+ */
 void     meta_rectangle_shove_into_region(
                                          const GList         *spanning_rects,
                                          FixedDirections      fixed_directions,

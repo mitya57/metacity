@@ -1,3 +1,44 @@
+2005-10-08  Elijah Newren  <newren@gmail.com>
+
+	Noted some bugs, fixed some bugs, added some comments, and added
+	testing framework
+
+	Bugs noted:
+
+	* src/boxes.c (meta_rectangle_shove_into_region): add a FIXME
+	about finding minimal movement instead of maximal area
+	overlap--some FIXME's just need to be more prominent than
+	others. ;-)
+
+	Bug fixed:
+
+	* src/boxes.c (meta_rectangle_area): I could have sworn I had
+	enough parentheses...but I guess not, (compare_rect_areas): I
+	wanted descending order, not ascending,
+	(meta_rectangle_get_minimal_spanning_set_for_region): actually get
+	the width and height of the new right and bottom boxes correctly,
+	(meta_rectangle_clamp_to_fit_into_region): If the rectangle
+	doesn't fit because the minimum size is too large, at least clamp
+	it to the minimum size
+
+	Extra comments:
+
+	* src/boxes.h: Comment the means of individual or groups of
+	functions
+
+	New testing framework:
+
+	* src/testboxes.c: New file with lots of tests for boxes.[ch];
+	still very incomplete and not even all the tests I have currently
+	are passed.
+
+	* src/boxes.c: New PRINT_DEBUG #define for determining whether to
+	use certain debugging code, (rect2String): new
+	slightly-brain-damaged-yet-simple-as-can-be function to assist in
+	printing rects,
+	(meta_rectangle_get_minimal_spanning_set_for_region): add a whole
+	bunch of printf's if PRINT_DEBUG is defined
+
 2005-10-06  Elijah Newren  <newren@gmail.com>
 
 	* README: Update--it builds, but doesn't remotely work
