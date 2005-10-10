@@ -259,7 +259,7 @@ get_screen_region (int which)
   ret = NULL;
   struts = NULL;
 
-  g_assert (which >=0 && which <= 2);
+  g_assert (which >=0 && which <= 3);
   switch (which)
     {
     case 0:
@@ -276,7 +276,7 @@ get_screen_region (int which)
     case 3:
       struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
       struts = g_slist_prepend (struts, new_meta_rect ( 800, 1100,  400,  100));
-      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,  100,   50));
+      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,   80,   50));
       struts = g_slist_prepend (struts, new_meta_rect ( 700,  525,  200,  150));
       break;
     }
@@ -460,6 +460,54 @@ test_merge_regions ()
 }
 #endif
 
+static void
+verify_lists_are_equal (GList *code, GList *answer)
+{
+  int which = 0;
+
+  while (code && answer)
+    {
+      MetaRectangle *a = code->data;
+      MetaRectangle *b = answer->data;
+
+      if (a->x      != b->x     ||
+          a->y      != b->y     ||
+          a->width  != b->width ||
+          a->height != b->height)
+        {
+          g_error ("%dth item in code answer answer lists do not match; "
+                   "code rect: %d,%d + %d,%d; answer rect: %d,%d + %d,%d\n",
+                   which,
+                   a->x, a->y, a->width, a->height,
+                   b->x, b->y, b->width, b->height);
+        }
+
+      code = code->next;
+      answer = answer->next;
+
+      which++;
+    }
+
+  /* Ought to be at the end of both lists; check if we aren't */
+  if (code)
+    {
+      MetaRectangle *tmp = code->data;
+      g_error ("code list longer than answer list by %d items; "
+               "first extra item: %d,%d +%d,%d\n",
+               g_list_length (code),
+               tmp->x, tmp->y, tmp->width, tmp->height);
+    }
+
+  if (answer)
+    {
+      MetaRectangle *tmp = answer->data;
+      g_error ("answer list longer than code list by %d items; "
+               "first extra item: %d,%d +%d,%d\n",
+               g_list_length (answer),
+               tmp->x, tmp->y, tmp->width, tmp->height);
+    }
+}
+
 void
 test_regions_okay ()
 {
@@ -467,71 +515,73 @@ test_regions_okay ()
   GList* tmp;
   MetaRectangle answer;
 
-  /* Make sure region 0 has the right spanning rectangles */
+  /* FIXME!!!!!!! I'm pretty sure this function leaks like a sieve!! */
+
+  /*************************************************************/  
+  /* Make sure test region 0 has the right spanning rectangles */
+  /*************************************************************/  
   region = get_screen_region (0);
-  g_assert (region);
-  answer = meta_rect (0, 0, 1600, 1200);
-  g_assert (meta_rectangle_equal (region->data, &answer));
-  meta_rectangle_free_spanning_set (region);
-  
-  /* Make sure region 1 has the right spanning rectangles */
-  tmp = region = get_screen_region (1);
-  g_assert (region);
-
-  answer = meta_rect (0, 20, 1600, 1140);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-  g_assert (tmp->next);
-
-  tmp = tmp->next;
-  answer = meta_rect (0, 20, 400, 1180);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_meta_rect (0, 0, 1600, 1200));
+  verify_lists_are_equal (region, tmp);
+  meta_rectangle_free_spanning_set (tmp);
   meta_rectangle_free_spanning_set (region);
 
-  /* Make sure region 2 has the right spanning rectangles */
+  /*************************************************************/  
+  /* Make sure test region 1 has the right spanning rectangles */
+  /*************************************************************/  
+  region = get_screen_region (1);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_meta_rect (0, 20,  400, 1180));
+  tmp = g_list_prepend (tmp, new_meta_rect (0, 20, 1600, 1140));
+  verify_lists_are_equal (region, tmp);
+  meta_rectangle_free_spanning_set (tmp);
+  meta_rectangle_free_spanning_set (region);
+
+  /*************************************************************/
+  /* Make sure test region 2 has the right spanning rectangles */
+  /*************************************************************/  
   tmp = region = get_screen_region (2);
-  g_assert (region);
-
-  answer = meta_rect (   0,   20, 1600, 1080);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-  g_assert (tmp->next);
-
-  tmp = tmp->next;
-  answer = meta_rect (   0,   20,  800, 1130);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-  g_assert (tmp->next);
-
-  tmp = tmp->next;
-  answer = meta_rect (1200,   20,  400, 1180);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-  g_assert (tmp->next);
-
-  tmp = tmp->next;
-  answer = meta_rect ( 450,   20,  350, 1180);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-  g_assert (tmp->next);
-
-  tmp = tmp->next;
-  answer = meta_rect (   0,   20,  300, 1180);
-  g_assert (meta_rectangle_equal (tmp->data, &answer));
-
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  300, 1180));
+  tmp = g_list_prepend (tmp, new_meta_rect ( 450,   20,  350, 1180));
+  tmp = g_list_prepend (tmp, new_meta_rect (1200,   20,  400, 1180));
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  800, 1130));
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20, 1600, 1080));
+  verify_lists_are_equal (region, tmp);
+  meta_rectangle_free_spanning_set (tmp);
   meta_rectangle_free_spanning_set (region);
 
-  /*
-      struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
-      struts = g_slist_prepend (struts, new_meta_rect ( 800, 1100,  400,  100));
-      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,  100,   50));
-      break;
-    case 3:
-      struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
-      struts = g_slist_prepend (struts, new_meta_rect ( 800, 1100,  400,  100));
-      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,  100,   50));
-      struts = g_slist_prepend (struts, new_meta_rect ( 700,  525,  200,  150));
-  */
+  /*************************************************************/
+  /* Make sure test region 3 has the right spanning rectangles */
+  /*************************************************************/  
+  tmp = region = get_screen_region (3);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_meta_rect ( 380,  675,  420,  525)); // 220500
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  300, 1180)); // 354000
+  tmp = g_list_prepend (tmp, new_meta_rect ( 380,   20,  320, 1180)); // 377600
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,  675,  800,  475)); // 380000
+  tmp = g_list_prepend (tmp, new_meta_rect (1200,   20,  400, 1180)); // 472000
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,  675, 1600,  425)); // 680000
+  tmp = g_list_prepend (tmp, new_meta_rect ( 900,   20,  700, 1080)); // 756000
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  700, 1130)); // 791000
+  tmp = g_list_prepend (tmp, new_meta_rect (   0,   20, 1600,  505)); // 808000
+#if 0
+  printf ("Got to here...\n");
+  print_rect_list (region, "  ");
+  printf (" vs. \n");
+  print_rect_list (tmp, "  ");
+#endif
+  verify_lists_are_equal (region, tmp);
+  meta_rectangle_free_spanning_set (tmp);
+  meta_rectangle_free_spanning_set (region);
 
-
-  /* FIXME: I need to test for empty spanning rects, and for an empty
-   * region if the struts cover everything...
+  /* FIXME: Still to do:
+   *   - Create random struts and check the regions somehow
+   *     - Don't forget to test for empty rects
+   *     - Don't forget to test if I ever get an empty region if the
+   *       struts cover everything; should I just ignore all struts in
+   *       such a case???
    */
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
@@ -540,6 +590,10 @@ test_regions_okay ()
 void
 test_region_fitting ()
 {
+  /* FIXME!!!!!  I merely copied and pasted this; this function really hasn't
+   * been written yet.
+   */
+
   MetaRectangle temp1, temp2, temp3;
   int i;
   /* Four cases:

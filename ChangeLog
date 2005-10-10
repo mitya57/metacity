@@ -1,3 +1,28 @@
+2005-10-10  Elijah Newren  <newren@gmail.com>
+
+	More work on the testcases
+
+	* src/textboxes.c: 
+
+	(get_screen_region):
+	um, we have 4 four valid tests, not three; modify the which==3
+	testcase so that we don't have two resulting spanning rectangles
+	with the same size (similar to change for which==2 in last commit)
+
+	(verify_lists_are_equal):
+	new function, helper for test_regions_okay()
+
+	(tets_regions_okay):
+	make the separate tests more visually separate--lots of stars on
+	single lines for comments, fix up the tests to make use of
+	verify_lists_are_equal since this makes them shorter, add a
+	warning that I'm pretty sure this function is leaking lots of
+	memory, note what I still need to do in this function
+
+	(test_region_fitting):
+	Add a note that this was just cut and pasted and the function
+	really hasn't been written yet
+
 2005-10-09  Elijah Newren  <newren@gmail.com>
 
 	* src/boxes.c: 
