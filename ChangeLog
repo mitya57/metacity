@@ -1,3 +1,47 @@
+2005-10-09  Elijah Newren  <newren@gmail.com>
+
+	* src/boxes.c: 
+
+	stop printing debugging info by default but add a comment about
+	when/where it might be useful,
+
+	(merge_spanning_rects_in_region):
+	new function,
+
+	(meta_rectangle_get_minimal_spanning_set):
+	Add a huge comment about possible optimizations -- and why I don't
+	think it's worth the effort at this time, also call
+	merge_spanning_rects_in_region()
+
+
+	* src/boxes.h:
+
+	(meta_rectangle_(vert|horiz)_overlap): Clarify the comment
+	explaining the functions
+
+	* src/testboxes.c:
+
+	(print_rect_list): new function,
+	
+	(free_strut_list): new function,
+
+	(get_screen_region): don't forget to free the strut list.  Also,
+	modify the which==2 testcase so that we don't have two resulting
+	spanning rectangles with the same size; having two rectangles with
+	the same size would make it harder to know which would be first in
+	the descending-area-ordered list and for automated testing we need
+	to know which is first
+
+	(test_merge_regions): new function which has since been #ifdef'd
+	out since most of it became merge_spanning_rects_in_region() in
+	boxes.c; there's still some other stuff that I may want to use,
+	though.
+
+	(test_regions_okay): clean up some of the debugging printout since
+	those test cases now pass, modify to handle the change in
+	get_screen_region() to make the testcase more predictable.  Note
+	that this function still isn't complete
+
 2005-10-08  Elijah Newren  <newren@gmail.com>
 
 	Noted some bugs, fixed some bugs, added some comments, and added

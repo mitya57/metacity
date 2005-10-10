@@ -21,7 +21,8 @@
 
 /* Note that you can compile this function with the following very simple
  * command line:
- *   gcc testboxes.c boxes.c -o testboxes $(pkg-config --cflags --libs glib-2.0)
+ *   gcc -g testboxes.c boxes.c -o testboxes \
+ *     $(pkg-config --cflags --libs glib-2.0)
  * IF you first add the line
  *   #define meta_warning(s)
  * near the beginning of boxes.c.
@@ -75,6 +76,18 @@ alt_print_rects (const MetaRectangle *rect1, const MetaRectangle *rect2)
   alt_print_rect (rect1);
   printf ("   ");
   alt_print_rect (rect2);
+}
+
+static void
+print_rect_list (GList *rects, const char *prefix)
+{
+  while (rects)
+    {
+      printf("%s", prefix);
+      print_rect (rects->data);
+      printf("\n");
+      rects = rects->next;
+    }
 }
 
 static MetaRectangle
@@ -223,6 +236,18 @@ test_basic_fitting ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
+static void
+free_strut_list (GSList *struts)
+{
+  GSList *tmp = struts;
+  while (tmp)
+    {
+      g_free (tmp->data);
+      tmp = tmp->next;
+    }
+  g_slist_free (struts);
+}
+
 static GList*
 get_screen_region (int which)
 {
@@ -246,7 +271,7 @@ get_screen_region (int which)
     case 2:
       struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
       struts = g_slist_prepend (struts, new_meta_rect ( 800, 1100,  400,  100));
-      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,  100,   50));
+      struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,  150,   50));
       break;
     case 3:
       struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
@@ -259,8 +284,181 @@ get_screen_region (int which)
   ret = meta_rectangle_get_minimal_spanning_set_for_region (&basic_rect, struts,
                                                             0, 0, 0, 0);
 
+  free_strut_list (struts);
   return ret;
 }
+
+#if 0
+void
+test_merge_regions ()
+{
+  /* logarithmically distributed random number of struts (range?)
+   * logarithmically distributed random size of struts (up to screen size???)
+   * uniformly distributed location of center of struts (within screen)
+   * merge all regions that are possible
+   * print stats on problem setup
+   *   number of (non-completely-occluded?) struts 
+   *   percentage of screen covered
+   *   length of resulting non-minimal spanning set
+   *   length of resulting minimal spanning set
+   * print stats on merged regions:
+   *   number boxes merged
+   *   number of those merges that were of the form A contains B
+   *   number of those merges that were of the form A partially contains B
+   *   number of those merges that were of the form A is adjacent to B
+   */
+
+  GList* region;
+  GList* compare;
+  MetaRectangle answer;
+  int num_contains, num_merged, num_part_contains, num_adjacent;
+
+  num_contains = num_merged = num_part_contains = num_adjacent = 0;
+  compare = region = get_screen_region (2);
+  g_assert (region);
+
+  printf ("Merging stats:\n");
+  printf ("  Length of initial list: %d\n", g_list_length (region));
+#ifdef PRINT_DEBUG
+  printf ("  Initial rectangles:\n");
+  print_rect_list (region, "    ");
+#endif
+
+  while (compare && compare->next)
+    {
+      MetaRectangle *a = compare->data;
+      GList *other = compare->next;
+
+      g_assert (a->width > 0 && a->height > 0);
+
+      while (other)
+        {
+          MetaRectangle *b = other->data;
+          GList *delete_me = NULL;
+
+          g_assert (b->width > 0 && b->height > 0);
+
+#ifdef PRINT_DEBUG
+          printf ("    -- Comparing %d,%d +%d,%d  to  %d,%d + %d,%d --\n",
+                  a->x, a->y, a->width, a->height,
+                  b->x, b->y, b->width, b->height);
+#endif
+
+          /* If a contains b, just remove b */
+          if (meta_rectangle_contains_rect (a, b))
+            {
+              delete_me = other;
+              num_contains++;
+              num_merged++;
+            }
+          /* If b contains a, just remove a */
+          else if (meta_rectangle_contains_rect (a, b))
+            {
+              delete_me = compare;
+              num_contains++;
+              num_merged++;
+            }
+          /* If a and b might be mergeable horizontally */
+          else if (a->y == b->y && a->height == b->height)
+            {
+              /* If a and b overlap */
+              if (meta_rectangle_overlap (a, b))
+                {
+                  int new_x = MIN (a->x, b->x);
+                  a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
+                  a->x = new_x;
+                  delete_me = other;
+                  num_part_contains++;
+                  num_merged++;
+                }
+              /* If a and b are adjacent */
+              else if (a->x + a->width == b->x || a->x == b->x + b->width)
+                {
+                  int new_x = MIN (a->x, b->x);
+                  a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
+                  a->x = new_x;
+                  delete_me = other;
+                  num_adjacent++;
+                  num_merged++;
+                }
+            }
+          /* If a and b might be mergeable vertically */
+          else if (a->x == b->x && a->width == b->width)
+            {
+              /* If a and b overlap */
+              if (meta_rectangle_overlap (a, b))
+                {
+                  int new_y = MIN (a->y, b->y);
+                  a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
+                  a->y = new_y;
+                  delete_me = other;
+                  num_part_contains++;
+                  num_merged++;
+                }
+              /* If a and b are adjacent */
+              else if (a->y + a->height == b->y || a->y == b->y + b->height)
+                {
+                  int new_y = MIN (a->y, b->y);
+                  a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
+                  a->y = new_y;
+                  delete_me = other;
+                  num_adjacent++;
+                  num_merged++;
+                }
+            }
+
+          other = other->next;
+
+          /* Delete any rectangle in the list that is no longer wanted */
+          if (delete_me != NULL)
+            {
+              MetaRectangle *bla = delete_me->data;
+#ifdef PRINT_DEBUG
+              printf ("    Deleting rect %d,%d +%d,%d\n",
+                      bla->x, bla->y, bla->width, bla->height);
+#endif
+
+              /* Deleting the rect we're compare others to is a little tricker */
+              if (compare == delete_me)
+                {
+                  compare = compare->next;
+                  other = compare->next;
+                  a = compare->data;
+                }
+
+              /* Okay, we can free it now */
+              g_free (delete_me->data);
+              region = g_list_delete_link (region, delete_me);
+            }
+
+#ifdef PRINT_DEBUG
+          printf ("    After comparison, new list is:\n");
+          print_rect_list (region, "      ");
+#endif
+        }
+
+      compare = compare->next;
+    }
+
+  printf ("  Num rectangles contained in others          : %d\n", 
+          num_contains);
+  printf ("  Num rectangles partially contained in others: %d\n", 
+          num_part_contains);
+  printf ("  Num rectangles adjacent to others           : %d\n", 
+          num_adjacent);
+  printf ("  Num rectangles merged with others           : %d\n",
+          num_merged);
+#ifdef PRINT_DEBUG
+  printf ("  Final rectangles:\n");
+  print_rect_list (region, "    ");
+#endif
+
+  meta_rectangle_free_spanning_set (region);
+  region = NULL;
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+#endif
 
 void
 test_regions_okay ()
@@ -294,23 +492,12 @@ test_regions_okay ()
   tmp = region = get_screen_region (2);
   g_assert (region);
 
-  printf ("All rects in rection 2\n");
-  while (tmp)
-    {
-      printf("  ");
-      print_rect (tmp->data);
-      printf("\n");
-      tmp = tmp->next;
-    }
-  tmp = region;
-
   answer = meta_rect (   0,   20, 1600, 1080);
   g_assert (meta_rectangle_equal (tmp->data, &answer));
   g_assert (tmp->next);
 
   tmp = tmp->next;
   answer = meta_rect (   0,   20,  800, 1130);
-  print_rect (tmp->data); printf("\n");
   g_assert (meta_rectangle_equal (tmp->data, &answer));
   g_assert (tmp->next);
 
@@ -320,12 +507,12 @@ test_regions_okay ()
   g_assert (tmp->next);
 
   tmp = tmp->next;
-  answer = meta_rect ( 400,   20,  400, 1140);
+  answer = meta_rect ( 450,   20,  350, 1180);
   g_assert (meta_rectangle_equal (tmp->data, &answer));
   g_assert (tmp->next);
 
   tmp = tmp->next;
-  answer = meta_rect (   0,   20,  300, 1140);
+  answer = meta_rect (   0,   20,  300, 1180);
   g_assert (meta_rectangle_equal (tmp->data, &answer));
 
   meta_rectangle_free_spanning_set (region);
@@ -342,6 +529,10 @@ test_regions_okay ()
       struts = g_slist_prepend (struts, new_meta_rect ( 700,  525,  200,  150));
   */
 
+
+  /* FIXME: I need to test for empty spanning rects, and for an empty
+   * region if the struts cover everything...
+   */
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }

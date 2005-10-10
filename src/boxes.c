@@ -40,7 +40,10 @@ static void   move_rectangle_away_from_spot(MetaRectangle       *rect,
                                             gboolean             shortest_path);
 #endif
 
-#define PRINT_DEBUG
+/* PRINT_DEBUG may be useful to define when compiling the testboxes program if
+ * any issues crop up.
+ */
+/* #define PRINT_DEBUG */
 #ifdef PRINT_DEBUG
 static const char*
 rect2String (const MetaRectangle *rect)
@@ -160,7 +163,181 @@ meta_rectangle_contains_rect  (const MetaRectangle *outer_rect,
     inner_rect->y + inner_rect->height <= outer_rect->y + outer_rect->height;
 }
 
-/* Simple helper function for get_minimal_set_of_spanning_rectangles... */
+/* Not so simple helper function for get_minimal_spanning_set_for_region() */
+static GList*
+merge_spanning_rects_in_region (GList *region)
+{
+  /* NOTE FOR ANY OPTIMIZATION PEOPLE OUT THERE: Please see the
+   * documentation of get_minimal_spanning_set_for_region() for performance
+   * considerations that also apply to this function.
+   */
+
+  GList* compare;
+#ifdef PRINT_DEBUG
+  int num_contains, num_merged, num_part_contains, num_adjacent;
+  num_contains = num_merged = num_part_contains = num_adjacent = 0;
+#endif
+  compare = region;
+  g_assert (region);
+
+#ifdef PRINT_DEBUG
+  printf ("Merging stats:\n");
+  printf ("  Length of initial list: %d\n", g_list_length (region));
+  printf ("  Initial rectangles:\n");
+  print_rect_list (region, "    ");
+#endif
+
+  while (compare && compare->next)
+    {
+      MetaRectangle *a = compare->data;
+      GList *other = compare->next;
+
+      g_assert (a->width > 0 && a->height > 0);
+
+      while (other)
+        {
+          MetaRectangle *b = other->data;
+          GList *delete_me = NULL;
+
+          g_assert (b->width > 0 && b->height > 0);
+
+#ifdef PRINT_DEBUG
+          printf ("    -- Comparing %d,%d +%d,%d  to  %d,%d + %d,%d --\n",
+                  a->x, a->y, a->width, a->height,
+                  b->x, b->y, b->width, b->height);
+#endif
+
+          /* If a contains b, just remove b */
+          if (meta_rectangle_contains_rect (a, b))
+            {
+              delete_me = other;
+#ifdef PRINT_DEBUG
+              num_contains++;
+              num_merged++;
+#endif
+            }
+          /* If b contains a, just remove a */
+          else if (meta_rectangle_contains_rect (a, b))
+            {
+              delete_me = compare;
+#ifdef PRINT_DEBUG
+              num_contains++;
+              num_merged++;
+#endif
+            }
+          /* If a and b might be mergeable horizontally */
+          else if (a->y == b->y && a->height == b->height)
+            {
+              /* If a and b overlap */
+              if (meta_rectangle_overlap (a, b))
+                {
+                  int new_x = MIN (a->x, b->x);
+                  a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
+                  a->x = new_x;
+                  delete_me = other;
+#ifdef PRINT_DEBUG
+                  num_part_contains++;
+                  num_merged++;
+#endif
+                }
+              /* If a and b are adjacent */
+              else if (a->x + a->width == b->x || a->x == b->x + b->width)
+                {
+                  int new_x = MIN (a->x, b->x);
+                  a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
+                  a->x = new_x;
+                  delete_me = other;
+#ifdef PRINT_DEBUG
+                  num_adjacent++;
+                  num_merged++;
+#endif
+                }
+            }
+          /* If a and b might be mergeable vertically */
+          else if (a->x == b->x && a->width == b->width)
+            {
+              /* If a and b overlap */
+              if (meta_rectangle_overlap (a, b))
+                {
+                  int new_y = MIN (a->y, b->y);
+                  a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
+                  a->y = new_y;
+                  delete_me = other;
+#ifdef PRINT_DEBUG
+                  num_part_contains++;
+                  num_merged++;
+#endif
+                }
+              /* If a and b are adjacent */
+              else if (a->y + a->height == b->y || a->y == b->y + b->height)
+                {
+                  int new_y = MIN (a->y, b->y);
+                  a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
+                  a->y = new_y;
+                  delete_me = other;
+#ifdef PRINT_DEBUG
+                  num_adjacent++;
+                  num_merged++;
+#endif
+                }
+            }
+
+          other = other->next;
+
+          /* Delete any rectangle in the list that is no longer wanted */
+          if (delete_me != NULL)
+            {
+              MetaRectangle *bla = delete_me->data;
+#ifdef PRINT_DEBUG
+              printf ("    Deleting rect %d,%d +%d,%d\n",
+                      bla->x, bla->y, bla->width, bla->height);
+#endif
+
+              /* Deleting the rect we compare others to is a little tricker */
+              if (compare == delete_me)
+                {
+                  compare = compare->next;
+                  other = compare->next;
+                  a = compare->data;
+                }
+
+              /* Okay, we can free it now */
+              g_free (delete_me->data);
+              region = g_list_delete_link (region, delete_me);
+            }
+
+#ifdef PRINT_DEBUG
+          printf ("    After comparison, new list is:\n");
+          print_rect_list (region, "      ");
+#endif
+        }
+
+      compare = compare->next;
+    }
+
+#ifdef PRINT_DEBUG
+  /* Note that I believe it will be the case that num_part_contains and
+   * num_adjacent will alwyas be 0 while num_contains will be equal to
+   * num_merged.  If so, this might be useful information to use to come up
+   * with some kind of optimization for this funcation, given that there
+   * exists someone who really wants to do that.
+   */
+  printf ("  Num rectangles contained in others          : %d\n", 
+          num_contains);
+  printf ("  Num rectangles partially contained in others: %d\n", 
+          num_part_contains);
+  printf ("  Num rectangles adjacent to others           : %d\n", 
+          num_adjacent);
+  printf ("  Num rectangles merged with others           : %d\n",
+          num_merged);
+  printf ("  Final rectangles:\n");
+  print_rect_list (region, "    ");
+#endif
+
+  return region;
+}
+
+/* Simple helper function for get_minimal_spanning_set_for_region()... */
 static gint
 compare_rect_areas (gconstpointer a, gconstpointer b)
 {
@@ -200,6 +377,51 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   const int      top_expand,
   const int      bottom_expand)
 {
+  /* NOTE FOR OPTIMIZERS: This function *might* be somewhat slow,
+   * especially due to the call to merge_spanning_rects_in_region() (which
+   * is O(n^2) where n is the size of the list generated in this function).
+   * This is made more onerous due to the fact that it involves a fair
+   * number of memory allocation and deallocation calls.  However, n is 1
+   * for default installations of Gnome (because partial struts aren't used
+   * by default and only partial struts increase the size of the spanning
+   * set generated).  With one partial strut, n will be 2 or 3.  With 2
+   * partial struts, n will probably be 4 or 5.  So, n probably isn't large
+   * enough to make this worth bothering.  If it ever does show up on
+   * profiles (most likely because people start using large numbers of
+   * partial struts), possible optimizations include:
+   *
+   * (1) rewrite merge_spanning_rects_in_region() to be O(n) or O(nlogn).
+   *     I'm not totally sure it's possible, but with a couple copies of
+   *     the list and sorting them appropriately, I believe it might be.
+   * (2) only call merge_spanning_rects_in_region() with a subset of the
+   *     full list of rectangles.  I believe from some of my preliminary
+   *     debugging and thinking about it that it is possible to figure out
+   *     apriori groups of rectangles which are only merge candidates with
+   *     each other.  (See testboxes.c:get_screen_region() when which==2
+   *     and track the steps of this function carefully to see what gave
+   *     me the hint that this might work)
+   * (3) figure out how to avoid merge_spanning_rects_in_region().  I think
+   *     it might be possible to modify this function to make that
+   *     possible, and I spent just a little while thinking about it, but n
+   *     wasn't large enough to convince me to care yet.
+   * (4) just don't call this function that much.  Currently, it's called
+   *     from a few places in constraints.c, and thus is called multiple
+   *     times for every meta_window_constrain() call, which itself is
+   *     called an awful lot.  However, the answer we provide is always the
+   *     same unless the screen size, number of xineramas, or list of
+   *     struts has changed.  I'm not aware of any case where screen size
+   *     or number of xineramas changes without logging out.  struts change
+   *     very rarely.  So we should be able to just save the appropriate
+   *     info in the MetaWorkspace (or maybe MetaScreen), update it when
+   *     the struts change, and then just use those precomputed values
+   *     instead of calling this function so much.
+   *
+   * In terms of work, 1-3 would be hard (and I'm not entirely certain that
+   * they would work) and 4 would be relatively easy.  4 would also provide
+   * the greatest benefit.  Therefore, do 4 first.  Don't even think about
+   * 1-3 or other micro-optimizations until you've done that one.
+   */
+
   GList         *ret;
   GList         *tmp_list;
   const GSList  *strut_iter;
@@ -210,8 +432,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
    *   Initialize rectangle_set to basic_rect
    *   Foreach strut:
    *     Foreach rectangle in rectangle_set:
-   *       - Split the rectangle it into new rectangles that don't overlap
-   *         the strut (but which are as big as possible otherwise)
+   *       - Split the rectangle into new rectangles that don't overlap the
+   *         strut (but which are as big as possible otherwise)
    *   Now do directional expansion of all rectangles in rectangle_set
    */
 
@@ -320,6 +542,9 @@ meta_rectangle_get_minimal_spanning_set_for_region (
 
   /* Sort by maximal area, just because I feel like it... */
   ret = g_list_sort (ret, compare_rect_areas);
+
+  /* Merge rectangles if possible so that the list really is minimal */
+  ret = merge_spanning_rects_in_region (ret);
 
   return ret;
 }
