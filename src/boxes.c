@@ -559,22 +559,21 @@ meta_rectangle_free_spanning_set (GList *spanning_rects)
 }
 
 gboolean
-meta_rectangle_could_be_contained_in_region (const GList         *spanning_rects,
-                                             const MetaRectangle *rect)
+meta_rectangle_could_fit_in_region (const GList         *spanning_rects,
+                                    const MetaRectangle *rect)
 {
   const GList *temp;
-  gboolean     could_be_contained;
+  gboolean     could_fit;
 
   temp = spanning_rects;
-  could_be_contained = TRUE;
-  while (could_be_contained && temp != NULL)
+  could_fit = FALSE;
+  while (!could_fit && temp != NULL)
     {
-      could_be_contained = 
-        could_be_contained && meta_rectangle_could_fit_rect (temp->data, rect);
+      could_fit = could_fit || meta_rectangle_could_fit_rect (temp->data, rect);
       temp = temp->next;
     }
 
-  return could_be_contained;
+  return could_fit;
 }
 
 gboolean
@@ -585,10 +584,10 @@ meta_rectangle_contained_in_region (const GList         *spanning_rects,
   gboolean     contained;
 
   temp = spanning_rects;
-  contained = TRUE;
-  while (contained && temp != NULL)
+  contained = FALSE;
+  while (!contained && temp != NULL)
     {
-      contained = contained && meta_rectangle_contains_rect (temp->data, rect);
+      contained = contained || meta_rectangle_contains_rect (temp->data, rect);
       temp = temp->next;
     }
 
@@ -658,8 +657,10 @@ meta_rectangle_clamp_to_fit_into_region (const GList         *spanning_rects,
       meta_warning ("No rect whose size to clamp to found!\n");
 
       /* If it doesn't fit, at least make it no bigger than it has to be */
-      rect->width  = min_size->width;
-      rect->height = min_size->height;
+      if (!(fixed_directions & FIXED_DIRECTION_X))
+        rect->width  = min_size->width;
+      if (!(fixed_directions & FIXED_DIRECTION_Y))
+        rect->height = min_size->height;
     }
   else
     {

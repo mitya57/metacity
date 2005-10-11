@@ -211,17 +211,17 @@ test_basic_fitting ()
    *     4           N                      N
    * Of the four cases, case 3 is impossible.  An alternate way of looking
    * at this table is that either the middle column must be no, or the last
-   * column must be yes.  So we test that--plus the same reversing temp1
-   * and temp2.
+   * column must be yes.  So we test that.  Also, we can repeat the test
+   * reversing temp1 and temp2.
    */
   for (i = 0; i < NUM_RANDOM_RUNS; i++)
     {
       get_random_rect (&temp1);
       get_random_rect (&temp2);
       g_assert (meta_rectangle_contains_rect (&temp1, &temp2) == FALSE ||
-                meta_rectangle_contains_rect (&temp1, &temp2) == TRUE);
+                meta_rectangle_could_fit_rect (&temp1, &temp2) == TRUE);
       g_assert (meta_rectangle_contains_rect (&temp2, &temp1) == FALSE ||
-                meta_rectangle_contains_rect (&temp2, &temp1) == TRUE);
+                meta_rectangle_could_fit_rect (&temp2, &temp1) == TRUE);
     }
 
   temp1 = meta_rect ( 0, 0, 10, 10);
@@ -513,9 +513,6 @@ test_regions_okay ()
 {
   GList* region;
   GList* tmp;
-  MetaRectangle answer;
-
-  /* FIXME!!!!!!! I'm pretty sure this function leaks like a sieve!! */
 
   /*************************************************************/  
   /* Make sure test region 0 has the right spanning rectangles */
@@ -590,45 +587,152 @@ test_regions_okay ()
 void
 test_region_fitting ()
 {
-  /* FIXME!!!!!  I merely copied and pasted this; this function really hasn't
-   * been written yet.
-   */
+  GList* region;
+  MetaRectangle rect;
 
-  MetaRectangle temp1, temp2, temp3;
+  /* See test_basic_fitting() for how/why these automated random tests work */
   int i;
-  /* Four cases:
-   *   case   temp1 fits temp2    temp1 could fit temp2
-   *     1           Y                      Y
-   *     2           N                      Y
-   *     3           Y                      N
-   *     4           N                      N
-   * Of the four cases, case 3 is impossible.  An alternate way of looking
-   * at this table is that either the middle column must be no, or the last
-   * column must be yes.  So we test that--plus the same reversing temp1
-   * and temp2.
-   */
+  region = get_screen_region (3);
   for (i = 0; i < NUM_RANDOM_RUNS; i++)
     {
-      get_random_rect (&temp1);
-      get_random_rect (&temp2);
-      g_assert (meta_rectangle_contains_rect (&temp1, &temp2) == FALSE ||
-                meta_rectangle_contains_rect (&temp1, &temp2) == TRUE);
-      g_assert (meta_rectangle_contains_rect (&temp2, &temp1) == FALSE ||
-                meta_rectangle_contains_rect (&temp2, &temp1) == TRUE);
+      get_random_rect (&rect);
+      g_assert (meta_rectangle_contained_in_region (region, &rect) == FALSE ||
+                meta_rectangle_could_fit_in_region (region, &rect) == TRUE);
     }
+  meta_rectangle_free_spanning_set (region);
 
-  temp1 = meta_rect ( 0, 0, 10, 10);
-  temp2 = meta_rect ( 5, 5,  5,  5);
-  temp3 = meta_rect ( 8, 2,  3,  7);
-  g_assert ( meta_rectangle_contains_rect (&temp1, &temp2));
-  g_assert (!meta_rectangle_contains_rect (&temp2, &temp1));
-  g_assert (!meta_rectangle_contains_rect (&temp1, &temp3));
-  g_assert ( meta_rectangle_could_fit_rect (&temp1, &temp3));
-  g_assert (!meta_rectangle_could_fit_rect (&temp3, &temp2));
+  /* Do so manual tests too */
+  region = get_screen_region (1);
+
+  rect = meta_rect (50, 50, 400, 400);
+  g_assert (meta_rectangle_could_fit_in_region (region, &rect));
+  g_assert (meta_rectangle_contained_in_region (region, &rect));
+
+  rect = meta_rect (250, 0, 500, 1150);
+  g_assert (!meta_rectangle_could_fit_in_region (region, &rect));
+  g_assert (!meta_rectangle_contained_in_region (region, &rect));
+
+  rect = meta_rect (250, 0, 400, 400);
+  g_assert (meta_rectangle_could_fit_in_region (region, &rect));
+  g_assert (!meta_rectangle_contained_in_region (region, &rect));
+
+  meta_rectangle_free_spanning_set (region);
+
+  region = get_screen_region (2);
+  rect = meta_rect (1000, 50, 600, 1100);
+  g_assert (meta_rectangle_could_fit_in_region (region, &rect));
+  g_assert (!meta_rectangle_contained_in_region (region, &rect));
+
+  meta_rectangle_free_spanning_set (region);
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
+void
+test_clamping_to_region ()
+{
+  GList* region;
+  MetaRectangle rect;
+  MetaRectangle min_size;
+  FixedDirections fixed_directions;
+
+  min_size.height = min_size.width = 1;
+  fixed_directions = 0;
+
+  int i;
+  region = get_screen_region (3);
+  for (i = 0; i < NUM_RANDOM_RUNS; i++)
+    {
+      MetaRectangle temp;
+      get_random_rect (&rect);
+      temp = rect;
+      meta_rectangle_clamp_to_fit_into_region (region,
+                                               fixed_directions,
+                                               &rect,
+                                               &min_size);
+      g_assert (meta_rectangle_could_fit_in_region (region, &rect) == TRUE);
+      g_assert (rect.x == temp.x && rect.y == temp.y);
+    }
+  meta_rectangle_free_spanning_set (region);
+
+  /* Do so manual tests too */
+  region = get_screen_region (1);
+
+  rect = meta_rect (50, 50, 10000, 10000);
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 1600 && rect.height == 1140);
+
+  rect = meta_rect (275, -50, 410, 10000);
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 400 && rect.height == 1180);
+
+  rect = meta_rect (50, 50, 10000, 10000);
+  min_size.height = 1170;
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 400 && rect.height == 1180);
+
+  rect = meta_rect (50, 50, 10000, 10000);
+  min_size.width = 600;  min_size.height = 1170;
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 600 && rect.height == 1170);
+
+  rect = meta_rect (350, 50, 100, 1100);
+  min_size.width = 0;  min_size.height = 0;
+  fixed_directions = FIXED_DIRECTION_X;
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 100 && rect.height == 1100);
+
+  rect = meta_rect (300, 70, 500, 1100);
+  min_size.width = 0;  min_size.height = 0;
+  fixed_directions = FIXED_DIRECTION_Y;
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 400 && rect.height == 1100);
+
+  rect = meta_rect (300, 70, 999999, 999999);
+  min_size.width = 100;  min_size.height = 200;
+  fixed_directions = FIXED_DIRECTION_Y;
+  meta_rectangle_clamp_to_fit_into_region (region,
+                                           fixed_directions,
+                                           &rect,
+                                           &min_size);
+  g_assert (rect.width == 100 && rect.height == 999999);
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+
+void
+test_clipping_to_region ()
+{
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+
+void
+test_shoving_into_region ()
+{
+  /* Don't forget to test shoving into the region from completely offscreen and
+   * make sure the point picked is the closest of the possible positions.
+   */
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
 
 int
 main()
@@ -642,6 +746,10 @@ main()
 
   test_regions_okay ();
   test_region_fitting ();
+
+  test_clamping_to_region ();
+  test_clipping_to_region ();
+  test_shoving_into_region ();
 
   printf ("All tests passed.\n");
   return 0;

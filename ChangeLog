@@ -1,3 +1,45 @@
+2005-10-11  Elijah Newren  <newren@gmail.com>
+
+	More testcases and a couple more bugs squashed
+
+	* src/boxes.[ch]: 
+
+	rename meta_rectangle_could_be_contained_in_region() to
+	meta_rectangle_could_fit_in_region(), to make it more consistent
+	with meta_rectangle_could_fit_rect() name and to make things fit
+	within 80 columns more easily
+
+	* src/boxes.c:
+
+	(meta_rectangle_could_fit_in_region):
+	(meta_rectangle_contained_in_region):
+	fix a logic error--should only need to be true for one spanning
+	rectangle of the region, not for all of them
+
+	(meta_rectangle_clamp_to_fit_into_region):
+	don't clamp to min_size in fixed directions
+
+	* src/testboxes.c:
+
+	(test_basic_fitting):
+	Clarify the comment and ACTUALLY DO WHAT THE COMMENT CLAIMS WE'LL
+	DO INSTEAD OF TESTING AN OBVIOUS TAUTOLOGY.  Sheesh.  Stupid cut
+	and paste errors.  That made part of this test case kind of
+	worthless earlier, though the code it was testing didn't happen to
+	have any bugs.
+
+	(test_regions_okay):
+	Why did I think that this function leaked?  Get rid of erroneous
+	comment warning about such.
+
+	(test_region_fitting):
+	(test_clamping_to_region):
+	implement these functions now
+
+	(test_clipping_to_region):
+	(test_shoving_into_region):
+	new, unimplemented functions
+
 2005-10-10  Elijah Newren  <newren@gmail.com>
 
 	More work on the testcases

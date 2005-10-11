@@ -104,7 +104,7 @@ GList*   meta_rectangle_get_minimal_spanning_set_for_region (
  */
 void     meta_rectangle_free_spanning_set (GList *spanning_rects);
 
-gboolean meta_rectangle_could_be_contained_in_region (
+gboolean meta_rectangle_could_fit_in_region (
                                          const GList         *spanning_rects,
                                          const MetaRectangle *rect);
 gboolean meta_rectangle_contained_in_region (
