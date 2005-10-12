@@ -1,8 +1,25 @@
 Short-term TODO list/reminders:
 
+  - Might be good to optimize by storing spanning rects in MetaWorkspace
+
+  - Need to nuke old #ifdef'd out code
+
+  - Need to replace xinerama and screen structures (screen.h?) and
+    maybe tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
+
+  - Need to make shove_into_rect use shortest distance instead of
+    maximal overlap (especially for totally offscreen case)
+
+  - Need to clean out lots of FIXMEs in the code.
+
+  - Need to do the titlebar offscreen checking, partial maximization,
+    etc.
+
+  - Need to add testboxes stuff to appropriate Makefile.am thingies
+
   - It looks like I can nuke work_area_screen in ConstraintInfo
 
-  - Okay the on-single-xinerama/fully-onscreen/partially-onscreen
+  X Okay the on-single-xinerama/fully-onscreen/partially-onscreen
     constraints aren't as simple as I thought, the boxes.[ch] is still the
     wrong way to go about it and doesn't cover everything needed, and I
     need something else big.  Ideas:
@@ -107,7 +124,7 @@ Short-term TODO list/reminders:
 
   - Do I need the include_frame parameter to get_size_limits() anymore?
 
-  - Need to add the require_fully_onscreen and require_on_single_xinerama
+  X Need to add the require_fully_onscreen and require_on_single_xinerama
     flags and get them all initialized and everything
 
 Extra window.h flags:
@@ -177,7 +194,7 @@ Some ideas:
     <All three below can be handled via the resize algorithm; extras are no-ops>
     - app resize, move, move&resize: same but with bigger region
 
-Constraints in constraints.c:
+Constraints in old constraints.c:
   - place the window (huh?), including maximization after placement
   - maximization constraints (both horiz & vert; window-size == workarea size)
   - fullscreen constraints (window-size == xinerama size)

@@ -1117,8 +1117,8 @@ do_screen_and_xinerama_relative_constraints (
       if (!(info->fixed_directions & FIXED_DIRECTION_Y))
         how_far_it_can_be_smushed.height = min_size.height;
     }
-  if (!meta_rectangle_could_be_contained_in_region (region_spanning_rectangles,
-                                                    &how_far_it_can_be_smushed))
+  if (!meta_rectangle_could_fit_in_region (region_spanning_rectangles,
+                                           &how_far_it_can_be_smushed))
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
@@ -1131,7 +1131,12 @@ do_screen_and_xinerama_relative_constraints (
   /* Enforce constraint */
 
   /* Clamp rectangle size for user move+resize, app move+resize, and
-   * app resize
+   * app resize; FIXME FIXME FIXME: Is this really right?!?  Why not
+   * clamp for user resize if clamping for user move+resize?!?  Just
+   * because it'll be clipped below anyway?  Also, why doesn't the
+   * comment match the code?!??
+   *
+   * QUIT WRITING SUCH STINKING BUGGY CODE AND COMMENTS!!!!!
    */
   if (info->action_type == ACTION_MOVE_AND_RESIZE ||
       (info->is_user_action && info->action_type == ACTION_RESIZE))

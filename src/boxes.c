@@ -122,26 +122,26 @@ meta_rectangle_overlap (const MetaRectangle *rect1,
   g_return_val_if_fail (rect1 != NULL, FALSE);
   g_return_val_if_fail (rect2 != NULL, FALSE);
 
-  return !((rect1->x + rect1->width  < rect2->x) ||
-           (rect2->x + rect2->width  < rect1->x) ||
-           (rect1->y + rect1->height < rect2->y) ||
-           (rect2->y + rect2->height < rect1->y));
+  return !((rect1->x + rect1->width  <= rect2->x) ||
+           (rect2->x + rect2->width  <= rect1->x) ||
+           (rect1->y + rect1->height <= rect2->y) ||
+           (rect2->y + rect2->height <= rect1->y));
 }
 
 gboolean
 meta_rectangle_vert_overlap (const MetaRectangle *rect1,
                              const MetaRectangle *rect2)
 {
-  return (rect1->y <= rect2->y + rect2->height &&
-          rect2->y <= rect1->y + rect1->height);
+  return (rect1->y < rect2->y + rect2->height &&
+          rect2->y < rect1->y + rect1->height);
 }
 
 gboolean
 meta_rectangle_horiz_overlap (const MetaRectangle *rect1,
                               const MetaRectangle *rect2)
 {
-  return (rect1->x <= rect2->x + rect2->width &&
-          rect2->x <= rect1->x + rect1->width);
+  return (rect1->x < rect2->x + rect2->width &&
+          rect2->x < rect1->x + rect1->width);
 }
 
 gboolean
@@ -722,7 +722,7 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
 
   /* Clip rect appropriately */
   if (best_rect == NULL)
-    meta_warning ("No rect to shove into found!\n");
+    meta_warning ("No rect to clip to found!\n");
   else
     {
       /* Extra precaution with checking fixed direction shouldn't be needed
@@ -730,12 +730,11 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
        */
       if (!(fixed_directions & FIXED_DIRECTION_X))
         {
-          /* Clip the left, if needed */
-          rect->x = MAX (rect->x, best_rect->x);
-
-          /* Clip the right, if needed */
-          rect->width = MIN (rect->width, 
-                             (best_rect->x + best_rect->width) - rect->x);
+          /* Find the new left and right */
+          int new_x = MAX (rect->x, best_rect->x);
+          rect->width = MIN ((rect->x + rect->width)           - new_x,
+                             (best_rect->x + best_rect->width) - new_x);
+          rect->x = new_x;
         }
 
       /* Extra precaution with checking fixed direction shouldn't be needed
@@ -744,11 +743,10 @@ meta_rectangle_clip_to_region (const GList         *spanning_rects,
       if (!(fixed_directions & FIXED_DIRECTION_Y))
         {
           /* Clip the top, if needed */
-          rect->y = MAX (rect->y, best_rect->y);
-
-          /* Clip the bottom, if needed */
-          rect->height = MIN (rect->height, 
-                              (best_rect->y + best_rect->height) - rect->y);
+          int new_y = MAX (rect->y, best_rect->y);
+          rect->height = MIN ((rect->y + rect->height)           - new_y,
+                              (best_rect->y + best_rect->height) - new_y);
+          rect->y = new_y;
         }
     }
 }

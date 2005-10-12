@@ -1,5 +1,49 @@
 2005-10-11  Elijah Newren  <newren@gmail.com>
 
+	One more testcase, a few more bug fixes (yaay!), and more notes
+
+	* src/constraints-ideas.txt: lots more stuff on the short term
+	todo list so I don't forget it
+
+	* src/boxes.c:
+
+	(meta_rectangle_overlap):
+	(meta_rectangle_vert_overlap):
+	(meta_rectangle_horiz_overlap):
+	fix off by one errors
+
+	(meta_rectangle_clip_to_region):
+	fix the warning message to refer to this function (stupid
+	cut-and-paste-and-forget-to-modify errors...), actually do the
+	clipping correctly
+
+	* src/constraints.c:
+
+	(do_screen_and_xinerama_relative_constraints):
+	compilation fix--meta_rectangle_could_be_contained_in_region() has
+	been renamed, add a HUGE FIXME COMMENT
+
+	* src/testboxes.c:
+
+	increase the number of random runs by a couple orders of
+	magnitude; 100 runs would only catch the off-by-one errors very
+	rarely
+
+	(get_random_rect):
+	rectangle width should be 1..1600 not 0..1599.  Similarly for
+	height.
+
+	(test_region_fitting, test_clamping_to_region)
+	fix a comment typo
+
+	(rect_overlaps_region):
+	new function that perhaps could be moved to boxes.[ch]
+
+	(test_clipping_to_region):
+	implement this
+
+2005-10-11  Elijah Newren  <newren@gmail.com>
+
 	More testcases and a couple more bugs squashed
 
 	* src/boxes.[ch]: 

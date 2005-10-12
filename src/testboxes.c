@@ -31,7 +31,7 @@
 #include <glib.h>
 #include "boxes.h"
 
-#define NUM_RANDOM_RUNS 100
+#define NUM_RANDOM_RUNS 10000
 
 static void
 init_random_ness ()
@@ -44,8 +44,8 @@ get_random_rect (MetaRectangle *rect)
 {
   rect->x = rand () % 1600;
   rect->y = rand () % 1200;
-  rect->width  = rand () % 1600;
-  rect->height = rand () % 1200;
+  rect->width  = rand () % 1600 + 1;
+  rect->height = rand () % 1200 + 1;
 }
 
 static void
@@ -601,7 +601,7 @@ test_region_fitting ()
     }
   meta_rectangle_free_spanning_set (region);
 
-  /* Do so manual tests too */
+  /* Do some manual tests too */
   region = get_screen_region (1);
 
   rect = meta_rect (50, 50, 400, 400);
@@ -655,7 +655,7 @@ test_clamping_to_region ()
     }
   meta_rectangle_free_spanning_set (region);
 
-  /* Do so manual tests too */
+  /* Do some manual tests too */
   region = get_screen_region (1);
 
   rect = meta_rect (50, 50, 10000, 10000);
@@ -718,9 +718,88 @@ test_clamping_to_region ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
+static gboolean
+rect_overlaps_region (const GList         *spanning_rects,
+                      const MetaRectangle *rect)
+{
+  /* FIXME: Should I move this to boxes.[ch]? */
+  const GList *temp;
+  gboolean     overlaps;
+
+  temp = spanning_rects;
+  overlaps = FALSE;
+  while (!overlaps && temp != NULL)
+    {
+      overlaps = overlaps || meta_rectangle_overlap (temp->data, rect);
+      temp = temp->next;
+    }
+
+  return overlaps;
+}
+
+gboolean time_to_print = FALSE;
+
 void
 test_clipping_to_region ()
 {
+  GList* region;
+  MetaRectangle rect, temp;
+  MetaRectangle min_size;
+  FixedDirections fixed_directions;
+
+  min_size.height = min_size.width = 1;
+  fixed_directions = 0;
+
+  int i;
+  region = get_screen_region (3);
+  for (i = 0; i < NUM_RANDOM_RUNS; i++)
+    {
+      get_random_rect (&rect);
+      if (rect_overlaps_region (region, &rect))
+        {
+          meta_rectangle_clip_to_region (region, 0, &rect);
+          g_assert (meta_rectangle_contained_in_region (region, &rect) == TRUE);
+        }
+    }
+  meta_rectangle_free_spanning_set (region);
+
+  /* Do some manual tests too */
+  region = get_screen_region (2);
+
+  rect = meta_rect (-50, -10, 10000, 10000);
+  meta_rectangle_clip_to_region (region,
+                                 fixed_directions,
+                                 &rect);
+  g_assert (meta_rectangle_equal (region->data, &rect));
+
+  rect = meta_rect (300, 1000, 400, 200);
+  temp = meta_rect (300, 1000, 400, 150);
+  meta_rectangle_clip_to_region (region,
+                                 fixed_directions,
+                                 &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (400, 1000, 300, 200);
+  temp = meta_rect (450, 1000, 250, 200);
+  meta_rectangle_clip_to_region (region,
+                                 fixed_directions,
+                                 &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (400, 1000, 300, 200);
+  temp = meta_rect (400, 1000, 300, 150);
+  meta_rectangle_clip_to_region (region,
+                                 FIXED_DIRECTION_X,
+                                 &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (400, 1000, 300, 200);
+  temp = meta_rect (400, 1000, 300, 150);
+  meta_rectangle_clip_to_region (region,
+                                 FIXED_DIRECTION_X,
+                                 &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
