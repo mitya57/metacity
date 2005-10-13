@@ -1,5 +1,11 @@
 2005-10-12  Elijah Newren  <newren@gmail.com>
 
+	* .cvsignore:
+	* src/.cvsignore:
+	Be quiet you!
+
+2005-10-12  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: Note the completed items
 
 	* src/boxes.[ch]: Remove the long since #ifdef'd code that I'm now
