@@ -1,3 +1,37 @@
+2005-10-12  Elijah Newren  <newren@gmail.com>
+
+	One last testcase, more bug fixes, get testboxes into build system
+
+	* src/Makefile.am:
+
+	add testboxes to the things to build and to the things to not
+	install
+
+	* src/boxes.c:
+
+	(merge_spanning_rects_in_region):
+	Move debugging code into the #ifdef PRINT_DEBUG
+
+	(meta_rectangle_shove_into_region):
+	choose the optimal rectangle by maximal overlap and then by
+	distance to move, because the window shouldn't move more than
+	necessary other than to make sure it is fully on the screen
+
+	* src/testboxes.c:
+
+	add the necessary #include's to avoid compilation warnings,
+
+	(test_clamping_to_region):
+	min_size shouldn't ever be zero in either direction, don't forget
+	to free the memory for the region
+
+	(test_clipping_to_region):
+	remove the min_size stuff as it isn't used in this test, don't
+	forget to free the memory for the region
+
+	(test_shoving_into_region):
+	implement this function
+
 2005-10-11  Elijah Newren  <newren@gmail.com>
 
 	One more testcase, a few more bug fixes (yaay!), and more notes

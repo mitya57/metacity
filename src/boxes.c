@@ -287,8 +287,8 @@ merge_spanning_rects_in_region (GList *region)
           /* Delete any rectangle in the list that is no longer wanted */
           if (delete_me != NULL)
             {
-              MetaRectangle *bla = delete_me->data;
 #ifdef PRINT_DEBUG
+              MetaRectangle *bla = delete_me->data;
               printf ("    Deleting rect %d,%d +%d,%d\n",
                       bla->x, bla->y, bla->width, bla->height);
 #endif
@@ -759,6 +759,7 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
   const GList *temp;
   const MetaRectangle *best_rect = NULL;
   int                  best_overlap = 0;
+  int                  shortest_distance = G_MAXINT;
 
   /* First, find best rectangle from spanning_rects to which we will shove
    * rect into.
@@ -769,6 +770,7 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
       int factor = 1;
       MetaRectangle *compare_rect = temp->data;
       int            maximal_overlap_amount_for_compare;
+      int            dist_to_compare;
       
       /* If x is fixed and the entire width of rect doesn't fit in compare, set
        * factor to 0.
@@ -786,29 +788,39 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
            compare_rect->y + compare_rect->height < rect->y + rect->height))
         factor = 0;
 
-      /* Determine maximal overlap amount */
-
-      /************************************************************
-       *              FFFFF IIIII X   X M   M EEEEE !             *
-       *              F       I    X X  MM MM E     !             *
-       *              FFF     I     X   MM MM EEEEE !             *
-       *              F       I    X X  M M M E                   *
-       *              F     IIIII X   X M M M EEEEE !             *
-       *                                                          *
-       * This stupid code is supposed to find MINIMAL MOVEMENT,   *
-       * not maximal area overlap.  Sheesh.                       *
-       ************************************************************/
-
+      /* Determine maximal overlap amount between rect & compare_rect */
       maximal_overlap_amount_for_compare =
         MIN (rect->width,  compare_rect->width) *
         MIN (rect->height, compare_rect->height);
-      maximal_overlap_amount_for_compare *= factor;
+
+      /* Determine distance necessary to put rect into comapre_rect */
+      dist_to_compare = 0;
+      if (compare_rect->x > rect->x)
+        dist_to_compare += compare_rect->x - rect->x;
+      if (compare_rect->x + compare_rect->width < rect->x + rect->width)
+        dist_to_compare += (rect->x + rect->width) -
+                           (compare_rect->x + compare_rect->width);
+      if (compare_rect->y > rect->y)
+        dist_to_compare += compare_rect->y - rect->y;
+      if (compare_rect->y + compare_rect->height < rect->y + rect->height)
+        dist_to_compare += (rect->y + rect->height) -
+                           (compare_rect->y + compare_rect->height);
+
+      /* If we'd have to move in the wrong direction, disqualify compare_rect */
+      if (factor == 0)
+        {
+          maximal_overlap_amount_for_compare = 0;
+          dist_to_compare = G_MAXINT;
+        }
 
       /* See if this is the best rect so far */
-      if (maximal_overlap_amount_for_compare > best_overlap)
+      if ((maximal_overlap_amount_for_compare > best_overlap) ||
+          (maximal_overlap_amount_for_compare == best_overlap &&
+           dist_to_compare                    <  shortest_distance))
         {
-          best_rect    = compare_rect;
-          best_overlap = maximal_overlap_amount_for_compare;
+          best_rect         = compare_rect;
+          best_overlap      = maximal_overlap_amount_for_compare;
+          shortest_distance = dist_to_compare;
         }
 
       temp = temp->next;

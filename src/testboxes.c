@@ -29,6 +29,9 @@
  */
 
 #include <glib.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>  /* To initialize random seed */
 #include "boxes.h"
 
 #define NUM_RANDOM_RUNS 10000
@@ -689,7 +692,7 @@ test_clamping_to_region ()
   g_assert (rect.width == 600 && rect.height == 1170);
 
   rect = meta_rect (350, 50, 100, 1100);
-  min_size.width = 0;  min_size.height = 0;
+  min_size.width = 1;  min_size.height = 1;
   fixed_directions = FIXED_DIRECTION_X;
   meta_rectangle_clamp_to_fit_into_region (region,
                                            fixed_directions,
@@ -698,7 +701,7 @@ test_clamping_to_region ()
   g_assert (rect.width == 100 && rect.height == 1100);
 
   rect = meta_rect (300, 70, 500, 1100);
-  min_size.width = 0;  min_size.height = 0;
+  min_size.width = 1;  min_size.height = 1;
   fixed_directions = FIXED_DIRECTION_Y;
   meta_rectangle_clamp_to_fit_into_region (region,
                                            fixed_directions,
@@ -714,6 +717,8 @@ test_clamping_to_region ()
                                            &rect,
                                            &min_size);
   g_assert (rect.width == 100 && rect.height == 999999);
+
+  meta_rectangle_free_spanning_set (region);
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
@@ -744,10 +749,8 @@ test_clipping_to_region ()
 {
   GList* region;
   MetaRectangle rect, temp;
-  MetaRectangle min_size;
   FixedDirections fixed_directions;
 
-  min_size.height = min_size.width = 1;
   fixed_directions = 0;
 
   int i;
@@ -800,15 +803,79 @@ test_clipping_to_region ()
                                  &rect);
   g_assert (meta_rectangle_equal (&rect, &temp));
 
+  meta_rectangle_free_spanning_set (region);
+
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
 void
 test_shoving_into_region ()
 {
-  /* Don't forget to test shoving into the region from completely offscreen and
-   * make sure the point picked is the closest of the possible positions.
-   */
+  GList* region;
+  MetaRectangle rect, temp;
+  FixedDirections fixed_directions;
+
+  fixed_directions = 0;
+
+  int i;
+  region = get_screen_region (3);
+  for (i = 0; i < NUM_RANDOM_RUNS; i++)
+    {
+      get_random_rect (&rect);
+      if (meta_rectangle_could_fit_in_region (region, &rect))
+        {
+          meta_rectangle_shove_into_region (region, 0, &rect);
+          g_assert (meta_rectangle_contained_in_region (region, &rect));
+        }
+    }
+  meta_rectangle_free_spanning_set (region);
+
+  /* Do some manual tests too */
+  region = get_screen_region (2);
+
+  rect = meta_rect (300, 1000, 400, 200);
+  temp = meta_rect (300,  950, 400, 200);
+  meta_rectangle_shove_into_region (region,
+                                    fixed_directions,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (425, 1000, 300, 200);
+  temp = meta_rect (450, 1000, 300, 200);
+  meta_rectangle_shove_into_region (region,
+                                    fixed_directions,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (425, 1000, 300, 200);
+  temp = meta_rect (425,  950, 300, 200);
+  meta_rectangle_shove_into_region (region,
+                                    FIXED_DIRECTION_X,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 300, 1000, 400, 200);
+  temp = meta_rect (1200, 1000, 400, 200);
+  meta_rectangle_shove_into_region (region,
+                                    FIXED_DIRECTION_Y,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 800, 1150, 400,  50);  /* Completely "offscreen" :) */
+  temp = meta_rect ( 800, 1050, 400,  50);
+  meta_rectangle_shove_into_region (region,
+                                    0,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (-1000,  0, 400, 150);  /* Offscreen in 2 directions */
+  temp = meta_rect (    0, 20, 400, 150);
+  meta_rectangle_shove_into_region (region,
+                                    0,
+                                    &rect);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  meta_rectangle_free_spanning_set (region);
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
