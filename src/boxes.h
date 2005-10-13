@@ -135,29 +135,4 @@ void     meta_rectangle_shove_into_region(
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect);
 
-#if 0
-  May not be needed--depends on if constrain_clamp_size remains...
-gboolean meta_rectangle_clip_into_rect  (const MetaRectangle *orig_area,
-                                         const MetaRectangle *allowed_area,
-                                         MetaRectangle       *dest);
-#endif
-
-#if 0
-#if 0
-gboolean rectangles_intersect           (const MetaRectangle *rect1, 
-                                         const MetaRectangle *rect2);
-#endif
-gboolean region_contains_rectangle      (const GList         *region,
-                                         const MetaRectangle *rect);
-gboolean region_could_contain_rectangle (const GList         *region,
-                                         const MetaRectangle *rect)
-gboolean move_rectangle_into_region     (MetaRectangle       *rect,
-                                         const GList         *region);
-void     clip_rectangle_into_region     (MetaRectangle       *rect,
-                                         const GList         *region);
-void     region_expand                  (GList               *region,
-                                         int                  expand_amount,
-                                         MetaRectDirection    directions);
-#endif
-
 #endif /* META_BOXES_H */

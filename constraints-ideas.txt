@@ -2,12 +2,12 @@ Short-term TODO list/reminders:
 
   - Might be good to optimize by storing spanning rects in MetaWorkspace
 
-  - Need to nuke old #ifdef'd out code
+  X Need to nuke old #ifdef'd out code
 
   - Need to replace xinerama and screen structures (screen.h?) and
     maybe tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
 
-  - Need to make shove_into_rect use shortest distance instead of
+  X Need to make shove_into_rect use shortest distance in addition to
     maximal overlap (especially for totally offscreen case)
 
   - Need to clean out lots of FIXMEs in the code.
@@ -15,7 +15,7 @@ Short-term TODO list/reminders:
   - Need to do the titlebar offscreen checking, partial maximization,
     etc.
 
-  - Need to add testboxes stuff to appropriate Makefile.am thingies
+  X Need to add testboxes stuff to appropriate Makefile.am thingies
 
   - It looks like I can nuke work_area_screen in ConstraintInfo
 

@@ -1,5 +1,12 @@
 2005-10-12  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Note the completed items
+
+	* src/boxes.[ch]: Remove the long since #ifdef'd code that I'm now
+	pretty certain will never be used
+
+2005-10-12  Elijah Newren  <newren@gmail.com>
+
 	One last testcase, more bug fixes, get testboxes into build system
 
 	* src/Makefile.am:
