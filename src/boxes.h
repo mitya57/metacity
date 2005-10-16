@@ -48,6 +48,14 @@ typedef enum
   FIXED_DIRECTION_Y = 1 << 1,
 } FixedDirections;
 
+/* Output functions -- note that the output buffer had better be big enough:
+ *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
+ *   rect_to_string:   24
+ */
+char* meta_rectangle_region_to_string (GList      *region,
+                                       const char *separator_string,
+                                       char       *output);
+
 /* Basic comparison functions */
 int      meta_rectangle_area            (const MetaRectangle *rect);
 gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
@@ -79,6 +87,19 @@ gboolean meta_rectangle_could_fit_rect  (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
 gboolean meta_rectangle_contains_rect   (const MetaRectangle *outer_rect,
                                          const MetaRectangle *inner_rect);
+
+/* Resize old_rect to the given new_width and new_height, but store the
+ * result in rect.  NOTE THAT THIS IS RESIZE ONLY SO IT CANNOT BE USED FOR
+ * A MOVERESIZE OPERATION (that simplies the routine a little bit as it
+ * means there's no difference between NorthWestGravity and StaticGravity.
+ * Also, I lied a little bit--technically, you could use it in a MoveResize
+ * operation if you muck with old_rect just right).
+ */
+void meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
+                                         MetaRectangle       *rect,
+                                         int                  gravity,
+                                         int                  new_width,
+                                         int                  new_height);
 
 /* find a list of rectangles with the property that a window is contained
  * in the given region if and only if it is contained in one of the

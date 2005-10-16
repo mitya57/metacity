@@ -727,47 +727,6 @@ window_type_from_string (const char *str)
     return META_WINDOW_NORMAL;
 }
 
-static const char*
-window_gravity_to_string (int gravity)
-{
-  switch (gravity)
-    {
-    case NorthWestGravity:
-      return "NorthWestGravity";
-      break;
-    case NorthGravity:
-      return "NorthGravity";
-      break;
-    case NorthEastGravity:
-      return "NorthEastGravity";
-      break;
-    case WestGravity:
-      return "WestGravity";
-      break;
-    case CenterGravity:
-      return "CenterGravity";
-      break;
-    case EastGravity:
-      return "EastGravity";
-      break;
-    case SouthWestGravity:
-      return "SouthWestGravity";
-      break;
-    case SouthGravity:
-      return "SouthGravity";
-      break;
-    case SouthEastGravity:
-      return "SouthEastGravity";
-      break;
-    case StaticGravity:
-      return "StaticGravity";
-      break;
-    default:
-      return "NorthWestGravity";
-      break;
-    }
-}
-  
 static int
 window_gravity_from_string (const char *str)
 {
@@ -1020,7 +979,7 @@ save_state (void)
                 fprintf (outfile,
                          "    <geometry x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" gravity=\"%s\"/>\n",
                          x, y, w, h,
-                         window_gravity_to_string (window->size_hints.win_gravity));
+                         meta_gravity_to_string (window->size_hints.win_gravity));
               }
               
               fputs ("  </window>\n", outfile);
@@ -1479,7 +1438,7 @@ start_element_handler  (GMarkupParseContext *context,
                   pd->info->rect.y,
                   pd->info->rect.width,
                   pd->info->rect.height,
-                  window_gravity_to_string (pd->info->gravity));
+                  meta_gravity_to_string (pd->info->gravity));
     }
   else
     {

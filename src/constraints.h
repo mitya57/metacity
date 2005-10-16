@@ -44,12 +44,3 @@ void meta_window_constrain (MetaWindow          *window,
                             MetaRectangle       *new);
 
 #endif /* META_CONSTRAINTS_H */
-
-
-
-
-
-
-
-
-

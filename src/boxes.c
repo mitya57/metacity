@@ -27,6 +27,8 @@
 
 #include "boxes.h"
 #include "util.h"
+#include <X11/Xutil.h>  // Just for the definition of the various gravities
+#include <stdio.h>      // For snprintf
 
 /* PRINT_DEBUG may be useful to define when compiling the testboxes program if
  * any issues crop up.
@@ -48,6 +50,33 @@ rect2String (const MetaRectangle *rect)
   return little_string;
 }
 #endif
+
+char*
+meta_rectangle_region_to_string (GList      *region,
+                                 const char *separator_string,
+                                 char       *output)
+{
+  /* 27 = 2 commas, 2 square brackets, space, plus, trailing \0 + 5 for
+   * each digit.  Should be more than enough space.  Note that of this
+   * space, the trailing \0 will be overwritten for all but the last
+   * rectangle.
+   */
+  char rect_string[27];
+  char *cur = output;
+  GList *tmp = region;
+  while (tmp)
+    {
+      MetaRectangle *rect = tmp->data;
+      snprintf (rect_string, 27, "[%d,%d +%d,%d]", 
+               rect->x, rect->y, rect->width, rect->height);
+      cur = g_stpcpy (cur, rect_string);
+      tmp = tmp->next;
+      if (tmp)
+        cur = g_stpcpy (cur, separator_string);
+    }
+
+  return output;
+}
 
 int
 meta_rectangle_area (const MetaRectangle *rect)
@@ -149,6 +178,104 @@ meta_rectangle_contains_rect  (const MetaRectangle *outer_rect,
     inner_rect->y                      >= outer_rect->y &&
     inner_rect->x + inner_rect->width  <= outer_rect->x + outer_rect->width &&
     inner_rect->y + inner_rect->height <= outer_rect->y + outer_rect->height;
+}
+
+void
+meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
+                                    MetaRectangle       *rect,
+                                    int                  gravity,
+                                    int                  new_width,
+                                    int                  new_height)
+{
+  /* FIXME: I'm too deep into this to know whether the below comment is
+   * still clear or not now that I've moved it out of constraints.c.
+   * boxes.h has a good comment, but I'm not sure if the below info is also
+   * helpful on top of that (or whether it has superfluous info).
+   */
+ 
+  /* These formulas may look overly simplistic at first but you can work
+   * everything out with a left_frame_with, right_frame_width,
+   * border_width, and old and new client area widths (instead of old total
+   * width and new total width) and you come up with the same formulas.
+   *
+   * Also, note that the reason we can treat NorthWestGravity and
+   * StaticGravity the same is because we're not given a location at
+   * which to place the window--the window was already placed
+   * appropriately before.  So, NorthWestGravity for this function
+   * means to just leave the upper left corner of the outer window
+   * where it already is, and StaticGravity for this function means to
+   * just leave the upper left corner of the inner window where it
+   * already is.  But leaving either of those two corners where they
+   * already are will ensure that the other corner is fixed as well
+   * (since frame size doesn't change)--thus making the two
+   * equivalent.
+   */
+
+  /* First, the x direction */
+  int adjust = 0;
+  switch (gravity)
+    {
+    case NorthWestGravity:
+    case WestGravity:
+    case SouthWestGravity:
+      /* No need to modify rect->x */
+      break;
+
+    case NorthGravity:
+    case CenterGravity:
+    case SouthGravity:
+      rect->x = old_rect->x + (old_rect->width - new_width)/2;
+      adjust = (old_rect->width - new_width) % 1;
+      break;
+
+    case NorthEastGravity:
+    case EastGravity:
+    case SouthEastGravity:
+      rect->x = old_rect->x + (old_rect->width - new_width);
+      break;
+
+    case StaticGravity:
+    default:
+      /* No need to modify rect->x */
+      break;
+    }
+  /* FIXME; the need for adjust sucks but not using it would cause North,
+   * Center, and South gravity to break when resizing multiple times with
+   * odd differences in sizes.  So we instead treat it like a
+   * resize_increment kind of thing, though that's kinda weird.
+   */
+  rect->width = new_width - adjust;
+  
+  /* Next, the y direction */
+  adjust = 0;
+  switch (gravity)
+    {
+    case NorthWestGravity:
+    case NorthGravity:
+    case NorthEastGravity:
+      /* No need to modify rect->y */
+      break;
+
+    case WestGravity:
+    case CenterGravity:
+    case EastGravity:
+      rect->y = old_rect->y + (old_rect->height - new_height)/2;
+      adjust = (old_rect->height - new_height) % 1;
+      break;
+
+    case SouthWestGravity:
+    case SouthGravity:
+    case SouthEastGravity:
+      rect->y = old_rect->y + (old_rect->height - new_height);
+      break;
+
+    case StaticGravity:
+    default:
+      /* No need to modify rect->y */
+      break;
+    }
+  /* FIXME; this sucks; see previous FIXME in this function for details */
+  rect->height = new_height - adjust;
 }
 
 /* Not so simple helper function for get_minimal_spanning_set_for_region() */

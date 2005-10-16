@@ -1,3 +1,85 @@
+2005-10-15  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt:
+
+	Update with a couple TODOs and bugs found
+
+	* src/boxes.[ch]: 
+
+	(meta_rectangle_region_to_string):
+	new function
+
+	(meta_rectangle_resize_with_gravity):
+	new function, moved here from constraints.c
+
+	* src/constraints.c:
+
+	(typedef ConstraintFunc):
+	(static global variables all_constraints and all_constraint_names):
+	(do_all_constraints):
+	new stuff to allow redoing constraint calling to make it easier to
+	have debugging information without making the code unreadable;
+
+	(meta_window_constrain):
+	move all the work to the new do_all_constraints() function, DON'T
+	FORGET TO MAKE USE OF THE NEW CONSTRAINED POSITION THAT I SO
+	METICULOUSLY AND CAREFULLY CRAFTED ALL THESE ROUTINES TO OBTAIN --
+	I'm such a total moron.
+
+	(setup_constraint_info):
+	log all the settings to make debugging easier
+
+	(resize_with_gravity):
+	removed from here, sent to boxes.c
+
+	(constrain_size_increments):
+	(constrain_size_limits):
+	(constrain_aspect_ratio):
+	s/resize_with_gravity/meta_rectangle_resize_with_gravity/
+
+	(constrain_aspect_ratio):
+	this function is totally and completely broken right now; just
+	disable it
+
+	(do_screen_and_xinerama_relative_constraints):
+	print out some debugging information, don't forget to extend the
+	window by the frame size so that we constrain the outer window
+	position/size (and unextend the window size before returning)
+
+	* src/constraints.h:
+
+	get rid of unneeded whitespace at the end of the file
+
+	* src/session.c:
+
+	(window_gravity_to_string):
+	(save_state):
+	(start_element_handler):
+	move window_gravity_to_string() to util.[ch], rename it to
+	meta_gravity_to_string(), and then make use of that version
+
+	* src/util.[ch]:
+
+	(meta_gravity_to_string):
+	new function taken from session.c
+
+	* src/window.c:
+
+	(meta_window_new_with_attrs):
+	(meta_window_apply_session_info):
+	(meta_window_resize):
+	(meta_window_move):
+	(meta_window_move_resize):
+	(meta_window_resize_with_gravity):
+	(meta_window_configure_request):
+	add some debugging info preceding all calls to
+	meta_window_move_resize_internal()
+
+	(meta_window_move_resize_internal):
+	oops, I missed one of the broken ways in which this functions is
+	called--document it and fix it with a call to
+	meta_rectangle_resize_with_gravity()
+
 2005-10-12  Elijah Newren  <newren@gmail.com>
 
 	* .cvsignore:

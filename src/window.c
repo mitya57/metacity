@@ -687,6 +687,15 @@ meta_window_new_with_attrs (MetaDisplay       *display,
    */
   MetaMoveResizeFlags flags = 
     META_IS_CONFIGURE_REQUEST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width,
+                window->rect.height,
+              window->size_hints.x, window->size_hints.y,
+                window->size_hints.width, window->size_hints.height);
   meta_window_move_resize_internal (window,
                                     flags,
                                     NorthWestGravity,
@@ -867,6 +876,14 @@ meta_window_apply_session_info (MetaWindow *window,
       
       MetaMoveResizeFlags flags = 
         META_DO_GRAVITY_ADJUST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
+      meta_topic (META_DEBUG_GEOMETRY,
+                  "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+                  __FUNCTION__,
+                  window->frame->rect.x + window->frame->child_x,
+                    window->frame->rect.y + window->frame->child_y,
+                    window->rect.width,
+                    window->rect.height,
+                  x, y, w, h);
       meta_window_move_resize_internal (window,
                                         flags,
                                         NorthWestGravity,
@@ -2473,13 +2490,17 @@ meta_window_move_resize_internal (MetaWindow  *window,
    * area of the inner or client window (i.e. excluding the frame).
    * root_x_nw and root_y_nw can be any of:
    *
-   *   (1) Where the NW corner of outer (inc. frame) window should be
-   *       if resize_gravity was NorthWest (note that if gravity is not
-   *       NorthWest, that means root_x_nw and root_y_nw are almost
-   *       entirely meaningless--though we have enough information to fix
+   *   (1) Desired position of the NW corner of the outer window
+   *       (i.e. including the frame) *IF* one were to assume that
+   *       resize_gravity is NorthWest instead of whatever it really
+   *       is (note that whenever resize_gravity is not NorthWest,
+   *       that means root_x_nw and root_y_nw are almost entirely
+   *       meaningless--though we have just enough information to fix
    *       them; see adjust_for_gravity())
-   *   (2) NW corner of inner window
-   *   (3) Something completely wrong
+   *   (2) Desired positon of the NW corner of the inner window (*)
+   *   (3) Position of the NW corner of inner window BEFORE the resize
+   *   (4) Something completely wrong
+   *
    *
    * Here are the cases and what they yield
    *   Case | Called from (flags; resize_gravity)
@@ -2489,13 +2510,22 @@ meta_window_move_resize_internal (MetaWindow  *window,
    *    2   | meta_window_resize (UserAction || 0; NorthWest)
    *    2   | meta_window_move (UserAction || 0; NorthWest)
    *    2   | meta_window_move_resize (UserAction || 0; NorthWest)
-   *    2   | meta_window_resize_with_gravity (UserAction || 0; gravity)
-   *    3   | meta_window_move_resize via _NET_MOVERESIZE_WINDOW
+   *    3   | meta_window_resize_with_gravity (UserAction || 0; gravity)
+   *    4   | meta_window_move_resize via _NET_MOVERESIZE_WINDOW
    *    1   | ConfigureRequest (ConfigureRequest; varies)
    *
-   * Other than the (3) case, this is all cleaned up via use of
-   * adjust_for_gravity() to turn all (1) cases into (2) so that all
-   * position and size fields correspond to the inner or client window.
+   * Other than the (4) case, this is all cleaned up via use of
+   * adjust_for_gravity() to turn all (1) cases into (2) and
+   * meta_rectangle_resize_with_gravity() to turn the (3) case into
+   * (2) so that all position and size fields correspond to the
+   * desired inner (or "client") window position.
+   *
+   * (*) Note: Technically, you could consider (2) as part of (3)
+   * since in all cases that (2) is used it is used with
+   * NorthWestGravity.  However, one usually thinks that a function
+   * called meta_window_move_resize_internal() is going to want the
+   * NEW position and size, and it kind of does for (1) and does for
+   * (2).  I was just pointing out that (3) is weird.
    */
   XWindowChanges values;
   unsigned int mask;
@@ -2561,7 +2591,7 @@ meta_window_move_resize_internal (MetaWindow  *window,
                           &root_y_nw);
       
       meta_topic (META_DEBUG_GEOMETRY,
-                  "Compensated position for gravity, new pos %d,%d\n",
+                  "Compensated for braindeadedness; new pos %d,%d\n",
                   root_x_nw, root_y_nw);
     }
 
@@ -2569,6 +2599,19 @@ meta_window_move_resize_internal (MetaWindow  *window,
   new_rect.y = root_y_nw;
   new_rect.width  = w;
   new_rect.height = h;
+
+  if (is_user_action && resize_gravity != NorthWestGravity)
+    { 
+      meta_rectangle_resize_with_gravity (&old_rect,
+                                          &new_rect,
+                                          resize_gravity,
+                                          new_rect.width,
+                                          new_rect.height);
+
+      meta_topic (META_DEBUG_GEOMETRY,
+                  "Compensated for gravity in user action; new pos %d,%d\n",
+                  new_rect.x, new_rect.y);
+    }
 
   meta_window_constrain (window,
                          window->frame ? &fgeom : NULL,
@@ -2900,6 +2943,14 @@ meta_window_resize (MetaWindow  *window,
   
   MetaMoveResizeFlags flags = 
     (user_op ? META_IS_USER_ACTION : 0) | META_IS_MOVE_ACTION;
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width,
+                window->rect.height,
+              x, y, w, h);
   meta_window_move_resize_internal (window,
                                     flags,
                                     NorthWestGravity,
@@ -2914,6 +2965,14 @@ meta_window_move (MetaWindow  *window,
 {
   MetaMoveResizeFlags flags = 
     (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width,
+                window->rect.height,
+              root_x_nw, root_y_nw, window->rect.width, window->rect.height);
   meta_window_move_resize_internal (window,
                                     flags,
                                     NorthWestGravity,
@@ -2933,6 +2992,14 @@ meta_window_move_resize (MetaWindow  *window,
   MetaMoveResizeFlags flags = 
     (user_op ? META_IS_USER_ACTION : 0) | 
     META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width,
+                window->rect.height,
+              root_x_nw, root_y_nw, w, h);
   meta_window_move_resize_internal (window,
                                     flags,
                                     NorthWestGravity,
@@ -2953,6 +3020,16 @@ meta_window_resize_with_gravity (MetaWindow *window,
   
   MetaMoveResizeFlags flags = 
     (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s with gravity %s; "
+              "%d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              meta_gravity_to_string (gravity),
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width,
+                window->rect.height,
+              x, y, w, h);
   meta_window_move_resize_internal (window,
                                     flags,
                                     gravity,
@@ -4060,6 +4137,14 @@ meta_window_configure_request (MetaWindow *window,
   if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight))
     flags |= META_IS_RESIZE_ACTION;
 
+  meta_topic (META_DEBUG_GEOMETRY,
+              "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
+              __FUNCTION__,
+              window->frame->rect.x + window->frame->child_x,
+                window->frame->rect.y + window->frame->child_y,
+                window->rect.width, window->rect.height,
+              window->size_hints.x, window->size_hints.y,
+                window->size_hints.width, window->size_hints.height);
   meta_window_move_resize_internal (window, 
                                     flags,
                                     only_resize ?

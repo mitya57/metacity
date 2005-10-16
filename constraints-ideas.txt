@@ -1,5 +1,18 @@
 Short-term TODO list/reminders:
 
+  - Ought to rewrite adjust_for_gravity to do less and then just use
+    meta_rectangle_resize_with_gravity()
+
+  - Ought to add a test_gravity_resize to testboxes.c, and use the new
+    meta_rectangle_region_to_string(), and maybe move other printing
+    stuff there.
+
+  - Holy cow, constrain_aspect_ratio is ABSOLUTELY COMPLETELY BORKEN!!!
+
+  - Trying to _move_ the window offscreen results in clipping.  Huh??
+    Other weirdness afterwards happens too (keyboard resizing to the
+    right went up and right)
+
   - Might be good to optimize by storing spanning rects in MetaWorkspace
 
   X Need to nuke old #ifdef'd out code
