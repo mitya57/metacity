@@ -1,5 +1,21 @@
 2005-10-15  Elijah Newren  <newren@gmail.com>
 
+	* src/constraints.c (constrain_partially_onscreen): I was supposed
+	to determine the amount that the window was allowed to move off the
+	screen, not the amount that was supposed to remain onscreen
+
+	* src/window.c (meta_window_resize): a function for resizing
+	probably shouldn't tell meta_window_move_resize_internal() that
+	it's a pure move function, (meta_window_move): a function for
+	moving probably shouldn't tell meta_window_move_resize_internal()
+	that it's a pure resize function
+
+	* constraints-ideas.txt: Note window.c bug fixed from above, but
+	add another bug I discovered other than the constraints.c one also
+	fixed above...
+
+2005-10-15  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt:
 
 	Update with a couple TODOs and bugs found

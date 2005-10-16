@@ -2942,7 +2942,7 @@ meta_window_resize (MetaWindow  *window,
   meta_window_get_position (window, &x, &y);
   
   MetaMoveResizeFlags flags = 
-    (user_op ? META_IS_USER_ACTION : 0) | META_IS_MOVE_ACTION;
+    (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
   meta_topic (META_DEBUG_GEOMETRY,
               "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
               __FUNCTION__,
@@ -2964,7 +2964,7 @@ meta_window_move (MetaWindow  *window,
                   int          root_y_nw)
 {
   MetaMoveResizeFlags flags = 
-    (user_op ? META_IS_USER_ACTION : 0) | META_IS_RESIZE_ACTION;
+    (user_op ? META_IS_USER_ACTION : 0) | META_IS_MOVE_ACTION;
   meta_topic (META_DEBUG_GEOMETRY,
               "Calling from %s; %d,%d +%d,%d -> %d,%d +%d,%d\n",
               __FUNCTION__,

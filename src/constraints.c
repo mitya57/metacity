@@ -1310,14 +1310,19 @@ constrain_partially_onscreen (MetaWindow         *window,
 
   /* No special reasons, other than possibly priority, for this not applying */
 
-  /* Determine how much offscreen things are allowed.  We use 25% window
-   * width/height but clamp to the range of (10,75) pixels.  This is
+  /* Determine how much offscreen things are allowed.  We first need to
+   * figure out how much must remain on the screen.  For that, we use 25%
+   * window width/height but clamp to the range of (10,75) pixels.  This is
    * somewhat of a seat of my pants random guess at what might look good.
+   * Then, the amount that is allowed off is just the window size minus
+   * this amount.
    */
   int horiz_amount = info->current.width  / 4;
   int vert_amount  = info->current.height / 4;
   horiz_amount = MAX (10, MIN (75, horiz_amount));
   vert_amount  = MAX (10, MIN (75, vert_amount));
+  horiz_amount = info->current.width - horiz_amount;
+  vert_amount  = info->current.height - vert_amount;
 
   /* FIXME!!!! I need to change amounts for user resize so that user
    * doesn't move the window further offscreen than it already is.

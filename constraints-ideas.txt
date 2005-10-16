@@ -1,5 +1,10 @@
 Short-term TODO list/reminders:
 
+  - Once the window goes offscreen, clicking on the edge in order to
+    resize results in all kinds of weirdness: clipping the window to
+    the screen, sending the window totally and completely offscreen,
+    or who knows what else.  Very odd.
+
   - Ought to rewrite adjust_for_gravity to do less and then just use
     meta_rectangle_resize_with_gravity()
 
@@ -9,7 +14,7 @@ Short-term TODO list/reminders:
 
   - Holy cow, constrain_aspect_ratio is ABSOLUTELY COMPLETELY BORKEN!!!
 
-  - Trying to _move_ the window offscreen results in clipping.  Huh??
+  X Trying to _move_ the window offscreen results in clipping.  Huh??
     Other weirdness afterwards happens too (keyboard resizing to the
     right went up and right)
 
