@@ -1,5 +1,15 @@
 2005-10-16  Elijah Newren  <newren@gmail.com>
 
+	* src/constraints.c:
+	(constrain_to_single_xinerama):
+	(constrain_fully_onscreen):
+	(constrain_partially_onscreen):
+	The various keep-'em-onscreen constraints should only apply to
+	normal windows (otherwise, docks get shoved out of their place by
+	their own strut)
+
+2005-10-16  Elijah Newren  <newren@gmail.com>
+
 	* src/window.c:
 	(meta_window_new_with_attrs):
 	(meta_window_apply_session_info):

@@ -1247,8 +1247,14 @@ constrain_to_single_xinerama (MetaWindow         *window,
   if (priority > PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA)
     return TRUE;
 
-  /* Exit early if we know the constraint won't apply */
-  if (!window->require_on_single_xinerama || info->is_user_action)
+  /* Exit early if we know the constraint won't apply--note that this constraint
+   * is only meant for normal windows (e.g. we don't want docks to be shoved 
+   * "onscreen" by their own strut).
+   */
+  if (window->type == META_WINDOW_DESKTOP ||
+      window->type == META_WINDOW_DOCK    ||
+      !window->require_on_single_xinerama ||
+      info->is_user_action)
     return TRUE;
 
   /* Have a helper function handle the constraint for us */
@@ -1280,8 +1286,13 @@ constrain_fully_onscreen (MetaWindow         *window,
   if (priority > PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA)
     return TRUE;
 
-  /* Exit early if we know the constraint won't apply */
-  if (!window->require_fully_onscreen || 
+  /* Exit early if we know the constraint won't apply--note that this constraint
+   * is only meant for normal windows (e.g. we don't want docks to be shoved 
+   * "onscreen" by their own strut).
+   */
+  if (window->type == META_WINDOW_DESKTOP ||
+      window->type == META_WINDOW_DOCK    ||
+      !window->require_fully_onscreen     || 
       (info->is_user_action && info->action_type != ACTION_RESIZE))
     return TRUE;
 
@@ -1308,7 +1319,13 @@ constrain_partially_onscreen (MetaWindow         *window,
   if (priority > PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA)
     return TRUE;
 
-  /* No special reasons, other than possibly priority, for this not applying */
+  /* Exit early if we know the constraint won't apply--note that this constraint
+   * is only meant for normal windows (e.g. we don't want docks to be shoved 
+   * "onscreen" by their own strut).
+   */
+  if (window->type == META_WINDOW_DESKTOP ||
+      window->type == META_WINDOW_DOCK)
+    return TRUE;
 
   /* Determine how much offscreen things are allowed.  We first need to
    * figure out how much must remain on the screen.  For that, we use 25%
