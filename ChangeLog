@@ -1,3 +1,19 @@
+2005-10-16  Elijah Newren  <newren@gmail.com>
+
+	* src/window.c:
+	(meta_window_new_with_attrs):
+	(meta_window_apply_session_info):
+	(meta_window_resize):
+	(meta_window_move):
+	(meta_window_move_resize):
+	(meta_window_resize_with_gravity):
+	(meta_window_configure_request):
+	remove the debugging information added a couple commits ago; it was
+	causing segfault when not running under Xnest (since all windows in
+	my Xnest session had a frame); I think I found the big problem with
+	these calls in the last commit, and I just don't think the extra
+	debug spew is worth the extra effort anymore
+
 2005-10-15  Elijah Newren  <newren@gmail.com>
 
 	* src/constraints.c (constrain_partially_onscreen): I was supposed
