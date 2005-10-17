@@ -156,4 +156,13 @@ void     meta_rectangle_shove_into_region(
                                          FixedDirections      fixed_directions,
                                          MetaRectangle       *rect);
 
+/* Finds the point on the line connecting (x1,y1) to (x2,y2) which is closest
+ * to (px, py).  Useful for finding an optimal rectangle size when given a
+ * range between two sizes that are all candidates.
+ */
+void meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
+                                                     double x2,    double y2,
+                                                     double px,    double py,
+                                                     double *valx, double *valy);
+
 #endif /* META_BOXES_H */

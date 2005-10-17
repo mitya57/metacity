@@ -1,3 +1,34 @@
+2005-10-17  Elijah Newren  <newren@gmail.com>
+
+	Get aspect ratio resizing to mostly work, and prevent size
+	constraints from causing window movement during a resize
+	operation.
+
+	* constraints-ideas.txt: record what's still broken with aspect
+	ratio resizing, record the new bug found with clicking on an XMMS
+	window, reorder the TODO list so finished stuff is at the bottom
+	
+	* src/boxes.[ch] (meta_rectangle_resize_with_gravity): fix
+	adjustment for the various centered-somewhere gravities,
+	(meta_rectangle_find_linepoint_closest_to_point): new function
+	which is useful for finding an optimal rectangle size when we need
+	to chose from a range of candidates that are spread in a line-like
+	way between two sizes.
+
+	* src/constraints.c (setup_constraint_info): I have no clue what I
+	was thinking when I wrote that pseudogravity stuff--it was very
+	broken and stuff works great without it so just delete it,
+	(constrain_aspect_ratio): totally rewritten
+
+	* src/keybindings.c (process_keyboard_resize_grab): Use
+	meta_window_resize_with_gravity() instead of
+	meta_window_move_resize() in order to provide a gravity to
+	constraints so that constraints.c knows how to correctly fix the
+	size when needed for minimum size hints
+
+	* src/window.c (meta_window_configure_request): Add a FIXME since
+	clicking on an XMMS window results in a failed assertion
+
 2005-10-16  Elijah Newren  <newren@gmail.com>
 
 	* src/constraints.c:

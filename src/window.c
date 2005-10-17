@@ -4079,6 +4079,9 @@ meta_window_configure_request (MetaWindow *window,
    * have a different setup for meta_window_move_resize_internal()...
    */
   
+  /* FIXME: This causes a failed assertion on window.c:2543 of
+   *   (flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION))
+   */  
   MetaMoveResizeFlags flags = 
     META_IS_CONFIGURE_REQUEST;
   if (event->xconfigurerequest.value_mask & (CWX | CWY))

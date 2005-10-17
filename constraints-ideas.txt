@@ -1,5 +1,26 @@
 Short-term TODO list/reminders:
 
+  - Brokenness left in aspect-ratio resizing:
+    - gtk+ seems to be doing nit-picky fighting with us over which way to
+      round the size.  This means that if the user increases the width of
+      an aspect-ratio'ed window, we increase the height of the window in a
+      way that keeps the center fixed, gtk+ doesn't like our selected size
+      and sends a configure request, and then we resize the window to the
+      configure request size using NorthWestGravity instead of
+      WestGravity--resulting in the window drifting slightly either upward
+      or downward.  sucks.
+    - Interplay between various onscreen constraints is not very good
+      (resizing should stop when any window edge hits the screen edge,
+      instead of arbitrarily clipping that edge).  Similar problems
+      probably occur for overlap with other constraints (do we care about
+      the others, though?).
+
+  - Need to add a test_find_closest_linepoint to testboxes.c to test that
+    function nice and thoroughly.
+
+  - Clicking on an XMMS window causes a failed assertion due to unfixed
+    FIXME in meta_window_configure_request()
+
   - Once the window goes offscreen, clicking on the edge in order to
     resize results in all kinds of weirdness: clipping the window to
     the screen, sending the window totally and completely offscreen,
@@ -12,30 +33,32 @@ Short-term TODO list/reminders:
     meta_rectangle_region_to_string(), and maybe move other printing
     stuff there.
 
-  - Holy cow, constrain_aspect_ratio is ABSOLUTELY COMPLETELY BORKEN!!!
-
-  X Trying to _move_ the window offscreen results in clipping.  Huh??
-    Other weirdness afterwards happens too (keyboard resizing to the
-    right went up and right)
-
   - Might be good to optimize by storing spanning rects in MetaWorkspace
-
-  X Need to nuke old #ifdef'd out code
 
   - Need to replace xinerama and screen structures (screen.h?) and
     maybe tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
-
-  X Need to make shove_into_rect use shortest distance in addition to
-    maximal overlap (especially for totally offscreen case)
 
   - Need to clean out lots of FIXMEs in the code.
 
   - Need to do the titlebar offscreen checking, partial maximization,
     etc.
 
-  X Need to add testboxes stuff to appropriate Makefile.am thingies
-
   - It looks like I can nuke work_area_screen in ConstraintInfo
+
+  - Do I need the include_frame parameter to get_size_limits() anymore?
+
+  X Holy cow, constrain_aspect_ratio is ABSOLUTELY COMPLETELY BORKEN!!!
+
+  X Trying to _move_ the window offscreen results in clipping.  Huh??
+    Other weirdness afterwards happens too (keyboard resizing to the
+    right went up and right)
+
+  X Need to nuke old #ifdef'd out code
+
+  X Need to make shove_into_rect use shortest distance in addition to
+    maximal overlap (especially for totally offscreen case)
+
+  X Need to add testboxes stuff to appropriate Makefile.am thingies
 
   X Okay the on-single-xinerama/fully-onscreen/partially-onscreen
     constraints aren't as simple as I thought, the boxes.[ch] is still the
@@ -112,7 +135,7 @@ Short-term TODO list/reminders:
         rect, do a whole bunch of intersection operations and see if we
         ever get an intersection area greater than some threshold like 0)
 
-  - My aspect ratio resizing may still not work because perhaps
+  X My aspect ratio resizing may still not work because perhaps
     closest-in-area should trump whenever one of the two is very far
     away in area (Think about grabbing the SE corner with the mouse,
     resizing way to the right, not letting go of the left mouse
@@ -139,8 +162,6 @@ Short-term TODO list/reminders:
   X Change documentation in constraints.c to target future maintainers
     first, then explain the basic ideas behind the algorithm and how
     it compares to the old method and why.
-
-  - Do I need the include_frame parameter to get_size_limits() anymore?
 
   X Need to add the require_fully_onscreen and require_on_single_xinerama
     flags and get them all initialized and everything

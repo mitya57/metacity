@@ -26,6 +26,7 @@
 #include "place.h"
 
 #include <stdlib.h>
+#include <math.h>
 
 /* Stupid disallowing of nested C comments makes a #if 0 mandatory... */
 #if 0
@@ -492,36 +493,6 @@ setup_constraint_info (ConstraintInfo      *info,
   info->is_user_action = (flags & META_IS_USER_ACTION);
 
   info->resize_gravity = resize_gravity;
-  /* We need to get a pseduo_gravity for user resize operations (so
-   * that user resize followed by min size hints don't end up moving
-   * window--see bug 312007).
-   *
-   * Note that only corner gravities are used here.  The reason is simply
-   * because we don't allow complex user resizing.  West gravity would
-   * correspond to resizing the right side, but since only one dimension is
-   * being changed by the user, we can lump this in with either NorthWest
-   * gravity or SouthWest.  Center gravity and Static gravity just don't
-   * make sense in this context.
-   */
-  if (info->is_user_action && info->action_type == ACTION_RESIZE)
-    {
-      int pseudo_gravity = NorthWestGravity;
-      if (orig->x == new->x)
-        {
-          if (orig->y == new->y)
-            pseudo_gravity = NorthWestGravity;
-          else if (orig->y + orig->height == new->y + new->height)
-            pseudo_gravity = SouthWestGravity;
-        }
-      else if (orig->x + orig->width == new->x + new->width)
-        {
-          if (orig->y == new->y)
-            pseudo_gravity = NorthEastGravity;
-          else if (orig->y + orig->height == new->y + new->height)
-            pseudo_gravity = SouthEastGravity;
-        }
-      info->resize_gravity = pseudo_gravity;      
-    }
 
   /* Note that although resize_gravity and fixed_directions look similar,
    * they are used for different purposes and I believe it helps code
@@ -958,158 +929,118 @@ constrain_aspect_ratio (MetaWindow         *window,
   if (priority > PRIORITY_ASPECT_RATIO)
     return TRUE;
 
-  /* FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME */
-  /* This is absolutely totally busted -- disable it for now */
-  return TRUE;
-  /* FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME */
-
   /* Determine whether constraint applies; exit if it doesn't. */
-  int min_ax, min_ay, max_ax, max_ay;
-  min_ax = window->size_hints.min_aspect.x;
-  min_ay = window->size_hints.min_aspect.y;
-  max_ax = window->size_hints.max_aspect.x;
-  max_ay = window->size_hints.max_aspect.y;
-  gboolean constraints_are_inconsistent =
-    min_ax / ((double)min_ay) > max_ax / ((double)max_ay);
+  double minr, maxr;
+  minr =         window->size_hints.min_aspect.x /
+         (double)window->size_hints.min_aspect.y;
+  maxr =         window->size_hints.max_aspect.x /
+         (double)window->size_hints.max_aspect.y;
+  gboolean constraints_are_inconsistent = minr > maxr;
   if (constraints_are_inconsistent || window->maximized || window->fullscreen || 
       info->action_type == ACTION_MOVE)
     return TRUE;
 
-  /* Determine whether constraint is already satisfied; exit if it is */
-  int slop_allowed_for_min, slop_allowed_for_max;
-  slop_allowed_for_min = (min_ax % min_ay == 0) ? 0 : 1;
-  slop_allowed_for_max = (max_ax % max_ay == 0) ? 0 : 1;
-  /*       min_ax     width    max_ax
-   * Need: ------ <= ------ <= ------
-   *       min_ay    height    max_ay
+  /* Determine whether constraint is already satisfied; exit if it is.  We
+   * need the following to hold:
+   *
+   *                 width
+   *         minr <= ------ <= maxr
+   *                 height
+   *
+   * But we need to allow for some slight fudging since width and height
+   * are integers instead of floating point numbers (this is particularly
+   * important when minr == maxr), so we allow width and height to be off
+   * a little bit from strictly satisfying these equations.  For just one
+   * sided resizing, we have to make the fudge factor a little bigger
+   * because of how meta_rectangle_resize_with_gravity treats those as
+   * being a resize increment (FIXME: I should handle real resize
+   * increments better here...)
    */
+  int fudge;
+  switch (info->resize_gravity)
+    {
+    case WestGravity:
+    case NorthGravity:
+    case SouthGravity:
+    case EastGravity:
+      fudge = 2;
+      break;
+
+    case NorthWestGravity:
+    case SouthWestGravity:
+    case CenterGravity:
+    case NorthEastGravity:
+    case SouthEastGravity:
+    case StaticGravity:
+    default:
+      fudge = 1;
+      break;
+    }
   gboolean constraint_already_satisfied = 
-    info->current.width >=
-      (info->current.height * min_ax / min_ay) - slop_allowed_for_min &&
-    info->current.width <=
-      (info->current.height * max_ax / max_ay) + slop_allowed_for_max;
+    info->current.width - (info->current.height * minr ) > -minr*fudge &&
+    info->current.width - (info->current.height * maxr ) <  maxr*fudge;
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
 
   /*** Enforce constraint ***/
-#if 0
-  if (info->current.width == info->orig.width)
+  int new_width, new_height;
+  double best_width, best_height;
+  double alt_width, alt_height;
+  new_width = info->current.width;
+  new_height = info->current.height;
+
+  switch (info->resize_gravity)
     {
-      /* User changed height; change width to match */
-      int min_width, max_width, new_width;
-      min_width = info->current.height * min_ax / min_ay;
-      max_width = info->current.height * max_ax / max_ay;
-      new_width = MIN (max_width, MAX (min_width, info->current.width));
-      resize_with_gravity (info->current, 
-                           info->resize_gravity,
-                           new_width,
-                           info->current.height);
+    case WestGravity:
+    case EastGravity:
+      /* Yeah, I suck for doing implicit rounding -- sue me */
+      new_height = CLAMP (new_height, new_width / maxr,  new_width / minr);
+      break;
+
+    case NorthGravity:
+    case SouthGravity:
+      /* Yeah, I suck for doing implicit rounding -- sue me */
+      new_width  = CLAMP (new_width,  new_height * minr, new_height * maxr);
+      break;
+
+    case NorthWestGravity:
+    case SouthWestGravity:
+    case CenterGravity:
+    case NorthEastGravity:
+    case SouthEastGravity:
+    case StaticGravity:
+    default:
+      /* Find what width would correspond to new_height, and what height would
+       * correspond to new_width */
+      alt_width  = CLAMP (new_width,  new_height * minr, new_height * maxr);
+      alt_height = CLAMP (new_height, new_width / maxr,  new_width / minr);
+
+      /* The line connecting the points (alt_width, new_height) and
+       * (new_width, alt_height) provide a range of
+       * valid-for-the-aspect-ratio-constraint sizes.  We want the
+       * size in that range closest to the value requested, i.e. the
+       * point on the line which is closest to the point (new_width,
+       * new_height)
+       */
+      meta_rectangle_find_linepoint_closest_to_point (alt_width, new_height,
+                                                      new_width, alt_height,
+                                                      new_width, new_height,
+                                                      &best_width, &best_height);
+
+      /* Yeah, I suck for doing implicit rounding -- sue me */
+      new_width  = best_width;
+      new_height = best_height;
+
+      break;
     }
-  else if (info->current.height == info->orig.height)
-    {
-      /* User changed width; change height to match */
-      int min_height, max_height, new_height;
-      min_height = info->current.width * min_ay / min_ax;
-      max_height = info->current.width * max_ay / max_ax;
-      new_height = MIN (max_height, MAX (min_height, info->current.height));
-      resize_with_gravity (info->current, 
-                           info->resize_gravity,
-                           info->current.width,
-                           new_height);
-    }
-#endif
 
-  /* Pseudocode:
-   *
-   * 1) Find new rect, A, based on keeping height fixed
-   * 2) Find new rect, B, based on keeping width fixed
-   * 3) If info->current is strictly larger than info->orig
-   *    (i.e. could contain it), then discard either of A and B
-   *    that represent an decrease of area relative to info->orig
-   * 4) If info->current is strictly smaller than info->orig
-   *    (i.e. could be contained in it), then discard either of A and
-   *    B that represent an increase of area relative to info->orig
-   * 5) If both A and B remain (possible in the cases of the user
-   *    changing both width and height simultaneously), choose the one
-   *    which is closer in area to info->orig.
-   */
-   MetaRectangle A, B;
-   int min_size, max_size, new_size;
+  meta_rectangle_resize_with_gravity (&info->orig,
+                                      &info->current, 
+                                      info->resize_gravity,
+                                      new_width,
+                                      new_height);
 
-   /* Find new rect A */
-   A = B = info->current;
-   min_size = info->current.height * min_ax / min_ay;
-   max_size = info->current.height * max_ax / max_ay;
-   new_size = MIN (max_size, MAX (min_size, info->current.width));
-   A.width = new_size;
-
-   /* Find new rect B */
-   B = info->current;
-   min_size = info->current.width * min_ay / min_ax;
-   max_size = info->current.width * max_ay / max_ax;
-   new_size = MIN (max_size, MAX (min_size, info->current.height));
-   B.height = new_size;
-
-   gboolean a_valid, b_valid;
-   int ref_area, a_area, b_area;
-   a_valid = b_valid = TRUE;
-   ref_area = meta_rectangle_area (&info->orig);
-   a_area = meta_rectangle_area (&A);
-   b_area = meta_rectangle_area (&B);
-
-   /* Discard too-small rects if we're increasing in size */
-   if (meta_rectangle_could_fit_rect (&info->current, &info->orig))
-     {
-       if (a_area < ref_area)
-         a_valid = FALSE;
-
-       if (b_area < ref_area)
-         b_valid = FALSE;
-     }
-  
-   /* Discard too-large rects if we're decreasing in size */
-   if (meta_rectangle_could_fit_rect (&info->orig, &info->current))
-     {
-       if (a_area > ref_area)
-         a_valid = FALSE;
-
-       if (b_area > ref_area)
-         b_valid = FALSE;
-     }
-
-   /* If both are still valid, use the one closer in area to info->orig */
-   if (a_valid && b_valid)
-     {
-       if (abs (a_area - ref_area) < abs (b_area - ref_area))
-         b_valid = FALSE;
-       else
-         a_valid = FALSE;
-     }
-
-   if (!a_valid && !b_valid)
-     /* This should only be possible for initial placement; we just
-      * punt and pick one */
-     meta_rectangle_resize_with_gravity (&info->orig,
-                                         &info->current, 
-                                         info->resize_gravity,
-                                         A.width,
-                                         A.height);
-   else if (!b_valid)
-     meta_rectangle_resize_with_gravity (&info->orig,
-                                         &info->current, 
-                                         info->resize_gravity,
-                                         A.width,
-                                         A.height);
-   else if (!a_valid)     
-     meta_rectangle_resize_with_gravity (&info->orig,
-                                         &info->current, 
-                                         info->resize_gravity,
-                                         A.width,
-                                         A.height);
-   else
-     g_error ("Was this programmed by monkeys?!?\n");
-
-   return TRUE;
+  return TRUE;
 }
 
 static gboolean

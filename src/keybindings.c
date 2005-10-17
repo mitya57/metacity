@@ -2366,7 +2366,7 @@ process_keyboard_resize_grab (MetaDisplay *display,
         }
       else
         {
-          meta_window_move_resize (window, TRUE, x, y, width, height);
+          meta_window_resize_with_gravity (window, TRUE, width, height, gravity);
         }
       meta_window_update_keyboard_resize (window, FALSE);
     }

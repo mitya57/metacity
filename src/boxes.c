@@ -224,8 +224,11 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
     case NorthGravity:
     case CenterGravity:
     case SouthGravity:
+      /* FIXME: Needing to adjust new_width kind of sucks, but not doing so
+       * would cause drift.
+       */
+      new_width -= (old_rect->width - new_width) % 2;
       rect->x = old_rect->x + (old_rect->width - new_width)/2;
-      adjust = (old_rect->width - new_width) % 1;
       break;
 
     case NorthEastGravity:
@@ -239,12 +242,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
       /* No need to modify rect->x */
       break;
     }
-  /* FIXME; the need for adjust sucks but not using it would cause North,
-   * Center, and South gravity to break when resizing multiple times with
-   * odd differences in sizes.  So we instead treat it like a
-   * resize_increment kind of thing, though that's kinda weird.
-   */
-  rect->width = new_width - adjust;
+  rect->width = new_width;
   
   /* Next, the y direction */
   adjust = 0;
@@ -259,8 +257,11 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
     case WestGravity:
     case CenterGravity:
     case EastGravity:
+      /* FIXME: Needing to adjust new_height kind of sucks, but not doing so
+       * would cause drift.
+       */
+      new_height -= (old_rect->height - new_height) % 2;
       rect->y = old_rect->y + (old_rect->height - new_height)/2;
-      adjust = (old_rect->height - new_height) % 1;
       break;
 
     case SouthWestGravity:
@@ -274,8 +275,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
       /* No need to modify rect->y */
       break;
     }
-  /* FIXME; this sucks; see previous FIXME in this function for details */
-  rect->height = new_height - adjust;
+  rect->height = new_height;
 }
 
 /* Not so simple helper function for get_minimal_spanning_set_for_region() */
@@ -974,4 +974,55 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
             rect->y = (best_rect->y + best_rect->height) - rect->height;
         }
     }
+}
+
+void
+meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
+                                                double x2,    double y2,
+                                                double px,    double py,
+                                                double *valx, double *valy)
+{
+  /* I'll use the shorthand rx, ry for the return values, valx & valy.
+   * Now, we need (rx,ry) to be on the line between (x1,y1) and (x2,y2).
+   * For that to happen, we first need the slope of the line from (x1,y1)
+   * to (rx,ry) must match the slope of (x1,y1) to (x2,y2), i.e.:
+   *   (ry-y1)   (y2-y1)
+   *   ------- = -------
+   *   (rx-x1)   (x2-x1)
+   * If x1==x2, though, this gives divide by zero errors, so we want to
+   * rewrite the equation by multiplying both sides by (rx-x1)*(x2-x1):
+   *   (ry-y1)(x2-x1) = (y2-y1)(rx-x1)
+   * This is a valid requirement even when x1==x2 (when x1==x2, this latter
+   * equation will basically just mean that rx must also be equal to x1 and
+   * x2)
+   *
+   * The other requirement that we have is that the line from (rx,ry) to
+   * (px,py) must be perpendicular to the line from (x1,y1) to (x2,y2).  So
+   * we just need to get a vector in the direction of each line, take the
+   * dot product of the two, and ensure that the result is 0:
+   *   (rx-px)*(x2-x1) + (ry-py)*(y2-y1) = 0.
+   *
+   * This gives us two equations and two unknowns:
+   *
+   *   (ry-y1)(x2-x1) = (y2-y1)(rx-x1)
+   *   (rx-px)*(x2-x1) + (ry-py)*(y2-y1) = 0.
+   *
+   * This particular pair of equations is always solvable so long as
+   * (x1,y1) and (x2,y2) are not the same point (and note that anyone who
+   * calls this function that way is braindead because it means that they
+   * really didn't specify a line after all).  However, the caller should
+   * be careful to avoid making (x1,y1) and (x2,y2) too close (e.g. like
+   * 10^{-8} apart in each coordinate), otherwise roundoff error could
+   * cause issues.  Solving these equations by hand (or using Maple(TM) or
+   * Mathematica(TM) or whatever) results in slightly messy expressions,
+   * but that's all the below few lines do.
+   */
+
+  double diffx, diffy, den;
+  diffx = x2 - x1;
+  diffy = y2 - y1;
+  den = diffx*diffx + diffy*diffy;
+
+  *valx = (py*diffx*diffy + px*diffx*diffx + y2*x1*diffy - y1*x2*diffy) / den;
+  *valy = (px*diffx*diffy + py*diffy*diffy + x2*y1*diffx - x1*y2*diffx) / den;
 }
