@@ -323,12 +323,13 @@ static inline void get_size_limits       (const MetaWindow        *window,
                                           gboolean include_frame,
                                           MetaRectangle *min_size,
                                           MetaRectangle *max_size);
-static GList* get_screen_relative_spanning_rects (
+static GList*  get_screen_relative_spanning_rects (
                                           const MetaScreen *screen,
                                           const int         left_expand,
                                           const int         right_expand,
                                           const int         top_expand,
                                           const int         bottom_expand);
+static GSList* get_all_workspace_struts  (const MetaWorkspace *workspace);
 
 
 typedef gboolean (* ConstraintFunc) (MetaWindow         *window,
@@ -699,10 +700,17 @@ static void
 update_onscreen_requirements (MetaWindow     *window,
                               ConstraintInfo *info)
 {
-  /* FIXME: Naturally, I only want these flags to become false due to
+  gboolean old;
+
+  /* We only apply the various onscreen requirements to normal windows */
+  if (window->type == META_WINDOW_DESKTOP ||
+      window->type == META_WINDOW_DOCK)
+    return;
+
+  /* FIXME: Naturally, I only want these flags to become *false* due to
    * user interactions (which is allowed since certain constraints are
    * ignored for user interactions regardless of the setting of these
-   * flags).  However, do I want these flags to become true due to
+   * flags).  However, do I want these flags to become *true* due to
    * just an application interaction?  It's possible that users may
    * find that strange since two application interactions that resize
    * in opposite ways don't end up cancelling--but it may also be
@@ -713,22 +721,51 @@ update_onscreen_requirements (MetaWindow     *window,
    * need to be revisited.
    */
 
+  /* The require onscreen/on-single-xinerama stuff is relative to the
+   * outer window, not the inner
+   */
+  extend_by_frame (&info->current, info->fgeom);
+
   /* Update whether we want future constraint runs to require the
    * window to be on fully onscreen.
    */
+  old = window->require_fully_onscreen;
   GList *fully_onscreen_region = 
     get_screen_relative_spanning_rects (window->screen, 0, 0, 0, 0);
   window->require_fully_onscreen =
     meta_rectangle_contained_in_region (fully_onscreen_region,
                                         &info->current);
+  if (old ^ window->require_fully_onscreen)
+    meta_topic (META_DEBUG_GEOMETRY,
+                "require_fully_onscreen for %s toggled to %s\n"
+                window->desc,
+                window->require_fully_onscreen ? "TRUE" : "FALSE");
   meta_rectangle_free_spanning_set (fully_onscreen_region);
 
   /* Update whether we want future constraint runs to require the
    * window to be on a single xinerama.
    */
+  old = window->require_on_single_xinerama;
+  GSList *all_struts;
+  GList  *single_xinerama_region;
+  all_struts = get_all_workspace_struts (window->screen->active_workspace);
+  single_xinerama_region =
+    meta_rectangle_get_minimal_spanning_set_for_region (&info->entire_xinerama,
+                                                        all_struts,
+                                                        0, 0, 0, 0);
   window->require_on_single_xinerama =
-    meta_rectangle_contains_rect (&info->entire_xinerama,
-                                  &info->current);
+    meta_rectangle_contained_in_region (single_xinerama_region,
+                                        &info->current);
+  if (old ^ window->require_on_single_xinerama)
+    meta_topic (META_DEBUG_GEOMETRY,
+                "require_on_single_xinerama for %s toggled to %s\n",
+                window->desc, 
+                window->require_on_single_xinerama ? "TRUE" : "FALSE");
+  meta_rectangle_free_spanning_set (single_xinerama_region);
+  g_slist_free (all_struts);
+
+  /* Don't forget to restore the position of the window */
+  unextend_by_frame (&info->current, info->fgeom);
 }
 
 static void

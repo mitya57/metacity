@@ -52,9 +52,11 @@ typedef enum
  *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
  *   rect_to_string:   24
  */
-char* meta_rectangle_region_to_string (GList      *region,
-                                       const char *separator_string,
-                                       char       *output);
+char* meta_rectangle_to_string        (const MetaRectangle *rect,
+                                       char                *output);
+char* meta_rectangle_region_to_string (GList               *region,
+                                       const char          *separator_string,
+                                       char                *output);
 
 /* Basic comparison functions */
 int      meta_rectangle_area            (const MetaRectangle *rect);

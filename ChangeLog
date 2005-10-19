@@ -1,3 +1,21 @@
+2005-10-19  Elijah Newren  <newren@gmail.com>
+
+	Update docs, fix up the require onscreen/on-single-xinerama flag
+	setting/unsetting.
+
+	* README: Note that things sorta kinda work now.
+
+	* constraints-ideas.txt: Add some ideas for fixing some bugs and
+	another bug
+
+	* src/boxes.[ch] (meta_rectangle_to_string): new printing function
+
+	* src/constraints.c (update_onscreen_requirements): only apply
+	these to normal windows, remember that these apply to the outer
+	window (i.e. window + frame) not to just the inner window, log
+	some debugging messages when the requirements get toggled, don't
+	forget to remove the struts from the available xinerama area.
+
 2005-10-17  Elijah Newren  <newren@gmail.com>
 
 	Get aspect ratio resizing to mostly work, and prevent size

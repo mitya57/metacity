@@ -52,6 +52,20 @@ rect2String (const MetaRectangle *rect)
 #endif
 
 char*
+meta_rectangle_to_string (const MetaRectangle *rect,
+                          char                *output)
+{
+  /* 25 = 2 commas, space, plus, trailing \0 + 5 for each digit.
+   * Should be more than enough space.  Note that of this space, the
+   * trailing \0 will be overwritten for all but the last rectangle.
+   */
+  snprintf (output, 25, "%d,%d +%d,%d", 
+            rect->x, rect->y, rect->width, rect->height);
+
+  return output;
+}
+
+char*
 meta_rectangle_region_to_string (GList      *region,
                                  const char *separator_string,
                                  char       *output)

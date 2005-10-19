@@ -1,4 +1,4 @@
-Short-term TODO list/reminders:
+Short-term (I hope...) TODO list/reminders:
 
   - Brokenness left in aspect-ratio resizing:
     - gtk+ seems to be doing nit-picky fighting with us over which way to
@@ -9,11 +9,27 @@ Short-term TODO list/reminders:
       configure request size using NorthWestGravity instead of
       WestGravity--resulting in the window drifting slightly either upward
       or downward.  sucks.
+      ! Why not just ignore configure requests?
     - Interplay between various onscreen constraints is not very good
       (resizing should stop when any window edge hits the screen edge,
       instead of arbitrarily clipping that edge).  Similar problems
       probably occur for overlap with other constraints (do we care about
       the others, though?).
+      ! Ought to be able to find intersection to any edge of screen (could
+        be 3 sided, not just two) and determine the relevant box size for
+        that.  Some care will be needed, e.g. for East/West/North/South
+        gravity where some sides only get increase/2 amount of change
+        instead of increase
+
+  - edge resistance need not be much different than the current code that
+    exists for the keyboard except that (a) only non-covered edges should
+    count (same ought to be true for keyboard moving/resizing as well), (b)
+    it'd be nice to have timeouts (think of two windows, A and B, separated
+    by just a little less than the width of C--it may become really hard
+    without timeouts to place C where it may be wanted), (c) we should add
+    edge stickiness too, (d) it'd be nice to have the pixel-resistance and
+    timeout-resistance be much larger for the screen edges, (e) it may be
+    difficult determining where the screen edges are
 
   - Need to add a test_find_closest_linepoint to testboxes.c to test that
     function nice and thoroughly.
@@ -21,31 +37,34 @@ Short-term TODO list/reminders:
   - Clicking on an XMMS window causes a failed assertion due to unfixed
     FIXME in meta_window_configure_request()
 
-  - Once the window goes offscreen, clicking on the edge in order to
-    resize results in all kinds of weirdness: clipping the window to
-    the screen, sending the window totally and completely offscreen,
-    or who knows what else.  Very odd.
-
   - Ought to rewrite adjust_for_gravity to do less and then just use
     meta_rectangle_resize_with_gravity()
+    - This appears to be related to the breakage of testgravity;
+      configure_request and do_gravity_adjust calls sometimes lie to
+      meta_window_move_resize_internal() and claim that it's
+      NorthWestGravity when it really isn't.
 
   - Ought to add a test_gravity_resize to testboxes.c, and use the new
-    meta_rectangle_region_to_string(), and maybe move other printing
-    stuff there.
+    meta_rectangle_region_to_string(), and maybe move other printing stuff
+    there.
 
   - Might be good to optimize by storing spanning rects in MetaWorkspace
 
-  - Need to replace xinerama and screen structures (screen.h?) and
-    maybe tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
+  - Need to replace xinerama and screen structures (screen.h?) and maybe
+    tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
 
   - Need to clean out lots of FIXMEs in the code.
 
-  - Need to do the titlebar offscreen checking, partial maximization,
-    etc.
+  - Need to do the titlebar offscreen checking, partial maximization, etc.
 
   - It looks like I can nuke work_area_screen in ConstraintInfo
 
   - Do I need the include_frame parameter to get_size_limits() anymore?
+
+  X Once the window goes offscreen, clicking on the edge in order to resize
+    results in all kinds of weirdness: clipping the window to the screen,
+    sending the window totally and completely offscreen, or who knows what
+    else.  Very odd.
 
   X Holy cow, constrain_aspect_ratio is ABSOLUTELY COMPLETELY BORKEN!!!
 
