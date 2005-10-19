@@ -4079,9 +4079,6 @@ meta_window_configure_request (MetaWindow *window,
    * have a different setup for meta_window_move_resize_internal()...
    */
   
-  /* FIXME: This causes a failed assertion on window.c:2543 of
-   *   (flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION))
-   */  
   MetaMoveResizeFlags flags = 
     META_IS_CONFIGURE_REQUEST;
   if (event->xconfigurerequest.value_mask & (CWX | CWY))
@@ -4089,14 +4086,15 @@ meta_window_configure_request (MetaWindow *window,
   if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight))
     flags |= META_IS_RESIZE_ACTION;
 
-  meta_window_move_resize_internal (window, 
-                                    flags,
-                                    only_resize ?
-                                    window->size_hints.win_gravity : NorthWestGravity,
-                                    window->size_hints.x,
-                                    window->size_hints.y,
-                                    window->size_hints.width,
-                                    window->size_hints.height);
+  if (flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION))
+    meta_window_move_resize_internal (window, 
+                                      flags,
+                                      only_resize ?
+                                      window->size_hints.win_gravity : NorthWestGravity,
+                                      window->size_hints.x,
+                                      window->size_hints.y,
+                                      window->size_hints.width,
+                                      window->size_hints.height);
 
   /* Handle stacking. We only handle raises/lowers, mostly because
    * stack.c really can't deal with anything else.  I guess we'll fix
@@ -6648,6 +6646,11 @@ update_resize (MetaWindow *window,
         }
     }
   
+  /* FIXME: This stupidity only needed because of wireframe mode and
+   * the fact that wireframe isn't making use of
+   * meta_rectangle_resize_with_gravity().  If we were to use that, we
+   * could just increment new_w and new_h by dx and dy in all cases.
+   */
   switch (window->display->grab_op)
     {
     case META_GRAB_OP_RESIZING_SE:
@@ -6722,6 +6725,26 @@ update_resize (MetaWindow *window,
   
   old = window->rect;
 
+  /* One sided resizing ought to actually be one-sided, despite the fact that
+   * aspect ratio windows don't interact nicely with the above stuff.  So,
+   * to avoid some nasty flicker, we enforce that.
+   */
+  switch (window->display->grab_op)
+    {
+    case META_GRAB_OP_RESIZING_S:
+    case META_GRAB_OP_RESIZING_N:
+      new_w = old.width;
+      break;
+      
+    case META_GRAB_OP_RESIZING_E:
+    case META_GRAB_OP_RESIZING_W:
+      new_h = old.height;
+      break;
+
+    default:
+      break;
+    }
+
   /* compute gravity of client during operation */
   gravity = meta_resize_gravity_from_grab_op (window->display->grab_op);
   g_assert (gravity >= 0);
@@ -6742,7 +6765,11 @@ update_resize (MetaWindow *window,
     }
   else
     {
-      meta_window_resize_with_gravity (window, TRUE, new_w, new_h, gravity);
+      /* We don't need to update unless the specified width and height
+       * are actually different from what we had before.
+       */
+      if (old.width != new_w || old.height != new_h)
+        meta_window_resize_with_gravity (window, TRUE, new_w, new_h, gravity);
     }
 
   /* Store the latest resize time, if we actually resized. */

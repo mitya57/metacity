@@ -1,15 +1,18 @@
 Short-term (I hope...) TODO list/reminders:
 
   - Brokenness left in aspect-ratio resizing:
-    - gtk+ seems to be doing nit-picky fighting with us over which way to
+    X gtk+ seems to be doing nit-picky fighting with us over which way to
       round the size.  This means that if the user increases the width of
       an aspect-ratio'ed window, we increase the height of the window in a
       way that keeps the center fixed, gtk+ doesn't like our selected size
       and sends a configure request, and then we resize the window to the
       configure request size using NorthWestGravity instead of
       WestGravity--resulting in the window drifting slightly either upward
-      or downward.  sucks.
-      ! Why not just ignore configure requests?
+      or downward.  Can also result in heavy flickering sometimes.  sucks.
+      *UPDATE*: It wasn't gtk+ -- it was window.c:update_resize() causing
+      all the flickering that I saw.  However, this configure request stuff
+      doesn't appear to be the cause of the drift...
+    - There's still a drift...
     - Interplay between various onscreen constraints is not very good
       (resizing should stop when any window edge hits the screen edge,
       instead of arbitrarily clipping that edge).  Similar problems
@@ -20,6 +23,11 @@ Short-term (I hope...) TODO list/reminders:
         that.  Some care will be needed, e.g. for East/West/North/South
         gravity where some sides only get increase/2 amount of change
         instead of increase
+    - Doesn't work well with fixed sides--if the aspect ratio needs to
+      be enforced, then fixed_directsion should be set to 0.  (Also,
+      fixed_directions should probably be reset to its former nonzero
+      value if all constraints couldn't be satisfied
+      simultaneously...)
 
   - edge resistance need not be much different than the current code that
     exists for the keyboard except that (a) only non-covered edges should
@@ -33,9 +41,6 @@ Short-term (I hope...) TODO list/reminders:
 
   - Need to add a test_find_closest_linepoint to testboxes.c to test that
     function nice and thoroughly.
-
-  - Clicking on an XMMS window causes a failed assertion due to unfixed
-    FIXME in meta_window_configure_request()
 
   - Ought to rewrite adjust_for_gravity to do less and then just use
     meta_rectangle_resize_with_gravity()
@@ -60,6 +65,10 @@ Short-term (I hope...) TODO list/reminders:
   - It looks like I can nuke work_area_screen in ConstraintInfo
 
   - Do I need the include_frame parameter to get_size_limits() anymore?
+
+  X Clicking on an XMMS window causes a failed assertion due to unfixed
+    FIXME in meta_window_configure_request() (Problem was that we tried to
+    call meta_window_move_resize_internal() on restack configure requests)
 
   X Once the window goes offscreen, clicking on the edge in order to resize
     results in all kinds of weirdness: clipping the window to the screen,

@@ -34,22 +34,6 @@
  * any issues crop up.
  */
 /* #define PRINT_DEBUG */
-#ifdef PRINT_DEBUG
-static const char*
-rect2String (const MetaRectangle *rect)
-{
-  static char* little_string = NULL;
-
-  if (little_string == NULL)
-    little_string = g_new(char, 100);
-
-  sprintf(little_string, 
-          "%d,%d +%d,%d",
-          rect->x, rect->y, rect->width, rect->height);
-
-  return little_string;
-}
-#endif
 
 char*
 meta_rectangle_to_string (const MetaRectangle *rect,
@@ -310,10 +294,13 @@ merge_spanning_rects_in_region (GList *region)
   g_assert (region);
 
 #ifdef PRINT_DEBUG
+  char spanning_region[1 + 28 * g_list_length (region)];
+  char rect1_string[25];
+  char rect2_string[25];
   printf ("Merging stats:\n");
   printf ("  Length of initial list: %d\n", g_list_length (region));
-  printf ("  Initial rectangles:\n");
-  print_rect_list (region, "    ");
+  printf ("  Initial rectangles: %s\n",
+          meta_rectangle_region_to_string (region, ", ", spanning_region));
 #endif
 
   while (compare && compare->next)
@@ -331,9 +318,9 @@ merge_spanning_rects_in_region (GList *region)
           g_assert (b->width > 0 && b->height > 0);
 
 #ifdef PRINT_DEBUG
-          printf ("    -- Comparing %d,%d +%d,%d  to  %d,%d + %d,%d --\n",
-                  a->x, a->y, a->width, a->height,
-                  b->x, b->y, b->width, b->height);
+          printf ("    -- Comparing %s to %s --\n",
+                  meta_rectangle_to_string (a, rect1_string),
+                  meta_rectangle_to_string (b, rect2_string));
 #endif
 
           /* If a contains b, just remove b */
@@ -418,8 +405,8 @@ merge_spanning_rects_in_region (GList *region)
             {
 #ifdef PRINT_DEBUG
               MetaRectangle *bla = delete_me->data;
-              printf ("    Deleting rect %d,%d +%d,%d\n",
-                      bla->x, bla->y, bla->width, bla->height);
+              printf ("    Deleting rect %s\n",
+                      meta_rectangle_to_string (bla, rect1_string));
 #endif
 
               /* Deleting the rect we compare others to is a little tricker */
@@ -436,8 +423,9 @@ merge_spanning_rects_in_region (GList *region)
             }
 
 #ifdef PRINT_DEBUG
-          printf ("    After comparison, new list is:\n");
-          print_rect_list (region, "      ");
+          char new_list[1 + 28 * g_list_length (region)];
+          printf ("    After comparison, new list is: %s\n",
+                  meta_rectangle_region_to_string (region, ", ", new_list));
 #endif
         }
 
@@ -451,6 +439,7 @@ merge_spanning_rects_in_region (GList *region)
    * with some kind of optimization for this funcation, given that there
    * exists someone who really wants to do that.
    */
+  char final_list[1 + 28 * g_list_length (region)];
   printf ("  Num rectangles contained in others          : %d\n", 
           num_contains);
   printf ("  Num rectangles partially contained in others: %d\n", 
@@ -459,8 +448,8 @@ merge_spanning_rects_in_region (GList *region)
           num_adjacent);
   printf ("  Num rectangles merged with others           : %d\n",
           num_merged);
-  printf ("  Final rectangles:\n");
-  print_rect_list (region, "    ");
+  printf ("  Final rectangles: %s\n",
+          meta_rectangle_region_to_string (region, ", ", final_list));
 #endif
 
   return region;
@@ -570,7 +559,9 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   *temp_rect = *basic_rect;
   ret = g_list_prepend (NULL, temp_rect);
 #ifdef PRINT_DEBUG
-  printf("Initialized spanning set with %s.\n", rect2String (basic_rect));
+  char rect_string[25];
+  printf("Initialized spanning set with %s.\n", 
+         meta_rectangle_to_string (basic_rect, rect_string));
 #endif
 
   strut_iter = all_struts;
@@ -579,7 +570,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
       GList *rect_iter; 
       MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
 #ifdef PRINT_DEBUG
-      printf("Dealing with strut %s.\n", rect2String (strut));
+      printf("Dealing with strut %s.\n", 
+             meta_rectangle_to_string (strut, rect_string));
 #endif
       tmp_list = ret;
       ret = NULL;
@@ -588,13 +580,15 @@ meta_rectangle_get_minimal_spanning_set_for_region (
         {
           MetaRectangle *rect = (MetaRectangle*) rect_iter->data;
 #ifdef PRINT_DEBUG
-          printf("  Looking if we need to chop up %s.\n", rect2String (rect));
+          printf("  Looking if we need to chop up %s.\n",
+                 meta_rectangle_to_string (rect, rect_string));
 #endif
           if (!meta_rectangle_overlap (rect, strut))
             {
             ret = g_list_prepend (ret, rect);
 #ifdef PRINT_DEBUG
-            printf("    No chopping of %s.\n", rect2String (rect));
+            printf("    No chopping of %s.\n",
+                   meta_rectangle_to_string (rect, rect_string));
 #endif
             }
           else
@@ -607,7 +601,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->width = strut->x - rect->x;
                   ret = g_list_prepend (ret, temp_rect);
 #ifdef PRINT_DEBUG
-                  printf("    Added %s.\n", rect2String (temp_rect));
+                  printf("    Added %s.\n",
+                         meta_rectangle_to_string (temp_rect, rect_string));
 #endif
                 }
               /* If there is area in rect right of strut */
@@ -621,7 +616,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->x = new_x;
                   ret = g_list_prepend (ret, temp_rect);
 #ifdef PRINT_DEBUG
-                  printf("    Added %s.\n", rect2String (temp_rect));
+                  printf("    Added %s.\n",
+                         meta_rectangle_to_string (temp_rect, rect_string));
 #endif
                 }
               /* If there is area in rect above strut */
@@ -632,7 +628,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->height = strut->y - rect->y;
                   ret = g_list_prepend (ret, temp_rect);
 #ifdef PRINT_DEBUG
-                  printf("    Added %s.\n", rect2String (temp_rect));
+                  printf("    Added %s.\n",
+                         meta_rectangle_to_string (temp_rect, rect_string));
 #endif
                 }
               /* If there is area in rect below strut */
@@ -646,7 +643,8 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->y = new_y;
                   ret = g_list_prepend (ret, temp_rect);
 #ifdef PRINT_DEBUG
-                  printf("    Added %s.\n", rect2String (temp_rect));
+                  printf("    Added %s.\n",
+                         meta_rectangle_to_string (temp_rect, rect_string));
 #endif
                 }
               g_free (rect);

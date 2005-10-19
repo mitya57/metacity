@@ -50,7 +50,7 @@ typedef enum
 
 /* Output functions -- note that the output buffer had better be big enough:
  *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
- *   rect_to_string:   24
+ *   rect_to_string:   1 + 24
  */
 char* meta_rectangle_to_string        (const MetaRectangle *rect,
                                        char                *output);

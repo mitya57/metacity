@@ -1,5 +1,29 @@
 2005-10-19  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Update things fixed, list new bug that I
+	previously forgot
+
+	* src/boxes.c (rect2String): remove this function,
+	(meta_rectangle_get_minimal_spanning_set_for_region,
+	merge_spanning_rects_in_region): use meta_rectangle_to_string()
+	and meta_rectangle_region_to_string() instead of manually printing
+	out rectangles or using print_rect_list().
+
+	* src/boxes.h (meta_rectangle_to_string): correct comment above
+	this function about the size of the string needed to hold the
+	output
+
+	* src/window.c (meta_window_configure_request): only try to
+	move/resize the window if part of the configure request included a
+	move or resize request, (update_resize): point out stupidity of
+	the function due to meta_window_update_wireframe() not taking or
+	making use of gravity, don't allow supposed North/South resizes
+	during META_GRAB_OP_RESIZING_(E|W) and vice versa, don't call
+	meta_window_resize_with_gravity() if we don't have a different
+	size to specify
+
+2005-10-19  Elijah Newren  <newren@gmail.com>
+
 	Update docs, fix up the require onscreen/on-single-xinerama flag
 	setting/unsetting.
 
