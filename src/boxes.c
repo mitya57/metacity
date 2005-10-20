@@ -27,8 +27,8 @@
 
 #include "boxes.h"
 #include "util.h"
-#include <X11/Xutil.h>  // Just for the definition of the various gravities
-#include <stdio.h>      // For snprintf
+#include <X11/Xutil.h>  /* Just for the definition of the various gravities */
+#include <stdio.h>      /* For snprintf */
 
 /* PRINT_DEBUG may be useful to define when compiling the testboxes program if
  * any issues crop up.

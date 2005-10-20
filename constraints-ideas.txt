@@ -39,19 +39,12 @@ Short-term (I hope...) TODO list/reminders:
     timeout-resistance be much larger for the screen edges, (e) it may be
     difficult determining where the screen edges are
 
-  - Need to add a test_find_closest_linepoint to testboxes.c to test that
-    function nice and thoroughly.
-
   - Ought to rewrite adjust_for_gravity to do less and then just use
     meta_rectangle_resize_with_gravity()
     - This appears to be related to the breakage of testgravity;
       configure_request and do_gravity_adjust calls sometimes lie to
       meta_window_move_resize_internal() and claim that it's
       NorthWestGravity when it really isn't.
-
-  - Ought to add a test_gravity_resize to testboxes.c, and use the new
-    meta_rectangle_region_to_string(), and maybe move other printing stuff
-    there.
 
   - Might be good to optimize by storing spanning rects in MetaWorkspace
 
@@ -65,6 +58,13 @@ Short-term (I hope...) TODO list/reminders:
   - It looks like I can nuke work_area_screen in ConstraintInfo
 
   - Do I need the include_frame parameter to get_size_limits() anymore?
+
+  X Need to add a test_find_closest_linepoint to testboxes.c to test that
+    function nice and thoroughly.
+
+  X Ought to add a test_gravity_resize to testboxes.c, and use the new
+    meta_rectangle_region_to_string(), and maybe move other printing stuff
+    there.
 
   X Clicking on an XMMS window causes a failed assertion due to unfixed
     FIXME in meta_window_configure_request() (Problem was that we tried to

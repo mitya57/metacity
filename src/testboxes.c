@@ -19,20 +19,12 @@
  * 02111-1307, USA.
  */
 
-/* Note that you can compile this function with the following very simple
- * command line:
- *   gcc -g testboxes.c boxes.c -o testboxes \
- *     $(pkg-config --cflags --libs glib-2.0)
- * IF you first add the line
- *   #define meta_warning(s)
- * near the beginning of boxes.c.
- */
-
+#include "boxes.h"
 #include <glib.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>  /* To initialize random seed */
-#include "boxes.h"
+#include <X11/Xutil.h> /* Just for the definition of the various gravities */
+#include <time.h>      /* To initialize random seed */
 
 #define NUM_RANDOM_RUNS 10000
 
@@ -49,48 +41,6 @@ get_random_rect (MetaRectangle *rect)
   rect->y = rand () % 1200;
   rect->width  = rand () % 1600 + 1;
   rect->height = rand () % 1200 + 1;
-}
-
-static void
-print_rect (const MetaRectangle *rect)
-{
-  printf ("%d,%d +%d,%d", rect->x, rect->y, rect->width, rect->height);
-}
-
-static void
-print_rects (const MetaRectangle *rect1, const MetaRectangle *rect2)
-{
-  print_rect (rect1);
-  printf ("   ");
-  print_rect (rect2);
-}
-
-static void
-alt_print_rect (const MetaRectangle *rect)
-{
-  printf ("%d,%d %d,%d", 
-          rect->x,                   rect->y, 
-          rect->x + rect->width - 1, rect->y + rect->height - 1);
-}
-
-static void
-alt_print_rects (const MetaRectangle *rect1, const MetaRectangle *rect2)
-{
-  alt_print_rect (rect1);
-  printf ("   ");
-  alt_print_rect (rect2);
-}
-
-static void
-print_rect_list (GList *rects, const char *prefix)
-{
-  while (rects)
-    {
-      printf("%s", prefix);
-      print_rect (rects->data);
-      printf("\n");
-      rects = rects->next;
-    }
 }
 
 static MetaRectangle
@@ -118,7 +68,7 @@ new_meta_rect (int x, int y, int width, int height)
   return temporary;
 }
 
-void
+static void
 test_area ()
 {
   MetaRectangle temp;
@@ -135,7 +85,7 @@ test_area ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_intersect ()
 {
   MetaRectangle a = {100, 200,  50,  40};
@@ -159,7 +109,7 @@ test_intersect ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_equal ()
 {
   MetaRectangle a = {10, 12, 4, 18};
@@ -178,7 +128,7 @@ test_equal ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_overlap_funcs ()
 {
   MetaRectangle temp1, temp2;
@@ -201,7 +151,7 @@ test_overlap_funcs ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_basic_fitting ()
 {
   MetaRectangle temp1, temp2, temp3;
@@ -292,7 +242,7 @@ get_screen_region (int which)
 }
 
 #if 0
-void
+static void
 test_merge_regions ()
 {
   /* logarithmically distributed random number of struts (range?)
@@ -313,7 +263,6 @@ test_merge_regions ()
 
   GList* region;
   GList* compare;
-  MetaRectangle answer;
   int num_contains, num_merged, num_part_contains, num_adjacent;
 
   num_contains = num_merged = num_part_contains = num_adjacent = 0;
@@ -323,8 +272,10 @@ test_merge_regions ()
   printf ("Merging stats:\n");
   printf ("  Length of initial list: %d\n", g_list_length (region));
 #ifdef PRINT_DEBUG
-  printf ("  Initial rectangles:\n");
-  print_rect_list (region, "    ");
+  char rect1[25], rect2[25];
+  char region_list[1 + 28 * g_list_length (region)];
+  meta_rectangle_region_to_string (region, ", ", region_list);
+  printf ("  Initial rectangles: %s\n", region_list);
 #endif
 
   while (compare && compare->next)
@@ -342,9 +293,9 @@ test_merge_regions ()
           g_assert (b->width > 0 && b->height > 0);
 
 #ifdef PRINT_DEBUG
-          printf ("    -- Comparing %d,%d +%d,%d  to  %d,%d + %d,%d --\n",
-                  a->x, a->y, a->width, a->height,
-                  b->x, b->y, b->width, b->height);
+          printf ("    -- Comparing %s to %s --\n",
+                  meta_rectangle_to_string (a, rect1),
+                  meta_rectangle_to_string (b, rect2));
 #endif
 
           /* If a contains b, just remove b */
@@ -415,10 +366,10 @@ test_merge_regions ()
           /* Delete any rectangle in the list that is no longer wanted */
           if (delete_me != NULL)
             {
-              MetaRectangle *bla = delete_me->data;
 #ifdef PRINT_DEBUG
-              printf ("    Deleting rect %d,%d +%d,%d\n",
-                      bla->x, bla->y, bla->width, bla->height);
+              MetaRectangle *bla = delete_me->data;
+              printf ("    Deleting rect %s\n",
+                      meta_rectangle_to_string (bla, rect1));
 #endif
 
               /* Deleting the rect we're compare others to is a little tricker */
@@ -435,8 +386,9 @@ test_merge_regions ()
             }
 
 #ifdef PRINT_DEBUG
-          printf ("    After comparison, new list is:\n");
-          print_rect_list (region, "      ");
+          char region_list[1 + 28 * g_list_length (region)];
+          meta_rectangle_region_to_string (region, ", ", region_list);
+          printf ("      After comparison, new list is: %s\n", region_list);
 #endif
         }
 
@@ -452,8 +404,9 @@ test_merge_regions ()
   printf ("  Num rectangles merged with others           : %d\n",
           num_merged);
 #ifdef PRINT_DEBUG
-  printf ("  Final rectangles:\n");
-  print_rect_list (region, "    ");
+  char region_list2[1 + 28 * g_list_length (region)];
+  meta_rectangle_region_to_string (region, ", ", region_list2);
+  printf ("  Final rectangles: %s\n", region_list2);
 #endif
 
   meta_rectangle_free_spanning_set (region);
@@ -511,7 +464,7 @@ verify_lists_are_equal (GList *code, GList *answer)
     }
 }
 
-void
+static void
 test_regions_okay ()
 {
   GList* region;
@@ -568,9 +521,11 @@ test_regions_okay ()
   tmp = g_list_prepend (tmp, new_meta_rect (   0,   20, 1600,  505)); // 808000
 #if 0
   printf ("Got to here...\n");
-  print_rect_list (region, "  ");
-  printf (" vs. \n");
-  print_rect_list (tmp, "  ");
+  char region_list[1 + 28 * g_list_length (region)];
+  char tmp_list[   1 + 28 * g_list_length (tmp)];
+  meta_rectangle_region_to_string (region, ", ", region_list);
+  meta_rectangle_region_to_string (region, ", ", tmp_list);
+  printf ("%s vs. %s\n", region_list, tmp_list);
 #endif
   verify_lists_are_equal (region, tmp);
   meta_rectangle_free_spanning_set (tmp);
@@ -587,7 +542,7 @@ test_regions_okay ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_region_fitting ()
 {
   GList* region;
@@ -631,7 +586,7 @@ test_region_fitting ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_clamping_to_region ()
 {
   GList* region;
@@ -744,7 +699,7 @@ rect_overlaps_region (const GList         *spanning_rects,
 
 gboolean time_to_print = FALSE;
 
-void
+static void
 test_clipping_to_region ()
 {
   GList* region;
@@ -808,7 +763,7 @@ test_clipping_to_region ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
-void
+static void
 test_shoving_into_region ()
 {
   GList* region;
@@ -880,6 +835,156 @@ test_shoving_into_region ()
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
 
+static void
+test_gravity_resize ()
+{
+  MetaRectangle rect, temp;
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect ( 50,  300,  20,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      NorthWestGravity,
+                                      20,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect (165,  300,  20,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      NorthGravity,
+                                      20,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect (280,  300,  20,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      NorthEastGravity,
+                                      20,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect ( 50,  695,  50,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      SouthWestGravity,
+                                      50,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect (150,  695,  50,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      SouthGravity,
+                                      50,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 50,  300, 250, 400);
+  temp = meta_rect (250,  695,  50,   5);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      SouthEastGravity,
+                                      50,
+                                      5);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (167,  738, 237, 843);
+  temp = meta_rect (167, 1113, 832,  93);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      WestGravity,
+                                      832,
+                                      93);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect ( 167,  738, 237, 843);
+  temp = meta_rect (-131, 1113, 833,  93);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      CenterGravity,
+                                      832,
+                                      93);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (300, 1000, 400, 200);
+  temp = meta_rect (270,  994, 430, 212);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      EastGravity,
+                                      430,
+                                      211);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  rect = meta_rect (300, 1000, 400, 200);
+  temp = meta_rect (300, 1000, 430, 211);
+  meta_rectangle_resize_with_gravity (&rect,
+                                      &rect,
+                                      StaticGravity,
+                                      430,
+                                      211);
+  g_assert (meta_rectangle_equal (&rect, &temp));
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+
+static void
+test_find_closest_point_to_line ()
+{
+  double x1, y1, x2, y2, px, py, rx, ry;
+  double answer_x, answer_y;
+
+  x1 =  3.0;  y1 =  49.0;
+  x2 =  2.0;  y2 = - 1.0;
+  px = -2.6;  py =  19.1;
+  answer_x = 2.4; answer_y = 19;
+  meta_rectangle_find_linepoint_closest_to_point (x1,  y1,
+                                                  x2,  y2,
+                                                  px,  py,
+                                                  &rx, &ry);
+  g_assert (rx == answer_x && ry == answer_y);
+
+  /* Special test for x1 == x2, so that slop of line is infinite */
+  x1 =  3.0;  y1 =  49.0;
+  x2 =  3.0;  y2 = - 1.0;
+  px = -2.6;  py =  19.1;
+  answer_x = 3.0; answer_y = 19.1;
+  meta_rectangle_find_linepoint_closest_to_point (x1,  y1,
+                                                  x2,  y2,
+                                                  px,  py,
+                                                  &rx, &ry);
+  g_assert (rx == answer_x && ry == answer_y);
+
+  /* Special test for y1 == y2, so perp line has slope of infinity */
+  x1 =  3.14;  y1 =   7.0;
+  x2 =  2.718; y2 =   7.0;
+  px = -2.6;   py =  19.1;
+  answer_x = -2.6; answer_y = 7;
+  meta_rectangle_find_linepoint_closest_to_point (x1,  y1,
+                                                  x2,  y2,
+                                                  px,  py,
+                                                  &rx, &ry);
+  g_assert (rx == answer_x && ry == answer_y);
+
+  /* Test when we the point we want to be closest to is actually on the line */
+  x1 =  3.0;  y1 =  49.0;
+  x2 =  2.0;  y2 = - 1.0;
+  px =  2.4;  py =  19.0;
+  answer_x = 2.4; answer_y = 19;
+  meta_rectangle_find_linepoint_closest_to_point (x1,  y1,
+                                                  x2,  y2,
+                                                  px,  py,
+                                                  &rx, &ry);
+  g_assert (rx == answer_x && ry == answer_y);
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+
 int
 main()
 {
@@ -896,6 +1001,10 @@ main()
   test_clamping_to_region ();
   test_clipping_to_region ();
   test_shoving_into_region ();
+
+  /* And now the misfit functions that don't quite fit in anywhere else... */
+  test_gravity_resize ();
+  test_find_closest_point_to_line ();
 
   printf ("All tests passed.\n");
   return 0;

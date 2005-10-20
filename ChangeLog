@@ -1,5 +1,43 @@
 2005-10-19  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Got the testcases and cleanup done now
+
+	* src/boxes.c:
+	* src/utils.c:
+	* src/testboxes.c:
+	C comments use /* and */ not // -- oops
+
+	* src/testboxes.c: 
+
+	remove old obsolete comment,
+
+	(print_rect, print_rects, alt_print_rect, alt_print_rects):
+	remove these unused functions
+
+	(print_rect_list):
+	remove this function since meta_rectangle_region_to_string()
+	replaces it
+
+	(test_area, test_intersect, test_equal, test_overlap_funcs,
+	test_basic_fitting, test_merge_regions, test_regions_okay,
+	test_region_fitting, test_clamping_to_region,
+	test_clipping_to_region, test_shoving_into_region):
+	declare these functions static to avoid warnings from the
+	stupid -Wmissing-prototypes flag
+
+	(test_merge_regions, test_regions_okay):
+	use *_to_string() functions from boxes.[ch] and various other
+	small cleanups
+
+	(test_gravity_resize, test_find_closest_point_to_line):
+	new functions
+
+	(main):
+	call test_gravity_resize() and test_find_closest_point_to_line()
+	too
+
+2005-10-19  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: Update things fixed, list new bug that I
 	previously forgot
 
