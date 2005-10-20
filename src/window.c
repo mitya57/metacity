@@ -689,7 +689,7 @@ meta_window_new_with_attrs (MetaDisplay       *display,
     META_IS_CONFIGURE_REQUEST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
   meta_window_move_resize_internal (window,
                                     flags,
-                                    NorthWestGravity,
+                                    window->size_hints.win_gravity,
                                     window->size_hints.x,
                                     window->size_hints.y,
                                     window->size_hints.width,
@@ -869,7 +869,7 @@ meta_window_apply_session_info (MetaWindow *window,
         META_DO_GRAVITY_ADJUST | META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION;
       meta_window_move_resize_internal (window,
                                         flags,
-                                        NorthWestGravity,
+                                        window->size_hints.win_gravity,
                                         x, y, w, h);
     }
 }
@@ -2293,12 +2293,8 @@ static void
 adjust_for_gravity (MetaWindow        *window,
                     MetaFrameGeometry *fgeom,
                     gboolean           coords_assume_border,
-                    int                x,
-                    int                y,
-                    int                width,
-                    int                height,
-                    int               *xp,
-                    int               *yp)
+                    int                gravity,
+                    MetaRectangle     *rect)
 {
   int ref_x, ref_y;
   int bw;
@@ -2314,15 +2310,15 @@ adjust_for_gravity (MetaWindow        *window,
     {
       child_x = fgeom->left_width;
       child_y = fgeom->top_height;
-      frame_width = child_x + width + fgeom->right_width;
-      frame_height = child_y + height + fgeom->bottom_height;
+      frame_width = child_x + rect->width + fgeom->right_width;
+      frame_height = child_y + rect->height + fgeom->bottom_height;
     }
   else
     {
       child_x = 0;
       child_y = 0;
-      frame_width = width;
-      frame_height = height;
+      frame_width = rect->width;
+      frame_height = rect->height;
     }
   
   /* We're computing position to pass to window_move, which is
@@ -2332,93 +2328,93 @@ adjust_for_gravity (MetaWindow        *window,
    * their formulas assume we're honoring the border width, rather
    * than compensating for having turned it off)
    */
-  switch (window->size_hints.win_gravity)
+  switch (gravity)
     {
     case NorthWestGravity:
-      ref_x = x;
-      ref_y = y;
+      ref_x = rect->x;
+      ref_y = rect->y;
       break;
     case NorthGravity:
-      ref_x = x + width / 2 + bw;
-      ref_y = y;
+      ref_x = rect->x + rect->width / 2 + bw;
+      ref_y = rect->y;
       break;
     case NorthEastGravity:
-      ref_x = x + width + bw * 2;
-      ref_y = y;
+      ref_x = rect->x + rect->width + bw * 2;
+      ref_y = rect->y;
       break;
     case WestGravity:
-      ref_x = x;
-      ref_y = y + height / 2 + bw;
+      ref_x = rect->x;
+      ref_y = rect->y + rect->height / 2 + bw;
       break;
     case CenterGravity:
-      ref_x = x + width / 2 + bw;
-      ref_y = y + height / 2 + bw;
+      ref_x = rect->x + rect->width / 2 + bw;
+      ref_y = rect->y + rect->height / 2 + bw;
       break;
     case EastGravity:
-      ref_x = x + width + bw * 2;
-      ref_y = y + height / 2 + bw;
+      ref_x = rect->x + rect->width + bw * 2;
+      ref_y = rect->y + rect->height / 2 + bw;
       break;
     case SouthWestGravity:
-      ref_x = x;
-      ref_y = y + height + bw * 2;
+      ref_x = rect->x;
+      ref_y = rect->y + rect->height + bw * 2;
       break;
     case SouthGravity:
-      ref_x = x + width / 2 + bw;
-      ref_y = y + height + bw * 2;
+      ref_x = rect->x + rect->width / 2 + bw;
+      ref_y = rect->y + rect->height + bw * 2;
       break;
     case SouthEastGravity:
-      ref_x = x + width + bw * 2;
-      ref_y = y + height + bw * 2;
+      ref_x = rect->x + rect->width + bw * 2;
+      ref_y = rect->y + rect->height + bw * 2;
       break;
     case StaticGravity:
     default:
-      ref_x = x;
-      ref_y = y;
+      ref_x = rect->x;
+      ref_y = rect->y;
       break;
     }
 
-  switch (window->size_hints.win_gravity)
+  switch (gravity)
     {
     case NorthWestGravity:
-      *xp = ref_x + child_x;
-      *yp = ref_y + child_y;
+      rect->x = ref_x + child_x;
+      rect->y = ref_y + child_y;
       break;
     case NorthGravity:
-      *xp = ref_x - frame_width / 2 + child_x;
-      *yp = ref_y + child_y;
+      rect->x = ref_x - frame_width / 2 + child_x;
+      rect->y = ref_y + child_y;
       break;
     case NorthEastGravity:
-      *xp = ref_x - frame_width + child_x;
-      *yp = ref_y + child_y;
+      rect->x = ref_x - frame_width + child_x;
+      rect->y = ref_y + child_y;
       break;
     case WestGravity:
-      *xp = ref_x + child_x;
-      *yp = ref_y - frame_height / 2 + child_y;
+      rect->x = ref_x + child_x;
+      rect->y = ref_y - frame_height / 2 + child_y;
       break;
     case CenterGravity:
-      *xp = ref_x - frame_width / 2 + child_x;
-      *yp = ref_y - frame_height / 2 + child_y;
+      rect->x = ref_x - frame_width / 2 + child_x;
+      rect->y = ref_y - frame_height / 2 + child_y;
       break;
     case EastGravity:
-      *xp = ref_x - frame_width + child_x;
-      *yp = ref_y - frame_height / 2 + child_y;
+      rect->x = ref_x - frame_width + child_x;
+      rect->y = ref_y - frame_height / 2 + child_y;
       break;
     case SouthWestGravity:
-      *xp = ref_x + child_x;
-      *yp = ref_y - frame_height + child_y;
+      rect->x = ref_x + child_x;
+      rect->y = ref_y - frame_height + child_y;
       break;
     case SouthGravity:
-      *xp = ref_x - frame_width / 2 + child_x;
-      *yp = ref_y - frame_height + child_y;
+      rect->x = ref_x - frame_width / 2 + child_x;
+      rect->y = ref_y - frame_height + child_y;
       break;
     case SouthEastGravity:
-      *xp = ref_x - frame_width + child_x;
-      *yp = ref_y - frame_height + child_y;
+      rect->x = ref_x - frame_width + child_x;
+      rect->y = ref_y - frame_height + child_y;
       break;
     case StaticGravity:
     default:
-      *xp = ref_x;
-      *yp = ref_y;
+      rect->x = ref_x;
+      rect->y = ref_y;
       break;
     }
 }
@@ -2473,42 +2469,51 @@ meta_window_move_resize_internal (MetaWindow  *window,
    * area of the inner or client window (i.e. excluding the frame).
    * root_x_nw and root_y_nw can be any of:
    *
-   *   (1) Desired position of the NW corner of the outer window
-   *       (i.e. including the frame) *IF* one were to assume that
-   *       resize_gravity is NorthWest instead of whatever it really
-   *       is (note that whenever resize_gravity is not NorthWest,
-   *       that means root_x_nw and root_y_nw are almost entirely
-   *       meaningless--though we have just enough information to fix
-   *       them; see adjust_for_gravity())
-   *   (2) Desired positon of the NW corner of the inner window (*)
-   *   (3) Position of the NW corner of inner window BEFORE the resize
-   *   (4) Something completely wrong
+   *   (1) Bogus; should just be ignored.
+   *   (2) Something kind of strange that needs to be fixed up with
+   *       adjust_for_gravity().  I'm not sure I quite understand it
+   *       despite my reading of all relevant functions multiple times plus
+   *       lots of X manual page reading.  Anyway, I think the basic idea
+   *       is that it somehow specifies the inner position of the window in
+   *       such a way that the relevant part of the frame for the given
+   *       gravity will remain fixed.  Kinda confusing, but it was stuff
+   *       written by someone else and it all seems to all work, though, so
+   *       I'm just not going to touch this code if I can help it.
+   *   (3) Desired positon of the NW corner of the inner window (*)
+   *   (4) Position of the NW corner of inner window BEFORE the resize
+   *   (5) Some unnatural nasty mixture of the above that is obscene and
+   *       broken and we don't even attempt to fix up; but it's #ifdef'd
+   *       out so we don't worry about it.  It needs to be fixed (not this
+   *       function) before it really is used, though.
    *
+   * Other than case (1) which occurs whenever the operation is a
+   * resize-only operation (in which case window->rect.x and window->rect.y
+   * combined with meta_rectangle_resize_with_gravity() provides the real
+   * position), here are the cases and what they yield:
    *
-   * Here are the cases and what they yield
    *   Case | Called from (flags; resize_gravity)
    *   -----+-----------------------------------------------
-   *    1   | New window (ConfigureRequest; NorthWest)
-   *    1   | Session restore (GravityAdjust; NorthWest)
-   *    2   | meta_window_resize (UserAction || 0; NorthWest)
-   *    2   | meta_window_move (UserAction || 0; NorthWest)
-   *    2   | meta_window_move_resize (UserAction || 0; NorthWest)
-   *    3   | meta_window_resize_with_gravity (UserAction || 0; gravity)
-   *    4   | meta_window_move_resize via _NET_MOVERESIZE_WINDOW
-   *    1   | ConfigureRequest (ConfigureRequest; varies)
+   *    2   | New window (ConfigureRequest; gravity)
+   *    2   | Session restore (GravityAdjust; gravity)
+   *    3   | meta_window_resize (UserAction || 0; NorthWest)
+   *    3   | meta_window_move (UserAction || 0; NorthWest)
+   *    3   | meta_window_move_resize (UserAction || 0; NorthWest)
+   *    4   | meta_window_resize_with_gravity (UserAction || 0; gravity)
+   *    5   | various functions via handle_net_moveresize_window() in display.c
+   *    2   | ConfigureRequest (ConfigureRequest; gravity)
    *
-   * Other than the (4) case, this is all cleaned up via use of
-   * adjust_for_gravity() to turn all (1) cases into (2) and
-   * meta_rectangle_resize_with_gravity() to turn the (3) case into
-   * (2) so that all position and size fields correspond to the
+   * Other than the (5) case, this is all cleaned up via use of
+   * adjust_for_gravity() to turn all (2) cases into (3) and
+   * meta_rectangle_resize_with_gravity() to turn the (4) case into
+   * (3) so that all position and size fields correspond to the
    * desired inner (or "client") window position.
    *
-   * (*) Note: Technically, you could consider (2) as part of (3)
-   * since in all cases that (2) is used it is used with
+   * (*) Note: Technically, you could consider (3) as part of (4)
+   * since in all cases that (3) is used it is used with
    * NorthWestGravity.  However, one usually thinks that a function
    * called meta_window_move_resize_internal() is going to want the
-   * NEW position and size, and it kind of does for (1) and does for
-   * (2).  I was just pointing out that (3) is weird.
+   * NEW position and size, and it kind of does for (2) and does for
+   * (3).  I was just pointing out that (4) is weird.
    */
   XWindowChanges values;
   unsigned int mask;
@@ -2559,31 +2564,17 @@ meta_window_move_resize_internal (MetaWindow  *window,
     meta_frame_calc_geometry (window->frame,
                               &fgeom);
 
-  if (is_configure_request || do_gravity_adjust)
-    {      
-      adjust_for_gravity (window,
-                          window->frame ? &fgeom : NULL,
-                          /* configure request coords assume
-                           * the border width existed
-                           */
-                          is_configure_request,
-                          root_x_nw,
-                          root_y_nw,
-                          w, h,
-                          &root_x_nw,
-                          &root_y_nw);
-      
-      meta_topic (META_DEBUG_GEOMETRY,
-                  "Compensated for braindeadedness; new pos %d,%d\n",
-                  root_x_nw, root_y_nw);
-    }
-
   new_rect.x = root_x_nw;
   new_rect.y = root_y_nw;
   new_rect.width  = w;
   new_rect.height = h;
 
-  if (is_user_action && resize_gravity != NorthWestGravity)
+  /* If this is a resize only, the position should be ignored and
+   * instead obtained by resizing the old rectangle according to the
+   * relevant gravity.
+   */
+  if ((flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION)) == 
+      META_IS_RESIZE_ACTION)
     { 
       meta_rectangle_resize_with_gravity (&old_rect,
                                           &new_rect,
@@ -2592,7 +2583,23 @@ meta_window_move_resize_internal (MetaWindow  *window,
                                           new_rect.height);
 
       meta_topic (META_DEBUG_GEOMETRY,
-                  "Compensated for gravity in user action; new pos %d,%d\n",
+                  "Compensated for gravity in resize action; new pos %d,%d\n",
+                  new_rect.x, new_rect.y);
+    }
+  else if (is_configure_request || do_gravity_adjust)
+    {      
+      adjust_for_gravity (window,
+                          window->frame ? &fgeom : NULL,
+                          /* configure request coords assume
+                           * the border width existed
+                           */
+                          is_configure_request,
+                          window->size_hints.win_gravity,
+                          &new_rect);
+
+      meta_topic (META_DEBUG_GEOMETRY,
+                  "Compensated for configure_request/do_gravity_adjust needing "
+                  "weird positioning; new pos %d,%d\n",
                   new_rect.x, new_rect.y);
     }
 
@@ -4089,8 +4096,7 @@ meta_window_configure_request (MetaWindow *window,
   if (flags & (META_IS_MOVE_ACTION | META_IS_RESIZE_ACTION))
     meta_window_move_resize_internal (window, 
                                       flags,
-                                      only_resize ?
-                                      window->size_hints.win_gravity : NorthWestGravity,
+                                      window->size_hints.win_gravity,
                                       window->size_hints.x,
                                       window->size_hints.y,
                                       window->size_hints.width,

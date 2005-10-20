@@ -1345,9 +1345,14 @@ handle_net_moveresize_window (MetaDisplay* display,
 
   if (window)
     {
-      /* FIXME!!!!  I'm pretty sure this is wrong for the simultaneous
-       * move & resize case; see comment at beginning of
-       * meta_window_move_resize_internal()
+      /* FIXME!!!!  I'm pretty sure this is wrong except _maybe_ for the
+       * resize-only case; see comment at beginning of
+       * meta_window_move_resize_internal().  Basically, this should act
+       * like a configure request--meaning that it should count as an app
+       * specified change instead of a user one, and the position needs to
+       * be fixed up with adjust_for_gravity().  In particular,
+       * meta_window_resize_with_gravity(), meta_window_resize(), and
+       * meta_window_move_resize() should probably NOT be called.
        */
       meta_window_get_gravity_position (window, &x, &y);
       width = window->rect.width;
@@ -1404,10 +1409,14 @@ handle_net_restack_window (MetaDisplay* display,
 
   if (window)
     {
-      /*
-       * The EWMH includes a sibling for the restack request, but we
-       * don't currently support these types of raises.
+      /* FIXME: The EWMH includes a sibling for the restack request, but we
+       * (stupidly) don't currently support these types of raises.
        *
+       * Also, unconditionally following these is REALLY stupid--we should
+       * combine this code with the stuff in
+       * meta_window_configure_request() which is smart about whether to
+       * follow the request or do something else (though not smart enough
+       * and is also too stupid to handle the sibling stuff).
        */
       switch (event->xclient.data.l[2])
         {

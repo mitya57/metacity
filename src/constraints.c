@@ -414,6 +414,12 @@ meta_window_constrain (MetaWindow          *window,
 {
   ConstraintInfo info;
 
+  /* WARNING: orig and new specify positions and sizes of the inner window,
+   * not the outer.  This is a common gotcha since half the constraints
+   * deal with inner window position/size and half deal with outer.  Take a
+   * look at extend_by_frame() and unextend_by_frame() for some simple
+   * helper functions to help deal with the differences.
+   */
   meta_topic (META_DEBUG_GEOMETRY,
               "Constraining %s in move from %d,%d %dx%d to %d,%d %dx%d\n",
               window->desc,

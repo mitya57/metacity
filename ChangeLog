@@ -1,6 +1,51 @@
+2005-10-20  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: Note about decorationless windows and
+	screen-relative constraints, mark gravity bug as fixed (YAAY!)
+
+	* src/constraints.c (meta_window_constrain): Make a big note
+	to notify people that rectangles are for positions/sizes of
+	inner windows, not outer, to try to avoid a very common
+	mistake
+
+	* src/display.c (handle_net_moveresize_window): Update the
+	FIXME to provide more hints on exactly how this is broken,
+	(handle_net_restack_window): put a couple FIXMEs in there
+	since this function is broken too--thank goodness both of
+	these are #ifdef'd out
+
+	* src/window.c:
+	
+	(meta_window_new_with_attrs, meta_window_apply_session_info,
+	meta_window_configure_request):
+	Specify the REAL GRAVITY INSTEAD OF LYING and saying it's
+	NorthWest, and then hoping that adjust_for_gravity() will bail
+	us out by figuring out what we really meant. (!)
+
+	(adjust_for_gravity):
+	Simplify the argument list by just taking the stupid
+	rectangle, don't manually figure out the window's gravity but
+	instead have it get passed to this function (otherwise
+	display.c:handle_net_moveresize_window() will break)--besides
+	doing this manual figuring out of the gravity masked a bug in
+	having the wrong gravity passed to
+	meta_window_move_resize_internal()
+
+	(meta_window_move_resize_internal):
+	make that SUPER STINKING LONG COMMENT on the gotchas of this
+	function EVEN LONGER to explain how things are actually
+	slightly worse than I previously expected and to make some
+	clarifications on new stuff I learned and to note some slight
+	changes made elsewhere to make things more sane (*really deep
+	breath to get some air again*), for all resize actions use
+	meta_rectangle_resize_with_gravity() instead of only using
+	that for user actions, only do the adjust_for_gravity() stuff
+	if it's not a resize action
+
 2005-10-19  Elijah Newren  <newren@gmail.com>
 
-	* constraints-ideas.txt: Got the testcases and cleanup done now
+	* constraints-ideas.txt: Got the remaining testcases and
+	testcase cleanup done now
 
 	* src/boxes.c:
 	* src/utils.c:
