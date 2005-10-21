@@ -225,6 +225,7 @@ Bugs to fix:
             WARNING: nasty interaction with e.g. onscreen constraints in 2 dim's!
   312007  - snap-resize moves windows with minimium size constraint
   312104  - resize top causes bottom to grow
+  144126  - fix stupid old method of strut handling
 
   Maybe:
     152898  - no way to move a window off the top of the screen
@@ -238,6 +239,7 @@ Bugs to fix:
      81704  - edge magnetism/resistance/snapping/etc.
     151842  - maximize to fill feature...
     302456  - dragging offscreen too restrictive
+    308521  - better alt-middle-drag resizing
 
 Some ideas:
   - move_rectangle_into_region & clip_rectangle_into_region in

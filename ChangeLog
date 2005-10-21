@@ -1,5 +1,10 @@
 2005-10-20  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Add two more bugs to look at from latest
+	scouring of bugzilla
+
+2005-10-20  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: Note about decorationless windows and
 	screen-relative constraints, mark gravity bug as fixed (YAAY!)
 
