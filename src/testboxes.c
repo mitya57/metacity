@@ -838,11 +838,14 @@ test_shoving_into_region ()
 static void
 test_gravity_resize ()
 {
-  MetaRectangle rect, temp;
+  MetaRectangle oldrect, rect, temp;
 
-  rect = meta_rect ( 50,  300, 250, 400);
-  temp = meta_rect ( 50,  300,  20,   5);
-  meta_rectangle_resize_with_gravity (&rect,
+  rect.x = -500;  /* Some random amount not equal to oldrect.x to ensure that
+                   * the resize is done with respect to oldrect instead of rect
+                   */
+  oldrect = meta_rect ( 50,  300, 250, 400);
+  temp    = meta_rect ( 50,  300,  20,   5);
+  meta_rectangle_resize_with_gravity (&oldrect,
                                       &rect,
                                       NorthWestGravity,
                                       20,

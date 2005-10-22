@@ -11,6 +11,9 @@
 	different than original version and most testcases not catching
 	the difference...
 
+	* src/testboxes.c (test_gravity_resize): modify one of the tests
+	so that it would have caught the above bug
+
 2005-10-21  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Five quick ideas/problems/cleanups I
