@@ -216,7 +216,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
     case NorthWestGravity:
     case WestGravity:
     case SouthWestGravity:
-      /* No need to modify rect->x */
+      rect->x = old_rect->x;
       break;
 
     case NorthGravity:
@@ -237,7 +237,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
 
     case StaticGravity:
     default:
-      /* No need to modify rect->x */
+      rect->x = old_rect->x;
       break;
     }
   rect->width = new_width;
@@ -249,7 +249,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
     case NorthWestGravity:
     case NorthGravity:
     case NorthEastGravity:
-      /* No need to modify rect->y */
+      rect->y = old_rect->y;
       break;
 
     case WestGravity:
@@ -270,7 +270,7 @@ meta_rectangle_resize_with_gravity (const MetaRectangle *old_rect,
 
     case StaticGravity:
     default:
-      /* No need to modify rect->y */
+      rect->y = old_rect->y;
       break;
     }
   rect->height = new_height;

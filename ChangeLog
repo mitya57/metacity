@@ -1,5 +1,18 @@
 2005-10-21  Elijah Newren  <newren@gmail.com>
 
+	* constraints-ideas.txt: Nailed the "gnome-terminal drifts upward
+	and leftward" problem
+
+	* src/boxes.c (meta_rectangle_resize_with_gravity): rect->x and
+	rect->y should be ignored because we're resizing old_rect
+	according to the given gravity, not rect.  So, in the cases where
+	nothing fancy needs to be done, we need to at least copy over
+	old_rect->x and old_rect->y.  Stupid bug caused by usage being
+	different than original version and most testcases not catching
+	the difference...
+
+2005-10-21  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: Five quick ideas/problems/cleanups I
 	thought of today and at various times in the past but kept
 	forgetting and don't want to forget again

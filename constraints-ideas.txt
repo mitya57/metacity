@@ -10,7 +10,7 @@ Short-term (I hope...) TODO list/reminders:
     - Two of meta_window_move_resize_internal() calling methods in
       huge comment are actually the same; search for "bogus" and
       "BEFORE"
-    - There may be a bug with gravity an onscreen constraints--it
+    X There may be a bug with gravity an onscreen constraints--it
       seems that creating a tab then removing it and repeating this a
       lot made the window drift northwest.  Very weird.
 
