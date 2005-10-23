@@ -644,7 +644,7 @@ place_window_if_needed(MetaWindow     *window,
   did_placement = FALSE;
   if (!window->placed &&
       window->calc_placement &&
-      !window->maximized &&
+      !META_WINDOW_MAXIMIZED (window) &&
       !window->fullscreen)
     {
       MetaRectangle placed_rect = info->orig;
@@ -675,30 +675,37 @@ place_window_if_needed(MetaWindow     *window,
       info->fixed_directions = 0;
     }
 
-  if (window->maximize_after_placement &&
+  if ((window->maximize_horizontally_after_placement ||
+       window->maximize_vertically_after_placement) &&
       (window->placed || did_placement))
     {
-      window->maximize_after_placement = FALSE;
-
-      if (meta_rectangle_could_fit_rect (&info->current, 
-                                         &info->work_area_xinerama))
+      /* define a sane saved_rect so that the user can unmaximize to
+       * something reasonable.
+       */
+      if (info->current.width >= info->work_area_xinerama.width)
         {
-          /* define a sane saved_rect so that the user can unmaximize
-           * to something reasonable.
-           */
           info->current.width = .75 * info->work_area_xinerama.width;
-          info->current.height = .75 * info->work_area_xinerama.height;
           info->current.x = info->work_area_xinerama.x +
                    .125 * info->work_area_xinerama.width;
+        }
+      if (info->current.height >= info->work_area_xinerama.height)
+        {
+          info->current.height = .75 * info->work_area_xinerama.height;
           info->current.y = info->work_area_xinerama.y +
                    .083 * info->work_area_xinerama.height;
         }
 
-      meta_window_maximize_internal (window, &info->current);
+      if (window->maximize_horizontally_after_placement)
+        meta_window_maximize_internal (window, TRUE, FALSE, &info->current);
+      if (window->maximize_vertically_after_placement);
+        meta_window_maximize_internal (window, FALSE, TRUE, &info->current);
 
       /* maximization may have changed frame geometry */
       if (window->frame && !window->fullscreen)
         meta_frame_calc_geometry (window->frame, info->fgeom);
+
+      window->maximize_horizontally_after_placement = FALSE;
+      window->maximize_vertically_after_placement = FALSE;
     }
 }
 
@@ -831,25 +838,45 @@ constrain_maximization (MetaWindow         *window,
     return TRUE;
 
   /* Determine whether constraint applies; exit if it doesn't */
-  if (!window->maximized)
+  if (!window->maximized_horizontally && !window->maximized_vertically)
     return TRUE;
+
   MetaRectangle min_size, max_size;
   MetaRectangle work_area = info->work_area_xinerama;
   unextend_by_frame (&work_area, info->fgeom);
   get_size_limits (window, info->fgeom, FALSE, &min_size, &max_size);
-  gboolean too_big =   !meta_rectangle_could_fit_rect (&work_area, &min_size);
-  gboolean too_small = !meta_rectangle_could_fit_rect (&max_size, &work_area);
-  if (too_big || too_small)
+
+  gboolean hminbad, vminbad, hmaxbad, vmaxbad;
+  hminbad = work_area.width < min_size.width && window->maximized_horizontally;
+  vminbad = work_area.height < min_size.height && window->maximized_vertically;
+  hmaxbad = work_area.width > max_size.width && window->maximized_horizontally;
+  vmaxbad = work_area.height > max_size.height && window->maximized_vertically;
+  if (hminbad || vminbad || hmaxbad || vmaxbad)
     return TRUE;
 
   /* Determine whether constraint is already satisfied; exit if it is */
+  gboolean horiz_equal, vert_equal;
+  horiz_equal = work_area.x      == info->current.x &&
+                work_area.width  == info->current.width;
+  vert_equal  = work_area.y      == info->current.y &&
+                work_area.height == info->current.height;
   gboolean constraint_already_satisfied =
-    meta_rectangle_equal (&info->current, &work_area);
+    (horiz_equal || !window->maximized_horizontally) &&
+    (vert_equal  || !window->maximized_vertically);
   if (check_only || constraint_already_satisfied)
     return constraint_already_satisfied;
 
   /*** Enforce constraint ***/
-  info->current = work_area;
+  if (window->maximized_horizontally)
+    {
+      info->current.x      = work_area.x;
+      info->current.width  = work_area.width;
+    }
+  if (window->maximized_vertically)
+    {
+      info->current.y      = work_area.y;
+      info->current.height = work_area.height;
+    }
   return TRUE;
 }
 
@@ -894,7 +921,7 @@ constrain_size_increments (MetaWindow         *window,
     return TRUE;
 
   /* Determine whether constraint applies; exit if it doesn't */
-  if (window->maximized || window->fullscreen || 
+  if (META_WINDOW_MAXIMIZED (window) || window->fullscreen || 
       info->action_type == ACTION_MOVE)
     return TRUE;
 
@@ -906,6 +933,10 @@ constrain_size_increments (MetaWindow         *window,
   wi = window->size_hints.width_inc;
   extra_height = (info->current.height - bh) % hi;
   extra_width  = (info->current.width  - bw) % wi;
+  if (window->maximized_horizontally)
+    extra_width *= 0;
+  if (window->maximized_vertically)
+    extra_height *= 0;
   gboolean constraint_already_satisfied = 
     (extra_height == 0 && extra_width == 0);
 
@@ -979,7 +1010,8 @@ constrain_aspect_ratio (MetaWindow         *window,
   maxr =         window->size_hints.max_aspect.x /
          (double)window->size_hints.max_aspect.y;
   gboolean constraints_are_inconsistent = minr > maxr;
-  if (constraints_are_inconsistent || window->maximized || window->fullscreen || 
+  if (constraints_are_inconsistent ||
+      META_WINDOW_MAXIMIZED (window) || window->fullscreen || 
       info->action_type == ACTION_MOVE)
     return TRUE;
 

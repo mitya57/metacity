@@ -2747,10 +2747,12 @@ handle_maximize_vert (MetaDisplay    *display,
                       XEvent         *event,
                       MetaKeyBinding *binding)
 {
-  if (window)
+  if (window && window->has_resize_func)
     {
-      if (window->has_resize_func)
-        meta_window_fill_vertical (window);
+      if (window->maximized_vertically)
+        meta_window_unmaximize (window, FALSE, TRUE);
+      else
+        meta_window_maximize (window, FALSE, TRUE);
     }
 }
 
@@ -2761,10 +2763,12 @@ handle_maximize_horiz (MetaDisplay    *display,
                        XEvent         *event,
                        MetaKeyBinding *binding)
 {
-  if (window)
+  if (window && window->has_resize_func)
     {
-      if (window->has_resize_func)
-        meta_window_fill_horizontal (window);
+      if (window->maximized_horizontally)
+        meta_window_unmaximize (window, TRUE, FALSE);
+      else
+        meta_window_maximize (window, TRUE, FALSE);
     }
 }
 
@@ -3190,10 +3194,10 @@ handle_toggle_maximize    (MetaDisplay    *display,
 {
   if (window)
     {
-      if (window->maximized)
-        meta_window_unmaximize (window);
+      if (META_WINDOW_MAXIMIZED (window))
+        meta_window_unmaximize (window, TRUE, TRUE);
       else if (window->has_maximize_func)
-        meta_window_maximize (window);
+        meta_window_maximize (window, TRUE, TRUE);
     }
 }
 
@@ -3207,7 +3211,7 @@ handle_maximize           (MetaDisplay    *display,
   if (window)
     {
       if (window->has_maximize_func)
-        meta_window_maximize (window);
+        meta_window_maximize (window, TRUE, TRUE);
     }
 }
 
@@ -3220,8 +3224,8 @@ handle_unmaximize         (MetaDisplay    *display,
 {
   if (window)
     {
-      if (window->maximized)
-        meta_window_unmaximize (window);
+      if (window->maximized_vertically || window->maximized_horizontally)
+        meta_window_unmaximize (window, TRUE, TRUE);
     }
 }
 

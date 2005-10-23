@@ -953,7 +953,7 @@ save_state (void)
                 fputs ("    <minimized/>\n", outfile);
 
               /* Maximized */
-              if (window->maximized)
+              if (META_WINDOW_MAXIMIZED (window))
 		{
                   fprintf (outfile,
                            "    <maximized saved_x=\"%d\" saved_y=\"%d\" saved_width=\"%d\" saved_height=\"%d\"/>\n", 

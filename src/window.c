@@ -427,8 +427,10 @@ meta_window_new_with_attrs (MetaDisplay       *display,
 
   window->user_has_move_resized = FALSE;
   
-  window->maximized = FALSE;
-  window->maximize_after_placement = FALSE;
+  window->maximized_horizontally = FALSE;
+  window->maximized_vertically = FALSE;
+  window->maximize_horizontally_after_placement = FALSE;
+  window->maximize_vertically_after_placement = FALSE;
   window->fullscreen = FALSE;
   window->require_fully_onscreen = TRUE;
   window->require_on_single_xinerama = TRUE;
@@ -769,7 +771,7 @@ meta_window_apply_session_info (MetaWindow *window,
       
       if (window->has_maximize_func && info->maximized)
 	{
-	  meta_window_maximize (window);
+	  meta_window_maximize (window, TRUE, TRUE);
 
           if (info->saved_rect_set)
             {
@@ -962,8 +964,8 @@ meta_window_free (MetaWindow  *window)
   if (window->display->focus_window == window)
     window->display->focus_window = NULL;
 
-  if (window->maximized)
-    meta_window_unmaximize (window);
+  if (window->maximized_horizontally || window->maximized_vertically)
+    meta_window_unmaximize (window, TRUE, TRUE);
   
   meta_window_unqueue_calc_showing (window);
   meta_window_unqueue_move_resize (window);
@@ -1131,10 +1133,13 @@ set_net_wm_state (MetaWindow *window)
       data[i] = window->display->atom_net_wm_state_skip_taskbar;
       ++i;
     }
-  if (window->maximized)
+  if (window->maximized_horizontally)
     {
       data[i] = window->display->atom_net_wm_state_maximized_horz;
       ++i;
+    }
+  if (window->maximized_vertically)
+    {
       data[i] = window->display->atom_net_wm_state_maximized_vert;
       ++i;
     }
@@ -1985,53 +1990,88 @@ meta_window_unminimize (MetaWindow  *window)
 static void
 meta_window_save_rect (MetaWindow *window)
 {
-  if (!(window->maximized || window->fullscreen))
+  if (!(META_WINDOW_MAXIMIZED (window) || window->fullscreen))
     {
       /* save size/pos as appropriate args for move_resize */
-      window->saved_rect = window->rect;
-      if (window->frame)
+      if (!window->maximized_horizontally)
         {
-          window->saved_rect.x += window->frame->rect.x;
-          window->saved_rect.y += window->frame->rect.y;
+          window->saved_rect.x      = window->rect.x;
+          window->saved_rect.width  = window->rect.width;
+          if (window->frame)
+            window->saved_rect.x   += window->frame->rect.x;
+        }
+      if (!window->maximized_vertically)
+        {
+          window->saved_rect.y      = window->rect.y;
+          window->saved_rect.height = window->rect.height;
+          if (window->frame)
+            window->saved_rect.y   += window->frame->rect.y;
         }
     }
 }
 
 void
 meta_window_maximize_internal (MetaWindow    *window,
+                               gboolean       maximize_horizontally,
+                               gboolean       maximize_vertically,
                                MetaRectangle *saved_rect)
 {
+  g_assert (maximize_horizontally || maximize_vertically);
+
   meta_topic (META_DEBUG_WINDOW_OPS,
-              "Maximizing %s\n", window->desc);
+              "Maximizing %s%s\n",
+              window->desc,
+              maximize_horizontally && maximize_vertically ? "" :
+                maximize_horizontally ? " horizontally" :
+                  maximize_vertically ? " vertically" : "BUGGGGG");
   
   if (saved_rect != NULL)
     window->saved_rect = *saved_rect;
   else
     meta_window_save_rect (window);
   
-  window->maximized = TRUE;
+  window->maximized_horizontally = 
+    window->maximized_horizontally || maximize_horizontally;
+  window->maximized_vertically = 
+    window->maximized_vertically   || maximize_vertically;
   
   recalc_window_features (window);
   set_net_wm_state (window);
 }
 
 void
-meta_window_maximize (MetaWindow  *window)
+meta_window_maximize (MetaWindow  *window,
+                      gboolean     maximize_horizontally,
+                      gboolean     maximize_vertically)
 {
-  if (!window->maximized)
+  g_assert (maximize_horizontally || maximize_vertically);
+
+  /* Only do something if the window isn't already maximized in the
+   * given direction(s).
+   */
+  if ((maximize_horizontally && !window->maximized_horizontally) ||
+      (maximize_vertically   && !window->maximized_vertically))
     {
-      if (window->shaded)
+      if (window->shaded && maximize_vertically)
         meta_window_unshade (window);
       
       /* if the window hasn't been placed yet, we'll maximize it then
        */
       if (!window->placed)
 	{
-	  window->maximize_after_placement = TRUE;
+	  window->maximize_horizontally_after_placement = 
+            window->maximize_horizontally_after_placement || 
+            maximize_horizontally;
+	  window->maximize_vertically_after_placement = 
+            window->maximize_vertically_after_placement || 
+            maximize_vertically;
 	  return;
 	}
 
-      meta_window_maximize_internal (window, NULL);
+      meta_window_maximize_internal (window, 
+                                     maximize_horizontally,
+                                     maximize_vertically,
+                                     NULL);
 
       /* move_resize with new maximization constraints
        */
@@ -2040,14 +2080,27 @@ meta_window_maximize (MetaWindow  *window)
 }
 
 void
-meta_window_unmaximize (MetaWindow  *window)
+meta_window_unmaximize (MetaWindow  *window,
+                        gboolean     unmaximize_horizontally,
+                        gboolean     unmaximize_vertically)
 {
-  if (window->maximized)
+  /* Only do something if the window isn't already maximized in the
+   * given direction(s).
+   */
+  if ((unmaximize_horizontally && window->maximized_horizontally) ||
+      (unmaximize_vertically   && window->maximized_vertically))
     {
       meta_topic (META_DEBUG_WINDOW_OPS,
-                  "Unmaximizing %s\n", window->desc);
+                  "Unmaximizing %s%s\n",
+                  window->desc,
+                  unmaximize_horizontally && unmaximize_vertically ? "" :
+                    unmaximize_horizontally ? " horizontally" :
+                      unmaximize_vertically ? " vertically" : "BUGGGGG");
       
-      window->maximized = FALSE;
+      window->maximized_horizontally = 
+        window->maximized_horizontally && !unmaximize_horizontally;
+      window->maximized_vertically = 
+        window->maximized_vertically   && !unmaximize_vertically;
 
       /* When we unmaximize, if we're doing a mouse move also we could
        * get the window suddenly jumping to the upper left corner of
@@ -3011,94 +3064,6 @@ meta_window_move_resize_now (MetaWindow  *window)
   meta_window_move_resize (window, FALSE, x, y,
                            window->rect.width,
                            window->rect.height);
-}
-
-static void
-check_maximize_to_work_area (MetaWindow          *window,
-                             const MetaRectangle *work_area)
-{
-  /* If we now fill the screen, maximize.
-   * the point here is that fill horz + fill vert = maximized
-   */
-  MetaRectangle rect;
-
-  if (!window->has_maximize_func)
-    return;
-  
-  meta_window_get_outer_rect (window, &rect);
-
-  /* The logic in this if is basically:
-   *   if window's left side is at far left or offscreen AND
-   *      window's bottom side is far top or offscreen AND
-   *      window's right side is at far right or offscreen AND
-   *      window's bottom side is at far bottom or offscreen
-   * except that we maximize windows with a size increment hint (e.g.
-   * terminals) should be maximized if they are "sufficiently close"
-   * to the above criteria...
-   */
-  if ( rect.x <= work_area->x &&
-       rect.y <= work_area->y &&
-       (((work_area->width + work_area->x) - (rect.width + rect.x)) <
-        window->size_hints.width_inc) &&
-       (((work_area->height + work_area->y) - (rect.height + rect.y)) <
-        window->size_hints.height_inc) )
-    meta_window_maximize (window);
-}
-
-void
-meta_window_fill_horizontal (MetaWindow  *window)
-{
-  MetaRectangle work_area;
-  int x, y, w, h;
-  
-  meta_window_get_user_position (window, &x, &y);
-
-  w = window->rect.width;
-  h = window->rect.height;
-  
-  meta_window_get_work_area_current_xinerama (window, &work_area);
-  
-  x = work_area.x;
-  w = work_area.width;
-  
-  if (window->frame != NULL)
-    {
-      x += window->frame->child_x;
-      w -= (window->frame->child_x + window->frame->right_width);
-    }
-  
-  meta_window_move_resize (window, TRUE,
-                           x, y, w, h);
-
-  check_maximize_to_work_area (window, &work_area);
-}
-
-void
-meta_window_fill_vertical (MetaWindow  *window)
-{
-  MetaRectangle work_area;
-  int x, y, w, h;
-  
-  meta_window_get_user_position (window, &x, &y);
-
-  w = window->rect.width;
-  h = window->rect.height;
-
-  meta_window_get_work_area_current_xinerama (window, &work_area);
-
-  y = work_area.y;
-  h = work_area.height;
-  
-  if (window->frame != NULL)
-    {
-      y += window->frame->child_y;
-      h -= (window->frame->child_y + window->frame->bottom_height);
-    }
-  
-  meta_window_move_resize (window, TRUE,
-                           x, y, w, h);
-
-  check_maximize_to_work_area (window, &work_area);
 }
 
 static guint move_resize_idle = 0;
@@ -4305,18 +4270,31 @@ meta_window_client_message (MetaWindow *window,
         }
       
       if (first == display->atom_net_wm_state_maximized_horz ||
-          second == display->atom_net_wm_state_maximized_horz ||
-          first == display->atom_net_wm_state_maximized_vert ||
+          second == display->atom_net_wm_state_maximized_horz)
+        {
+          gboolean max;
+
+          max = (action == _NET_WM_STATE_ADD ||
+                 (action == _NET_WM_STATE_TOGGLE && 
+                  !window->maximized_horizontally));
+          if (max && window->has_maximize_func)
+            meta_window_maximize (window, TRUE, FALSE);
+          else
+            meta_window_unmaximize (window, TRUE, FALSE);
+        }
+
+      if (first == display->atom_net_wm_state_maximized_vert ||
           second == display->atom_net_wm_state_maximized_vert)
         {
           gboolean max;
 
           max = (action == _NET_WM_STATE_ADD ||
-                 (action == _NET_WM_STATE_TOGGLE && !window->maximized));
+                 (action == _NET_WM_STATE_TOGGLE && 
+                  !window->maximized_vertically));
           if (max && window->has_maximize_func)
-            meta_window_maximize (window);
+            meta_window_maximize (window, FALSE, TRUE);
           else
-            meta_window_unmaximize (window);
+            meta_window_unmaximize (window, FALSE, TRUE);
         }
 
       if (first == display->atom_net_wm_state_modal ||
@@ -4932,7 +4910,8 @@ update_net_wm_state (MetaWindow *window)
   Atom *atoms;
 
   window->shaded = FALSE;
-  window->maximized = FALSE;
+  window->maximized_horizontally = FALSE;
+  window->maximized_vertically = FALSE;
   window->wm_state_modal = FALSE;
   window->wm_state_skip_taskbar = FALSE;
   window->wm_state_skip_pager = FALSE;
@@ -4952,9 +4931,9 @@ update_net_wm_state (MetaWindow *window)
           if (atoms[i] == window->display->atom_net_wm_state_shaded)
             window->shaded = TRUE;
           else if (atoms[i] == window->display->atom_net_wm_state_maximized_horz)
-            window->maximize_after_placement = TRUE;
+            window->maximize_horizontally_after_placement = TRUE;
           else if (atoms[i] == window->display->atom_net_wm_state_maximized_vert)
-            window->maximize_after_placement = TRUE;
+            window->maximize_vertically_after_placement = TRUE;
           else if (atoms[i] == window->display->atom_net_wm_state_modal)
             window->wm_state_modal = TRUE;
           else if (atoms[i] == window->display->atom_net_wm_state_skip_taskbar)
@@ -6116,11 +6095,11 @@ menu_callback (MetaWindowMenu *menu,
           break;
 
         case META_MENU_OP_UNMAXIMIZE:
-          meta_window_unmaximize (window);
+          meta_window_unmaximize (window, TRUE, TRUE);
           break;
       
         case META_MENU_OP_MAXIMIZE:
-          meta_window_maximize (window);
+          meta_window_maximize (window, TRUE, TRUE);
           break;
 
         case META_MENU_OP_UNSHADE:
@@ -6267,7 +6246,7 @@ meta_window_show_menu (MetaWindow *window,
         ops |= META_MENU_OP_MOVE_DOWN;
     }
 
-  if (window->maximized)
+  if (META_WINDOW_MAXIMIZED (window))
     ops |= META_MENU_OP_UNMAXIMIZE;
   else
     ops |= META_MENU_OP_MAXIMIZE;
@@ -6464,7 +6443,7 @@ update_move (MetaWindow  *window,
   shake_threshold = meta_ui_get_drag_threshold (window->screen->ui) *
     DRAG_THRESHOLD_TO_SHAKE_THRESHOLD_FACTOR;
     
-  if (window->maximized && ABS (dy) >= shake_threshold)
+  if (META_WINDOW_MAXIMIZED (window) && ABS (dy) >= shake_threshold)
     {
       double prop;
 
@@ -6490,14 +6469,14 @@ update_move (MetaWindow  *window,
       window->display->grab_anchor_root_x = x;
       window->display->grab_anchor_root_y = y;
 
-      meta_window_unmaximize (window);
+      meta_window_unmaximize (window, TRUE, TRUE);
 
       return;
     }
   /* remaximize window on an other xinerama monitor if window has
    * been shaken loose or it is still maximized (then move straight)
    */
-  else if (window->shaken_loose || window->maximized)
+  else if (window->shaken_loose || META_WINDOW_MAXIMIZED (window))
     {
       const MetaXineramaScreenInfo *wxinerama;
       MetaRectangle work_area;
@@ -6529,7 +6508,7 @@ update_move (MetaWindow  *window,
                       window->saved_rect.y += window->frame->child_y;
                     }
 
-                  meta_window_unmaximize (window);
+                  meta_window_unmaximize (window, TRUE, TRUE);
                 }
 
               window->display->grab_initial_window_pos = work_area;
@@ -6537,16 +6516,12 @@ update_move (MetaWindow  *window,
               window->display->grab_anchor_root_y = y;
               window->shaken_loose = FALSE;
               
-              meta_window_maximize (window);
+              meta_window_maximize (window, TRUE, TRUE);
 
               return;
             }
         }
     }
-
-  /* don't allow a maximized window to move */
-  if (window->maximized)
-    return;
 
   if (mask & ShiftMask)
     {
@@ -6557,6 +6532,12 @@ update_move (MetaWindow  *window,
       if (dx != 0)
         new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
     }
+
+  /* Don't allow movement in the maximized directions */
+  if (window->maximized_horizontally)
+    new_x = window->rect.x;
+  if (window->maximized_vertically)
+    new_y = window->rect.y;
 
   if (window->display->grab_wireframe_active)
     meta_window_update_wireframe (window, new_x, new_y, 

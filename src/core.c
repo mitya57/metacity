@@ -370,7 +370,7 @@ meta_core_maximize (Display *xdisplay,
   if (window == NULL || window->frame == NULL)
     meta_bug ("No such frame window 0x%lx!\n", frame_xwindow);  
 
-  meta_window_maximize (window);
+  meta_window_maximize (window, TRUE, TRUE);
 }
 
 void
@@ -386,10 +386,10 @@ meta_core_toggle_maximize (Display *xdisplay,
   if (window == NULL || window->frame == NULL)
     meta_bug ("No such frame window 0x%lx!\n", frame_xwindow);  
 
-  if (window->maximized)
-    meta_window_unmaximize (window);
+  if (META_WINDOW_MAXIMIZED (window))
+    meta_window_unmaximize (window, TRUE, TRUE);
   else
-    meta_window_maximize (window);
+    meta_window_maximize (window, TRUE, TRUE);
 }
 
 void
@@ -405,7 +405,7 @@ meta_core_unmaximize (Display *xdisplay,
   if (window == NULL || window->frame == NULL)
     meta_bug ("No such frame window 0x%lx!\n", frame_xwindow);  
 
-  meta_window_unmaximize (window);
+  meta_window_unmaximize (window, TRUE, TRUE);
 }
 
 void

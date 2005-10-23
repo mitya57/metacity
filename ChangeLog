@@ -1,3 +1,47 @@
+2005-10-22  Elijah Newren  <newren@gmail.com>
+
+	Make maximize_vertically and maximize_horizontally toggle and be
+	constrained.  Partially based on patches from John Russell and
+	Bert Vermeulen in bug 113601.
+
+	* constraints-ideas.txt: I need to remove the compiling warnings
+	from constraints.c sometime even if it's just the compiler being
+	stupid
+
+	* src/constraints.c (constrain_maximization): constrain different
+	maximization directions individually
+	
+	* src/keybindings.c (handle_maximize_vert, handle_maximize_horiz):
+	have these functions toggle the maximization in the relevant
+	direction
+
+	* src/window.c (meta_window_save_rect): only save the coordinate
+	for directions that aren't maximized
+
+	* src/constraints.c (place_window_if_needed,
+	  constrain_size_increments, constrain_aspect_ratio):
+        * src/core.c (meta_core_maximize, meta_core_toggle_maximize,
+	  meta_core_unmaximize):
+	* src/frame.c (meta_frame_get_flags):
+	* src/keybindings.c (handle_toggle_maximize, handle_maximize,
+	  handle_unmaximize):
+	* src/place.c (meta_window_place):
+	* src/session.c (save_state):
+	* src/window.[ch] (struct MetaWindow, meta_window_new_with_attrs,
+	  meta_window_apply_session_info, meta_window_free,
+	  set_net_wm_state, meta_window_maximize_internal,
+	  meta_window_maximize, meta_window_unmaximize,
+	  meta_window_client_message, update_net_wm_state, menu_callback,
+	  meta_window_show_menu, update_move):
+	need to deal with maximization in separate directions now, use the
+	META_WINDOW_MAXIMIZED() macro for determining when both directions
+	are maximized, and specify the relevant directions to
+	meta_window_(un)maximize(_internal)
+
+	* src/window.c (check_maximize_to_work_area,
+	meta_window_fill_horizontal, meta_window_fill_vertical): remove
+	these functions as they are no longer needed
+
 2005-10-21  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Nailed the "gnome-terminal drifts upward

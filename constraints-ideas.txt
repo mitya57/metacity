@@ -1,18 +1,18 @@
 Short-term (I hope...) TODO list/reminders:
 
-  - Quicklist I thought of:
-    - Titlebar onscreen func should use CLAMP(percent*width, 10, 75)
-      for width and 2-3 pixels for height for checking if the titlbar
-      is partially onscreen or not
-    - on-single-xinerama constraint should not apply if only 1
-      xinerama exists
+  - Quicklist that I thought of:
+    - Titlebar onscreen func should use CLAMP(percent*width, 10, 75) for
+      width and 2-3 pixels for height for checking if the titlebar is
+      partially onscreen or not
+    - on-single-xinerama constraint should not apply if only 1 xinerama
+      exists
     - use CLAMP() macro in more places of constraints.c
-    - Two of meta_window_move_resize_internal() calling methods in
-      huge comment are actually the same; search for "bogus" and
-      "BEFORE"
-    X There may be a bug with gravity an onscreen constraints--it
-      seems that creating a tab then removing it and repeating this a
-      lot made the window drift northwest.  Very weird.
+    - Two of meta_window_move_resize_internal() calling methods in huge
+      comment are actually the same; search for "bogus" and "BEFORE"
+    X There may be a bug with gravity an onscreen constraints--it seems
+      that creating a tab then removing it and repeating this a lot made
+      the window drift northwest.  Very weird.
+    - Get rid of compiling warnings for constraints.c even if they're dumb
 
   - Should we turn off fully-onscreen & on-single-xinerama constraints
     for decorationless windows?  Otherwise, most users (those that

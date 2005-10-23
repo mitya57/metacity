@@ -985,11 +985,11 @@ meta_window_place (MetaWindow        *window,
                                               &workarea);      
       meta_window_get_outer_rect (window, &outer);
       
-      if (outer.width >= workarea.width &&
-          outer.height >= workarea.height)
-        {
-          window->maximize_after_placement = TRUE;
-        }
+      if (outer.width >= workarea.width)
+        window->maximize_horizontally_after_placement = TRUE;
+
+      if (outer.height >= workarea.height)
+        window->maximize_vertically_after_placement = TRUE;
     }
 
  done_check_denied_focus:

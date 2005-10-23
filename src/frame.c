@@ -264,7 +264,10 @@ meta_frame_get_flags (MetaFrame *frame)
   if (frame->window->on_all_workspaces)
     flags |= META_FRAME_STUCK;
 
-  if (frame->window->maximized)
+  /* FIXME: Should we have some kind of UI for windows that are just vertically
+   * maximized or just horizontally maximized?
+   */
+  if (META_WINDOW_MAXIMIZED (frame->window))
     flags |= META_FRAME_MAXIMIZED;
 
   if (frame->window->fullscreen)

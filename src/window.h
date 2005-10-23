@@ -107,8 +107,10 @@ struct _MetaWindow
   Time initial_timestamp;  
   
   /* Whether we're maximized */
-  guint maximized : 1;
-  guint maximize_after_placement : 1;
+  guint maximized_horizontally : 1;
+  guint maximized_vertically : 1;
+  guint maximize_horizontally_after_placement : 1;
+  guint maximize_vertically_after_placement : 1;
 
   /* Whether we're shaded */
   guint shaded : 1;
@@ -342,8 +344,10 @@ struct _MetaWindow
  * the dynamic window state such as "maximized", not just the
  * window's type
  */
+#define META_WINDOW_MAXIMIZED(w)       ((w)->maximized_horizontally && \
+                                        (w)->maximized_vertically)
 #define META_WINDOW_ALLOWS_MOVE(w)     ((w)->has_move_func && !(w)->fullscreen)
-#define META_WINDOW_ALLOWS_RESIZE_EXCEPT_HINTS(w)   ((w)->has_resize_func && !(w)->maximized && !(w)->fullscreen && !(w)->shaded)
+#define META_WINDOW_ALLOWS_RESIZE_EXCEPT_HINTS(w)   ((w)->has_resize_func && !META_WINDOW_MAXIMIZED (w) && !(w)->fullscreen && !(w)->shaded)
 #define META_WINDOW_ALLOWS_RESIZE(w)   (META_WINDOW_ALLOWS_RESIZE_EXCEPT_HINTS (w) &&                \
                                         (((w)->size_hints.min_width < (w)->size_hints.max_width) ||  \
                                          ((w)->size_hints.min_height < (w)->size_hints.max_height)))
@@ -362,10 +366,16 @@ void        meta_window_calc_showing       (MetaWindow  *window);
 void        meta_window_queue_calc_showing (MetaWindow  *window);
 void        meta_window_minimize           (MetaWindow  *window);
 void        meta_window_unminimize         (MetaWindow  *window);
-void        meta_window_maximize           (MetaWindow  *window);
+void        meta_window_maximize           (MetaWindow  *window,
+                                            gboolean     maximize_horizontally,
+                                            gboolean     maximize_vertically);
 void        meta_window_maximize_internal  (MetaWindow    *window,
+                                            gboolean       maximize_horizontally,
+                                            gboolean       maximize_vertically,
                                             MetaRectangle *saved_rect);
-void        meta_window_unmaximize         (MetaWindow  *window);
+void        meta_window_unmaximize         (MetaWindow  *window,
+                                            gboolean     unmaximize_horizontally,
+                                            gboolean     unmaximize_vertically);
 void        meta_window_make_above         (MetaWindow  *window);
 void        meta_window_unmake_above       (MetaWindow  *window);
 void        meta_window_shade              (MetaWindow  *window);
@@ -401,9 +411,6 @@ void        meta_window_resize_with_gravity (MetaWindow  *window,
                                              int          h,
                                              int          gravity);
 
-
-void        meta_window_fill_horizontal     (MetaWindow  *window);
-void        meta_window_fill_vertical       (MetaWindow  *window);
 
 /* Return whether the window would be showing if we were on its workspace */
 gboolean    meta_window_showing_on_its_workspace (MetaWindow *window);
