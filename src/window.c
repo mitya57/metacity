@@ -2532,9 +2532,8 @@ meta_window_move_resize_internal (MetaWindow  *window,
    *       gravity will remain fixed.  Kinda confusing, but it was stuff
    *       written by someone else and it all seems to all work, though, so
    *       I'm just not going to touch this code if I can help it.
-   *   (3) Desired positon of the NW corner of the inner window (*)
-   *   (4) Position of the NW corner of inner window BEFORE the resize
-   *   (5) Some unnatural nasty mixture of the above that is obscene and
+   *   (3) Desired positon of the NW corner of the inner window
+   *   (4) Some unnatural nasty mixture of the above that is obscene and
    *       broken and we don't even attempt to fix up; but it's #ifdef'd
    *       out so we don't worry about it.  It needs to be fixed (not this
    *       function) before it really is used, though.
@@ -2551,22 +2550,14 @@ meta_window_move_resize_internal (MetaWindow  *window,
    *    3   | meta_window_resize (UserAction || 0; NorthWest)
    *    3   | meta_window_move (UserAction || 0; NorthWest)
    *    3   | meta_window_move_resize (UserAction || 0; NorthWest)
-   *    4   | meta_window_resize_with_gravity (UserAction || 0; gravity)
-   *    5   | various functions via handle_net_moveresize_window() in display.c
+   *    4   | various functions via handle_net_moveresize_window() in display.c
    *    2   | ConfigureRequest (ConfigureRequest; gravity)
    *
-   * Other than the (5) case, this is all cleaned up via use of
-   * adjust_for_gravity() to turn all (2) cases into (3) and
-   * meta_rectangle_resize_with_gravity() to turn the (4) case into
-   * (3) so that all position and size fields correspond to the
-   * desired inner (or "client") window position.
-   *
-   * (*) Note: Technically, you could consider (3) as part of (4)
-   * since in all cases that (3) is used it is used with
-   * NorthWestGravity.  However, one usually thinks that a function
-   * called meta_window_move_resize_internal() is going to want the
-   * NEW position and size, and it kind of does for (2) and does for
-   * (3).  I was just pointing out that (4) is weird.
+   * Other than the (4) case, this is all cleaned up via use of
+   * meta_rectangle_resize_with_gravity() to turn type (1) cases into type
+   * (3) and the use of adjust_for_gravity() to turn all (2) cases into
+   * (3).  This makes it so that all position and size fields correspond to
+   * the desired inner (or "client") window position.
    */
   XWindowChanges values;
   unsigned int mask;

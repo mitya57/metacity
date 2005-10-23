@@ -1,13 +1,16 @@
 Short-term (I hope...) TODO list/reminders:
 
+  - Need to update the documentation; the huge comment is out of date and
+    misleading now
+
   - Quicklist that I thought of:
     - Titlebar onscreen func should use CLAMP(percent*width, 10, 75) for
       width and 2-3 pixels for height for checking if the titlebar is
       partially onscreen or not
-    - on-single-xinerama constraint should not apply if only 1 xinerama
+    X on-single-xinerama constraint should not apply if only 1 xinerama
       exists
-    - use CLAMP() macro in more places of constraints.c
-    - Two of meta_window_move_resize_internal() calling methods in huge
+    X use CLAMP() macro in more places of constraints.c
+    X Two of meta_window_move_resize_internal() calling methods in huge
       comment are actually the same; search for "bogus" and "BEFORE"
     X There may be a bug with gravity an onscreen constraints--it seems
       that creating a tab then removing it and repeating this a lot made
@@ -70,9 +73,10 @@ Short-term (I hope...) TODO list/reminders:
 
   - Need to do the titlebar offscreen checking, partial maximization, etc.
 
-  - It looks like I can nuke work_area_screen in ConstraintInfo
+  X It looks like I can nuke work_area_screen in ConstraintInfo
 
-  - Do I need the include_frame parameter to get_size_limits() anymore?
+  X Do I need the include_frame parameter to get_size_limits() anymore?
+    (Update: yes, do_screen_and_xinerama_relative_constraints() uses it)
 
   X Ought to rewrite adjust_for_gravity to do less and then just use
     meta_rectangle_resize_with_gravity()

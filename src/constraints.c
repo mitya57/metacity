@@ -262,11 +262,9 @@ typedef struct
   FixedDirections      fixed_directions;
 
   /* work_area_xinerama - current xinerama region minus struts
-   * work_area_screen   - entire screen (all xineramas) minus struts
    * entire_xinerama    - current xienrama, including strut regions
    */
   MetaRectangle        work_area_xinerama;
-  MetaRectangle        work_area_screen;
   MetaRectangle        entire_xinerama;
 } ConstraintInfo;
 
@@ -584,7 +582,6 @@ setup_constraint_info (ConstraintInfo      *info,
     }
 
   meta_window_get_work_area_current_xinerama (window, &info->work_area_xinerama);
-  meta_window_get_work_area_all_xineramas (window, &info->work_area_screen);
 
   const MetaXineramaScreenInfo *xinerama_info =
     meta_screen_get_xinerama_for_window (window->screen, window);
@@ -604,7 +601,6 @@ setup_constraint_info (ConstraintInfo      *info,
               "  resize_gravity  : %s\n"
               "  fixed_directions: %s\n"
               "  work_area_xinerama: %d,%d +%d,%d\n"
-              "  work_area_screen  : %d,%d +%d,%d\n"
               "  entire_xinerama   : %d,%d +%d,%d\n",
               info->orig.x, info->orig.y, info->orig.width, info->orig.height,
               info->current.x, info->current.y, 
@@ -624,8 +620,6 @@ setup_constraint_info (ConstraintInfo      *info,
               info->work_area_xinerama.x, info->work_area_xinerama.y,
                 info->work_area_xinerama.width, 
                 info->work_area_xinerama.height,
-              info->work_area_screen.x, info->work_area_screen.y,
-                info->work_area_screen.width, info->work_area_screen.height,
               info->entire_xinerama.x, info->entire_xinerama.y,
                 info->entire_xinerama.width, info->entire_xinerama.height);
 }
@@ -982,10 +976,9 @@ constrain_size_limits (MetaWindow         *window,
     return constraint_already_satisfied;
 
   /*** Enforce constraint ***/
-  int new_width  = MIN (max_size.width, 
-                        MAX (min_size.width,  info->current.width));
-  int new_height = MIN (max_size.height, 
-                        MAX (min_size.height, info->current.height));
+  int new_width, new_height;
+  new_width  = CLAMP (info->current.width,  min_size.width,  max_size.width);
+  new_height = CLAMP (info->current.height, min_size.height, max_size.height);
   meta_rectangle_resize_with_gravity (&info->orig,
                                       &info->current, 
                                       info->resize_gravity,
@@ -1129,6 +1122,7 @@ do_screen_and_xinerama_relative_constraints (
 
   /* First, log some debugging information */
   char spanning_region[1 + 28 * g_list_length (region_spanning_rectangles)];
+  (void) spanning_region;  /* Avoid stupid & incorrect compiler warnings... */
   meta_topic (META_DEBUG_GEOMETRY,
               "screen/xinerama constraint; region_spanning_rectangles: %s\n"
               meta_rectangle_region_to_string (region_spanning_rectangles, ", ", 
@@ -1257,9 +1251,10 @@ constrain_to_single_xinerama (MetaWindow         *window,
    * is only meant for normal windows (e.g. we don't want docks to be shoved 
    * "onscreen" by their own strut).
    */
-  if (window->type == META_WINDOW_DESKTOP ||
-      window->type == META_WINDOW_DOCK    ||
-      !window->require_on_single_xinerama ||
+  if (window->type == META_WINDOW_DESKTOP   ||
+      window->type == META_WINDOW_DOCK      ||
+      window->screen->n_xinerama_infos == 1 ||
+      !window->require_on_single_xinerama   ||
       info->is_user_action)
     return TRUE;
 
@@ -1342,8 +1337,8 @@ constrain_partially_onscreen (MetaWindow         *window,
    */
   int horiz_amount = info->current.width  / 4;
   int vert_amount  = info->current.height / 4;
-  horiz_amount = MAX (10, MIN (75, horiz_amount));
-  vert_amount  = MAX (10, MIN (75, vert_amount));
+  horiz_amount = CLAMP (horiz_amount, 10, 75);
+  vert_amount  = CLAMP (vert_amount,  10, 75);
   horiz_amount = info->current.width - horiz_amount;
   vert_amount  = info->current.height - vert_amount;
 
