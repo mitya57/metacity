@@ -6407,6 +6407,7 @@ update_move (MetaWindow  *window,
 {
   int dx, dy;
   int new_x, new_y;
+  int old_x, old_y;
   int shake_threshold;
   
   window->display->grab_latest_motion_x = x;
@@ -6514,21 +6515,23 @@ update_move (MetaWindow  *window,
         }
     }
 
+  meta_window_get_position (window, &old_x, &old_y);
+
   if (mask & ShiftMask)
     {
       /* snap to edges */
-      if (dy != 0)
+      if (new_x != old_x)
         new_x = meta_window_find_nearest_vertical_edge (window, new_x);
 
-      if (dx != 0)
+      if (new_y != old_y)
         new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
     }
 
   /* Don't allow movement in the maximized directions */
   if (window->maximized_horizontally)
-    new_x = window->rect.x;
+    new_x = old_x;
   if (window->maximized_vertically)
-    new_y = window->rect.y;
+    new_y = old_y;
 
   if (window->display->grab_wireframe_active)
     meta_window_update_wireframe (window, new_x, new_y, 
@@ -6913,6 +6916,8 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         {
           if (event->xmotion.root == window->screen->xroot)
             {
+              window->display->grab_ignore_enter_leave_until_mouse_motion =
+                FALSE;
               if (check_use_this_motion_notify (window,
                                                 event))
                 update_move (window,
@@ -6925,6 +6930,8 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         {
           if (event->xmotion.root == window->screen->xroot)
             {
+              window->display->grab_ignore_enter_leave_until_mouse_motion =
+                FALSE;
               if (check_use_this_motion_notify (window,
                                                 event))
                 update_resize (window,
@@ -6937,6 +6944,8 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
 
     case EnterNotify:
     case LeaveNotify:
+      if (window->display->grab_ignore_enter_leave_until_mouse_motion)
+        break;
       if (meta_grab_op_is_moving (window->display->grab_op))
         {
           if (event->xcrossing.root == window->screen->xroot)
@@ -7429,6 +7438,18 @@ warp_grab_pointer (MetaWindow          *window,
   meta_topic (META_DEBUG_WINDOW_OPS,
               "Warping pointer to %d,%d with window at %d,%d\n",
               *x, *y, rect.x, rect.y);
+
+  /* Avoid some ugly flickering that warping the pointer could cause */  
+  window->display->grab_ignore_enter_leave_until_mouse_motion = TRUE;
+  /* Need to update the grab positions so that the XWarpPointer() call from
+   * meta_window_update_keyboard_move() doesn't cause funkiness.  See bug
+   * 124582.
+   */
+  window->display->grab_anchor_root_x = *x;
+  window->display->grab_anchor_root_y = *y;
+  meta_window_get_position (window,
+                            &window->display->grab_anchor_window_pos.x,
+                            &window->display->grab_anchor_window_pos.y);
   
   XWarpPointer (window->display->xdisplay,
                 None,

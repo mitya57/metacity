@@ -253,6 +253,7 @@ struct _MetaDisplay
   MetaRectangle grab_anchor_window_pos;
   int         grab_latest_motion_x;
   int         grab_latest_motion_y;
+  gboolean    grab_ignore_enter_leave_until_mouse_motion;
   gulong      grab_mask;
   guint       grab_have_pointer : 1;
   guint       grab_have_keyboard : 1;

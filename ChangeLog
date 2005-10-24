@@ -1,5 +1,26 @@
 2005-10-23  Elijah Newren  <newren@gmail.com>
 
+	Fix (both keyboard and mouse) snap-moving from erroneously
+	operating multi-dimensionally.  #124582.
+
+	* src/display.h (struct MetaDisplay): to avoid some flickering,
+	add a grab_ignore_enter_leave_until_mouse_motion field
+
+	* src/display.c (meta_display_being_grab_op): Initialize
+	display->grab_ignore_enter_leave_until_mouse_motion
+
+	* src/window.c (update_move): get the old position of the window
+	and only do snap moving if the position has changed, also fix a
+	horizontal/vertical maximization positioning bug,
+	(meta_window_handle_mouse_grab_op_event): handle
+	display->grab_ignore_enter_leave_until_mouse_motion,
+	(warp_grab_pointer): update the grab position so that the mouse
+	motion from the warping of the pointer doesn't cause snapping too,
+	turn off using enter/leave notify events for mouse motion in order
+	to avoid some flickering
+
+2005-10-23  Elijah Newren  <newren@gmail.com>
+
 	Various tiny cleanups
 
 	* constraints-ideas.txt: Update for little things fixed, reminder
