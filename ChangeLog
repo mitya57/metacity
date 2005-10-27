@@ -1,3 +1,11 @@
+2005-10-26  Elijah Newren  <newren@gmail.com>
+
+	* src/display.c (event_callback):
+	Make alt-middle-click resizing divide the window into nine regions
+	instead of four in order to allow unidirectional resizing and in
+	order to reduce the (currently large) number of times that I
+	erroneously resize in the wrong direction(s).  Fixes #308521.
+
 2005-10-24  Elijah Newren  <newren@gmail.com>
 
 	Fix keyboard resizing and bouncing weirdness with mouse movement,

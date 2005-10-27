@@ -1692,36 +1692,49 @@ event_callback (XEvent   *event,
             {
               if (window->has_resize_func)
                 {
-                  gboolean north;
-                  gboolean west;
+                  gboolean north, south;
+                  gboolean west, east;
                   int root_x, root_y;
                   MetaGrabOp op;
 
                   meta_window_get_position (window, &root_x, &root_y);
 
-                  west = event->xbutton.x_root < (root_x + window->rect.width / 2);
-                  north = event->xbutton.y_root < (root_y + window->rect.height / 2);
+                  west = event->xbutton.x_root <  (root_x + 1 * window->rect.width  / 3);
+                  east = event->xbutton.x_root >  (root_x + 2 * window->rect.width  / 3);
+                  north = event->xbutton.y_root < (root_y + 1 * window->rect.height / 3);
+                  south = event->xbutton.y_root > (root_y + 2 * window->rect.height / 3);
 
-                  if (west && north)
+                  if (north && west)
                     op = META_GRAB_OP_RESIZING_NW;
-                  else if (west)
-                    op = META_GRAB_OP_RESIZING_SW;
-                  else if (north)
+                  else if (north && east)
                     op = META_GRAB_OP_RESIZING_NE;
-                  else
+                  else if (south && west)
+                    op = META_GRAB_OP_RESIZING_SW;
+                  else if (south && east)
                     op = META_GRAB_OP_RESIZING_SE;
+                  else if (north)
+                    op = META_GRAB_OP_RESIZING_N;
+                  else if (west)
+                    op = META_GRAB_OP_RESIZING_W;
+                  else if (east)
+                    op = META_GRAB_OP_RESIZING_E;
+                  else if (south)
+                    op = META_GRAB_OP_RESIZING_S;
+                  else /* Middle region is no-op to avoid user triggering wrong action */
+                    op = META_GRAB_OP_NONE;
                   
-                  meta_display_begin_grab_op (display,
-                                              window->screen,
-                                              window,
-                                              op,
-                                              TRUE,
-                                              event->xbutton.serial,
-                                              event->xbutton.button,
-                                              0,
-                                              event->xbutton.time,
-                                              event->xbutton.x_root,
-                                              event->xbutton.y_root);
+                  if (op != META_GRAB_OP_NONE)
+                    meta_display_begin_grab_op (display,
+                                                window->screen,
+                                                window,
+                                                op,
+                                                TRUE,
+                                                event->xbutton.serial,
+                                                event->xbutton.button,
+                                                0,
+                                                event->xbutton.time,
+                                                event->xbutton.x_root,
+                                                event->xbutton.y_root);
                 }
             }
           else if (event->xbutton.button == 3)
