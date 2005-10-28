@@ -1,3 +1,152 @@
+2005-10-28  Elijah Newren  <newren@gmail.com>
+
+	Three major changes: (1) Caching the spanning_rectangles in each
+	workspace, (2) replace x,y,width,height stuff in some data
+	structures with rectangles, (3) replace TONS of code with calls to
+	functions from boxes.c.
+
+	Reasons: (1) only compute these regions when the strut list
+	changes instead of doing so everytime any window happens to move
+	or otherwise need to be constrained (2) to enable more of -3-, (3)
+	remove redundant code and also to simplify the code a TON.
+
+	NET REDUCTION OF ALMOST 500 LINES OF CODE, INCLUDING OVER 100 IN
+	CONSTRAINTS.C!  BOO YEAH!!!
+
+	Nasty details...:
+
+	* src/bell.c (meta_bell_flash_screen):
+	* src/core.c (meta_core_get_screen_size):
+	* src/place.c (get_vertical_edges, get_horizontal_edges):
+	* src/screen.c (reload_xinerama_infos, meta_screen_new,
+	  set_desktop_geometry_hint, meta_screen_resize):
+	* src/screen.h (struct MetaScreen):
+	* src/stack.c (window_is_fullscreen_size):
+	* src/tabpopup.c (selectable_workspace_new):
+	* src/window.c (implement_showing, meta_window_update_struts,
+	  recalc_window_features, meta_window_get_work_area_all_xineramas,
+	  warp_grab_pointer):
+	* src/workspace.c (ensure_work_areas_validated):
+	replace screen width and height with a rectangle (always starting
+	at (0,0) for the upper left corner)
+
+	* src/constraints.c (setup_constraint_info, place_window_if_needed):
+	* src/place.c (find_first_fit, meta_window_place,
+	  get_vertical_edges, get_horizontal_edges):
+	* src/screen.c (reload_xinerama_infos, 
+	  meta_screen_get_xinerama_for_rect):
+	* src/screen.h (struct MetaXineramaScreenInfo):
+	* src/stack.c (window_is_fullscreen_size):
+	* src/window.c (get_work_area_xinerama):
+	* src/workspace.c (ensure_work_areas_validated):
+	replace xinerama x_origin, y_origin, width, and height with a
+	single rectangle
+
+	* src/place.c (find_first_fit, get_vertical_edges, get_horizontal_edges):
+	* src/screen.c (meta_screen_get_xinerama_for_rect, 
+	  meta_screen_get_xinerama_neighbor, meta_screen_get_current_xinerama):
+	* src/stack.c (window_is_fullscreen_size):
+	* src/window.c (get_work_area_xinerama, 
+	  meta_window_get_work_area_all_xineramas):
+	make use of functions from boxes.c to simplify stuff
+
+	* src/screen.c (meta_screen_ensure_tab_poup):
+	* src/tabpopup.c (meta_ui_tab_popup_new):
+	* src/tabpopup.h (struct MetaTabEntry):
+	replace tabpopup x, y, width, and height with a rectangle
+
+	* constraints-ideas.txt: Mark a couple things off the checklist.
+
+	* src/boxes.c (merge_spanning_rects_in_region): don't assert the
+	region is nonempty but rather just warn if it is since there are
+	sanity checks elsewhere to deal with such a case,
+
+	* src/boxes.[ch]
+	(meta_rectangle_get_minimal_spanning_set_for_region): break out
+	the directional expansion into a separate function,
+	meta_rectangle_expand_region()
+
+	* src/constraints.c
+
+	(struct ConstraintInfo):
+	(setup_constraint_info):
+	(update_onscreen_requirements):
+	(constrain_to_single_xinerama):
+	(constrain_fully_onscreen):
+	(constrain_partially_onscreen):
+	keep a copy of the onscreen and on-xinerama regions from the
+	workspace handy, use them instead of computing them on the fly.
+	Offscreen extending of these is still done on the fly, though
+
+	(get_screen_relative_spanning_rects):
+	(get_all_workspace_struts):
+	(get_screen_rect_size):
+	remove these functions, no longer needed
+
+	* src/place.c:
+
+	(rect_fits_in_work_area):
+	(rects_overlap_vertically):
+	(rects_overlap_horizontally):
+	remove these functions, functions in boxes[ch] replace them
+
+	(meta_window_place):
+	comment out the hack for having new windows placed on a single
+	xinerama
+
+	* src/screen.[ch] (meta_screen_rect_intersects_xinerama):
+	remove this function, replaced by meta_rectangle_overlaps()
+
+	* src/testboxes.c:
+
+	(test_intersect):
+	verify that using a single rectangle for both an input and an
+	output works as expected
+
+	(get_screen_region):
+	add two new regions--one which makes the whole screen be covered,
+	and one which makes a strut cover everything to the left of
+	another partial strut
+
+	(test_regions_okay):
+	test that the spanning rects from the two new regions in
+	get_screen_region() are generated correctly, do a couple other
+	small cleanups
+
+	* src/window.c (meta_window_update_struts):
+	remove the gap as it is no longer necessary with the new
+	constraints and the sanity checking that already exists in
+	workspace.c:ensure_work_areas_validated() -- closes #144126
+
+	* src/workspace.[ch]:
+
+	(meta_workspace_new):
+	(meta_workspace_free):
+	(meta_workspace_invalidate_work_area):
+	(meta_workspace_get_work_area_for_xinerama):
+	(struct MetaWorkspace):
+	rename work_areas to work_area_xinerama and all_work_areas to
+	work_area_screen
+
+	(meta_workspace_new):
+	(meta_workspace_free):
+	(meta_workspace_invalidate_work_area):
+	(ensure_work_areas_validated):
+	(struct MetaWorkspace):
+	replace left, right, top, and bottom strut lists with all_struts
+
+	(meta_workspace_new):
+	(meta_workspace_free):
+	(meta_workspace_invalidate_work_area):
+	(ensure_work_areas_validated):
+	(struct MetaWorkspace):
+	add a screen_region and xinerama_region to the workspace to cache
+	the spanning rectangles for these areas.
+
+	(ensure_work_areas_validated):
+	generate the screen_region and xinerama_region, make sure they're
+	sufficiently sane
+
 2005-10-26  Elijah Newren  <newren@gmail.com>
 
 	* src/display.c (event_callback):

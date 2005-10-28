@@ -92,6 +92,7 @@ test_intersect ()
   MetaRectangle b = {  0,  50, 110, 152};
   MetaRectangle c = {  0,   0,  10,  10};
   MetaRectangle d = {100, 100,  50,  50};
+  MetaRectangle b_intersect_d = {100, 100, 10, 50};
   MetaRectangle temp;
   MetaRectangle temp2;
 
@@ -105,6 +106,9 @@ test_intersect ()
 
   meta_rectangle_intersect (&a, &d, &temp);
   g_assert (meta_rectangle_area (&temp) == 0);
+
+  meta_rectangle_intersect (&b, &d, &b);
+  g_assert (meta_rectangle_equal (&b, &b_intersect_d));
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);
 }
@@ -212,7 +216,7 @@ get_screen_region (int which)
   ret = NULL;
   struts = NULL;
 
-  g_assert (which >=0 && which <= 3);
+  g_assert (which >=0 && which <= 5);
   switch (which)
     {
     case 0:
@@ -232,10 +236,18 @@ get_screen_region (int which)
       struts = g_slist_prepend (struts, new_meta_rect ( 300, 1150,   80,   50));
       struts = g_slist_prepend (struts, new_meta_rect ( 700,  525,  200,  150));
       break;
+    case 4:
+      struts = g_slist_prepend (struts, new_meta_rect (   0,    0,  800, 1200));
+      struts = g_slist_prepend (struts, new_meta_rect ( 800,    0, 1600,   20));
+      break;
+    case 5:
+      struts = g_slist_prepend (struts, new_meta_rect ( 800,    0, 1600,   20));
+      struts = g_slist_prepend (struts, new_meta_rect (   0,    0,  800, 1200));
+      struts = g_slist_prepend (struts, new_meta_rect ( 800,   10,  800, 1200));
+      break;
     }
 
-  ret = meta_rectangle_get_minimal_spanning_set_for_region (&basic_rect, struts,
-                                                            0, 0, 0, 0);
+  ret = meta_rectangle_get_minimal_spanning_set_for_region (&basic_rect, struts);
 
   free_strut_list (struts);
   return ret;
@@ -494,7 +506,7 @@ test_regions_okay ()
   /*************************************************************/
   /* Make sure test region 2 has the right spanning rectangles */
   /*************************************************************/  
-  tmp = region = get_screen_region (2);
+  region = get_screen_region (2);
   tmp = NULL;
   tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  300, 1180));
   tmp = g_list_prepend (tmp, new_meta_rect ( 450,   20,  350, 1180));
@@ -508,7 +520,7 @@ test_regions_okay ()
   /*************************************************************/
   /* Make sure test region 3 has the right spanning rectangles */
   /*************************************************************/  
-  tmp = region = get_screen_region (3);
+  region = get_screen_region (3);
   tmp = NULL;
   tmp = g_list_prepend (tmp, new_meta_rect ( 380,  675,  420,  525)); // 220500
   tmp = g_list_prepend (tmp, new_meta_rect (   0,   20,  300, 1180)); // 354000
@@ -531,12 +543,24 @@ test_regions_okay ()
   meta_rectangle_free_spanning_set (tmp);
   meta_rectangle_free_spanning_set (region);
 
+  /*************************************************************/
+  /* Make sure test region 4 has the right spanning rectangles */
+  /*************************************************************/  
+  region = get_screen_region (4);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_meta_rect ( 800,   20,  800, 1180));
+  verify_lists_are_equal (region, tmp);
+  meta_rectangle_free_spanning_set (tmp);
+  meta_rectangle_free_spanning_set (region);
+
+  /*************************************************************/
+  /* Make sure test region 5 has the right spanning rectangles */
+  /*************************************************************/  
+  region = get_screen_region (5);
+  verify_lists_are_equal (region, NULL);
+
   /* FIXME: Still to do:
    *   - Create random struts and check the regions somehow
-   *     - Don't forget to test for empty rects
-   *     - Don't forget to test if I ever get an empty region if the
-   *       struts cover everything; should I just ignore all struts in
-   *       such a case???
    */
 
   printf ("%s passed.\n", __PRETTY_FUNCTION__);

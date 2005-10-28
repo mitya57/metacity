@@ -1332,8 +1332,8 @@ implement_showing (MetaWindow *window,
               /* just animate into the corner somehow - maybe
                * not a good idea...
                */              
-              icon_rect.x = window->screen->width;
-              icon_rect.y = window->screen->height;
+              icon_rect.x = window->screen->rect.width;
+              icon_rect.y = window->screen->rect.height;
               icon_rect.width = 1;
               icon_rect.height = 1;
             }
@@ -5542,15 +5542,6 @@ meta_window_update_struts (MetaWindow *window)
   MetaRectangle new_top;
   MetaRectangle new_bottom;
 
-  /**
-   * This gap must be kept to at least 75 pixels, since otherwise
-   * struts on opposite sides of the screen left/right could interfere
-   * in each other in a way that makes it so there is no feasible
-   * solution to the constraint satisfaction problem.  See
-   * constraints.c.
-   */
-#define MIN_EMPTY (76)
-  
   meta_verbose ("Updating struts for %s\n", window->desc);
   
   if (window->struts)
@@ -5567,25 +5558,19 @@ meta_window_update_struts (MetaWindow *window)
     }
 
   new_has_struts = FALSE;
+  new_left = window->screen->rect;
   new_left.width = 0;
-  new_left.x = 0;
-  new_left.y = 0;
-  new_left.height = window->screen->height;
 
+  new_right = window->screen->rect;
   new_right.width = 0;
-  new_right.x = window->screen->width;
-  new_right.y = 0;
-  new_right.height = window->screen->height;
+  new_right.x = window->screen->rect.width;
 
+  new_top = window->screen->rect;
   new_top.height = 0;
-  new_top.y = 0;
-  new_top.x = 0;
-  new_top.width = window->screen->width;
 
+  new_bottom = window->screen->rect;
   new_bottom.height = 0;
-  new_bottom.y = window->screen->height;
-  new_bottom.x = 0;
-  new_bottom.width = window->screen->width;
+  new_bottom.y = window->screen->rect.height;
   
   if (meta_prop_get_cardinal_list (window->display,
                                    window->xwindow,
@@ -5599,20 +5584,13 @@ meta_window_update_struts (MetaWindow *window)
         }
       else
         {
-          int gap;
-          gap = window->screen->width - struts[0] - struts[1];
-          gap -= MIN_EMPTY;
           new_has_struts = TRUE;
-          new_left.width = (int) struts[0] + MIN (0, gap/2);
-          new_right.width = (int) struts[1] + MIN (0, gap/2);
-          gap = window->screen->height - struts[2] - struts[3];
-          gap -= MIN_EMPTY;
-          new_top.height = (int)struts[2] + MIN (0, gap/2);
-          new_bottom.height = (int)struts[3] + MIN (0, gap/2);
-          new_right.x = window->screen->width - 
-            new_right.width;
-          new_bottom.y = window->screen->height - 
-            new_bottom.height;
+          new_left.width = (int) struts[0];
+          new_right.width = (int) struts[1];
+          new_top.height = (int)struts[2];
+          new_bottom.height = (int)struts[3];
+          new_right.x  = window->screen->rect.width  - new_right.width;
+          new_bottom.y = window->screen->rect.height - new_bottom.height;
           new_left.y = struts[4];
           new_left.height = struts[5] - new_left.y + 1;
           new_right.y = struts[6];
@@ -5652,22 +5630,13 @@ meta_window_update_struts (MetaWindow *window)
             }
           else
             {
-              int gap;
-              gap = window->screen->width - struts[0] - struts[1];
-              gap -= MIN_EMPTY;
               new_has_struts = TRUE;
-              new_left.width = (int) struts[0] + MIN (0, gap/2);
-              new_right.width = (int) struts[1] + MIN (0, gap/2);
-              gap = window->screen->height - struts[2] - struts[3];
-              gap -= MIN_EMPTY;
-              new_top.height = (int)struts[2] + MIN (0, gap/2);
-              new_bottom.height = (int)struts[3] + MIN (0, gap/2);
-              new_left.x = 0;
-              new_right.x = window->screen->width - 
-                new_right.width;
-              new_top.y = 0;
-              new_bottom.y = window->screen->height -
-                new_bottom.height;
+              new_left.width = (int) struts[0];
+              new_right.width = (int) struts[1];
+              new_top.height = (int)struts[2];
+              new_bottom.height = (int)struts[3];
+              new_right.x  = window->screen->rect.width  - new_right.width;
+              new_bottom.y = window->screen->rect.height - new_bottom.height;
               
               meta_verbose ("_NET_WM_STRUT struts %d %d %d %d for window %s\n",
                             new_left.width,
@@ -5949,8 +5918,8 @@ recalc_window_features (MetaWindow *window)
        * is entire screen size (kind of broken, because we
        * actually fullscreen to xinerama head size not screen size)
        */
-      if (window->size_hints.min_width == window->screen->width &&
-          window->size_hints.min_height == window->screen->height &&
+      if (window->size_hints.min_width == window->screen->rect.width &&
+          window->size_hints.min_height == window->screen->rect.height &&
           !window->decorated)
         ; /* leave fullscreen available */
       else
@@ -6989,54 +6958,26 @@ get_work_area_xinerama (MetaWindow    *window,
                         MetaRectangle *area,
                         int            which_xinerama)
 {
-  MetaRectangle space_area;
   GList *tmp;  
-  int left_strut;
-  int right_strut;
-  int top_strut;
-  int bottom_strut;  
-  int xinerama_origin_x;
-  int xinerama_origin_y;
-  int xinerama_width;
-  int xinerama_height;
   
   g_assert (which_xinerama >= 0);
 
-  xinerama_origin_x = window->screen->xinerama_infos[which_xinerama].x_origin;
-  xinerama_origin_y = window->screen->xinerama_infos[which_xinerama].y_origin;
-  xinerama_width = window->screen->xinerama_infos[which_xinerama].width;
-  xinerama_height = window->screen->xinerama_infos[which_xinerama].height;
-  
-  left_strut = 0;
-  right_strut = 0;
-  top_strut = 0;
-  bottom_strut = 0;
+  /* Initialize to the whole xinerama */
+  *area = window->screen->xinerama_infos[which_xinerama].rect;
   
   tmp = meta_window_get_workspaces (window);  
   while (tmp != NULL)
     {
+      MetaRectangle workspace_work_area;
       meta_workspace_get_work_area_for_xinerama (tmp->data,
                                                  which_xinerama,
-                                                 &space_area);
-
-      left_strut = MAX (left_strut, space_area.x - xinerama_origin_x);
-      right_strut = MAX (right_strut,
-			 (xinerama_width - 
-			  (space_area.x - xinerama_origin_x) - 
-			  space_area.width));
-      top_strut = MAX (top_strut, space_area.y - xinerama_origin_y);
-      bottom_strut = MAX (bottom_strut,
-			  (xinerama_height - 
-			   (space_area.y - xinerama_origin_y) - 
-			   space_area.height));
+                                                 &workspace_work_area);
+      meta_rectangle_intersect (area,
+                                &workspace_work_area,
+                                area);
       tmp = tmp->next;
     }
   
-  area->x = xinerama_origin_x + left_strut;
-  area->y = xinerama_origin_y + top_strut;
-  area->width = xinerama_width - left_strut - right_strut;
-  area->height = xinerama_height - top_strut - bottom_strut;
-
   meta_topic (META_DEBUG_WORKAREA,
               "Window %s xinerama %d has work area %d,%d %d x %d\n",
               window->desc, which_xinerama,
@@ -7072,50 +7013,22 @@ void
 meta_window_get_work_area_all_xineramas (MetaWindow    *window,
                                          MetaRectangle *area)
 {
-  MetaRectangle space_area;
   GList *tmp;  
-  int left_strut;
-  int right_strut;
-  int top_strut;
-  int bottom_strut;  
-  int screen_origin_x;
-  int screen_origin_y;
-  int screen_width;
-  int screen_height;
 
-  screen_origin_x = 0;
-  screen_origin_y = 0;
-  screen_width = window->screen->width;
-  screen_height = window->screen->height;
-  
-  left_strut = 0;
-  right_strut = 0;
-  top_strut = 0;
-  bottom_strut = 0;
+  /* Initialize to the whole screen */
+  *area = window->screen->rect;
   
   tmp = meta_window_get_workspaces (window);  
   while (tmp != NULL)
     {
+      MetaRectangle workspace_work_area;
       meta_workspace_get_work_area_all_xineramas (tmp->data,
-                                                  &space_area);
-
-      left_strut = MAX (left_strut, space_area.x - screen_origin_x);
-      right_strut = MAX (right_strut,
-			 (screen_width - 
-			  (space_area.x - screen_origin_x) - 
-			  space_area.width));
-      top_strut = MAX (top_strut, space_area.y - screen_origin_y);
-      bottom_strut = MAX (bottom_strut,
-			  (screen_height - 
-			   (space_area.y - screen_origin_y) - 
-			   space_area.height));      
+                                                  &workspace_work_area);
+      meta_rectangle_intersect (area,
+                                &workspace_work_area,
+                                area);
       tmp = tmp->next;
     }
-  
-  area->x = screen_origin_x + left_strut;
-  area->y = screen_origin_y + top_strut;
-  area->width = screen_width - left_strut - right_strut;
-  area->height = screen_height - top_strut - bottom_strut;
 
   meta_topic (META_DEBUG_WORKAREA,
               "Window %s has whole-screen work area %d,%d %d x %d\n",
@@ -7430,8 +7343,8 @@ warp_grab_pointer (MetaWindow          *window,
   *y += rect.y;
 
   /* Avoid weird bouncing at the screen edge; see bug 154706 */
-  *x = CLAMP (*x, 0, window->screen->width-1);
-  *y = CLAMP (*y, 0, window->screen->height-1);
+  *x = CLAMP (*x, 0, window->screen->rect.width-1);
+  *y = CLAMP (*y, 0, window->screen->rect.height-1);
   
   meta_error_trap_push_with_return (window->display);
 

@@ -528,16 +528,6 @@ center_tile_rect_in_area (MetaRectangle *rect,
   rect->y = work_area->y + fluff;
 }
 
-static gboolean
-rect_fits_in_work_area (MetaRectangle *work_area,
-                        MetaRectangle *rect)
-{
-  return ((rect->x >= work_area->x) &&
-	  (rect->y >= work_area->y) &&
-	  (rect->x + rect->width <= work_area->x + work_area->width) &&
-	  (rect->y + rect->height <= work_area->y + work_area->height));
-}
-
 /* Find the leftmost, then topmost, empty area on the workspace
  * that can contain the new window.
  *
@@ -596,13 +586,13 @@ find_first_fit (MetaWindow *window,
 
   for (i = 0; i < n_xineramas; i++)
     {
+      char xinerama_location_string[25];
+      meta_rectangle_to_string (&window->screen->xinerama_infos[xineramas_list[i]].rect,
+                                xinerama_location_string);
       meta_topic (META_DEBUG_XINERAMA,
-		  "Natural xinerama %d is %d,%d %dx%d\n",
+		  "Natural xinerama %d is %s\n",
 		  i,
-		  window->screen->xinerama_infos[xineramas_list[i]].x_origin,
-		  window->screen->xinerama_infos[xineramas_list[i]].y_origin,
-		  window->screen->xinerama_infos[xineramas_list[i]].width,
-		  window->screen->xinerama_infos[xineramas_list[i]].height);
+		  xinerama_location_string);
     }
 
   /* try each xinerama in the natural ordering in turn */
@@ -613,7 +603,7 @@ find_first_fit (MetaWindow *window,
 
       center_tile_rect_in_area (&rect, &work_area);
 
-      if (rect_fits_in_work_area (&work_area, &rect) &&
+      if (meta_rectangle_contains_rect (&work_area, &rect) &&
           !rectangle_overlaps_some_window (&rect, windows))
         {
           *new_x = rect.x;
@@ -641,7 +631,7 @@ find_first_fit (MetaWindow *window,
           rect.x = outer_rect.x;
           rect.y = outer_rect.y + outer_rect.height;
       
-          if (rect_fits_in_work_area (&work_area, &rect) &&
+          if (meta_rectangle_contains_rect (&work_area, &rect) &&
               !rectangle_overlaps_some_window (&rect, below_sorted))
             {
               *new_x = rect.x;
@@ -672,7 +662,7 @@ find_first_fit (MetaWindow *window,
           rect.x = outer_rect.x + outer_rect.width;
           rect.y = outer_rect.y;
      
-          if (rect_fits_in_work_area (&work_area, &rect) &&
+          if (meta_rectangle_contains_rect (&work_area, &rect) &&
               !rectangle_overlaps_some_window (&rect, right_sorted))
             {
               *new_x = rect.x;
@@ -816,7 +806,6 @@ meta_window_place (MetaWindow        *window,
       if (parent)
         {
           int w;
-          MetaRectangle area;
 
           meta_window_get_position (parent, &x, &y);
           w = parent->rect.width;
@@ -835,6 +824,16 @@ meta_window_place (MetaWindow        *window,
           if (fgeom)
             y += fgeom->top_height;
 
+#if 0
+          /* FIXME: If no one has complained about this within a couple
+           * months, it means that the constraints.c rewrite fixed this
+           * correctly and this hack is no longer necessary.  Feel free to
+           * submit a patch removing this #ifdef'd out code.  (Comment
+           * written on 2005-10-28).
+           */
+
+          MetaRectangle area;
+
           /* clip to xinerama of parent*/
           meta_window_get_work_area_current_xinerama (parent, &area);
 
@@ -844,6 +843,7 @@ meta_window_place (MetaWindow        *window,
             y = area.y + area.height - window->rect.height;
           if (x < area.x) x = area.x;
           if (y < area.y) y = area.y;     
+#endif
 
           meta_topic (META_DEBUG_PLACEMENT, "Centered window %s over transient parent\n",
                       window->desc);
@@ -866,20 +866,20 @@ meta_window_place (MetaWindow        *window,
       window->type == META_WINDOW_MODAL_DIALOG ||
       window->type == META_WINDOW_SPLASHSCREEN)
     {
-      /* Center on screen */
+      /* Center on current xinerama (i.e. on current monitor) */
       int w, h;
 
       /* Warning, this function is a round trip! */
       xi = meta_screen_get_current_xinerama (window->screen);
 
-      w = xi->width;
-      h = xi->height;
+      w = xi->rect.width;
+      h = xi->rect.height;
 
       x = (w - window->rect.width) / 2;
       y = (h - window->rect.height) / 2;
 
-      x += xi->x_origin;
-      y += xi->y_origin;
+      x += xi->rect.x;
+      y += xi->rect.y;
       
       meta_topic (META_DEBUG_PLACEMENT, "Centered window %s on screen %d xinerama %d\n",
                   window->desc, window->screen->number, xi->number);
@@ -918,8 +918,8 @@ meta_window_place (MetaWindow        *window,
   xi = meta_screen_get_current_xinerama (window->screen);
   
   /* "Origin" placement algorithm */
-  x = xi->x_origin;
-  y = xi->y_origin;
+  x = xi->rect.x;
+  y = xi->rect.y;
 
   if (find_first_fit (window, fgeom, windows,
                       xineramas_list, n_xineramas,
@@ -1021,8 +1021,8 @@ meta_window_place (MetaWindow        *window,
           focus_window_list = g_list_prepend (NULL, focus_window);
 
           /* Reset x and y ("origin" placement algorithm) */
-          x = xi->x_origin;
-          y = xi->y_origin;
+          x = xi->rect.x;
+          y = xi->rect.y;
 
           found_fit = find_first_fit (window, fgeom, focus_window_list,
                                       xineramas_list, n_xineramas,
@@ -1091,33 +1091,6 @@ get_windows_on_same_workspace (MetaWindow *window,
   return windows;
 }
 
-static gboolean
-rects_overlap_vertically (const MetaRectangle *a,
-                          const MetaRectangle *b)
-{
-  /* if they don't overlap, then either a is above b
-   * or b is above a
-   */
-  if ((a->y + a->height) < b->y)
-    return FALSE;
-  else if ((b->y + b->height) < a->y)
-    return FALSE;
-  else
-    return TRUE;
-}
-
-static gboolean
-rects_overlap_horizontally (const MetaRectangle *a,
-                            const MetaRectangle *b)
-{
-  if ((a->x + a->width) < b->x)
-    return FALSE;
-  else if ((b->x + b->width) < a->x)
-    return FALSE;
-  else
-    return TRUE;
-}
-
 static void
 get_vertical_edges (MetaWindow *window,
                     int       **edges_p,
@@ -1146,13 +1119,13 @@ get_vertical_edges (MetaWindow *window,
   g_array_append_val (edges, edge);
   edge = 0;
   g_array_append_val (edges, edge);
-  g_array_append_val (edges, window->screen->width);
+  g_array_append_val (edges, window->screen->rect.width);
 
   /* Now get the xinerama screen edges */
   for (i = 0; i < window->screen->n_xinerama_infos - 1; i++)
     {
-      edge = window->screen->xinerama_infos[i].x_origin +
-             window->screen->xinerama_infos[i].width;
+      edge = window->screen->xinerama_infos[i].rect.x +
+             window->screen->xinerama_infos[i].rect.width;
 
       g_array_append_val (edges, edge);
     }
@@ -1182,7 +1155,7 @@ get_vertical_edges (MetaWindow *window,
 
       meta_window_get_outer_rect (w, &w_rect);
       
-      if (rects_overlap_vertically (&rect, &w_rect))
+      if (meta_rectangle_vert_overlap (&rect, &w_rect))
         {
           g_array_append_val (edges, w_rect.x);
           edge = w_rect.x + w_rect.width;
@@ -1228,13 +1201,13 @@ get_horizontal_edges (MetaWindow *window,
   g_array_append_val (edges, edge);
   edge = 0;
   g_array_append_val (edges, edge);
-  g_array_append_val (edges, window->screen->height);
+  g_array_append_val (edges, window->screen->rect.height);
 
   /* Now get the xinerama screen edges */
   for (i = 0; i < window->screen->n_xinerama_infos - 1; i++) 
     {
-      edge = window->screen->xinerama_infos[i].y_origin +
-             window->screen->xinerama_infos[i].height;
+      edge = window->screen->xinerama_infos[i].rect.y +
+             window->screen->xinerama_infos[i].rect.height;
       g_array_append_val (edges, edge);
     }
 
@@ -1263,7 +1236,7 @@ get_horizontal_edges (MetaWindow *window,
 
       meta_window_get_outer_rect (w, &w_rect);
       
-      if (rects_overlap_horizontally (&rect, &w_rect))
+      if (meta_rectangle_horiz_overlap (&rect, &w_rect))
         {
           g_array_append_val (edges, w_rect.y);
           edge = w_rect.y + w_rect.height;

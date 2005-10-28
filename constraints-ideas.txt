@@ -64,14 +64,14 @@ Short-term (I hope...) TODO list/reminders:
     timeout-resistance be much larger for the screen edges, (e) it may be
     difficult determining where the screen edges are
 
-  - Might be good to optimize by storing spanning rects in MetaWorkspace
-
-  - Need to replace xinerama and screen structures (screen.h?) and maybe
-    tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
-
   - Need to clean out lots of FIXMEs in the code.
 
   - Need to do the titlebar offscreen checking, partial maximization, etc.
+
+  X Might be good to optimize by storing spanning rects in MetaWorkspace
+
+  X Need to replace xinerama and screen structures (screen.h?) and maybe
+    tabpopup stuff (see bug 98340, IIRC) with MetaRectangle's
 
   X It looks like I can nuke work_area_screen in ConstraintInfo
 

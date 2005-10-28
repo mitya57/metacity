@@ -32,10 +32,7 @@ typedef struct _MetaXineramaScreenInfo MetaXineramaScreenInfo;
 struct _MetaXineramaScreenInfo
 {
   int number;
-  int x_origin;
-  int y_origin;
-  int width;
-  int height;
+  MetaRectangle rect;
 };
 
 typedef void (* MetaScreenWindowFunc) (MetaScreen *screen, MetaWindow *window,
@@ -68,8 +65,7 @@ struct _MetaScreen
   Window xroot;
   int default_depth;
   Visual *default_xvisual;
-  int width;
-  int height;
+  MetaRectangle rect;  /* Size of screen; rect.x & rect.y are always 0 */
   MetaUI *ui;
   MetaTabPopup *tab_popup;
   
@@ -157,9 +153,6 @@ const MetaXineramaScreenInfo* meta_screen_get_xinerama_for_rect   (MetaScreen   
 const MetaXineramaScreenInfo* meta_screen_get_xinerama_for_window (MetaScreen    *screen,
                                                                    MetaWindow    *window);
 
-gboolean      meta_screen_rect_intersects_xinerama (MetaScreen    *screen, 
-                                                    MetaRectangle *window,
-                                                    int            which_xinerama);
 
 const MetaXineramaScreenInfo* meta_screen_get_xinerama_neighbor (MetaScreen *screen,
                                                                  int         which_xinerama,

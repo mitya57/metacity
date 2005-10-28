@@ -266,6 +266,12 @@ typedef struct
    */
   MetaRectangle        work_area_xinerama;
   MetaRectangle        entire_xinerama;
+
+  /* Spanning rectangles for the non-covered (by struts) region of the
+   * screen and also for just the current xinerama
+   */
+  GList  *usable_screen_region;
+  GList  *usable_xinerama_region;
 } ConstraintInfo;
 
 static gboolean constrain_maximization       (MetaWindow         *window,
@@ -321,14 +327,6 @@ static inline void get_size_limits       (const MetaWindow        *window,
                                           gboolean include_frame,
                                           MetaRectangle *min_size,
                                           MetaRectangle *max_size);
-static GList*  get_screen_relative_spanning_rects (
-                                          const MetaScreen *screen,
-                                          const int         left_expand,
-                                          const int         right_expand,
-                                          const int         top_expand,
-                                          const int         bottom_expand);
-static GSList* get_all_workspace_struts  (const MetaWorkspace *workspace);
-
 
 typedef gboolean (* ConstraintFunc) (MetaWindow         *window,
                                      ConstraintInfo     *info,
@@ -585,10 +583,11 @@ setup_constraint_info (ConstraintInfo      *info,
 
   const MetaXineramaScreenInfo *xinerama_info =
     meta_screen_get_xinerama_for_window (window->screen, window);
-  info->entire_xinerama.x      = xinerama_info->x_origin;
-  info->entire_xinerama.y      = xinerama_info->y_origin;
-  info->entire_xinerama.width  = xinerama_info->width;
-  info->entire_xinerama.height = xinerama_info->height;
+  info->entire_xinerama = xinerama_info->rect;
+
+  MetaWorkspace *cur_workspace = window->screen->active_workspace;
+  info->usable_screen_region   = cur_workspace->screen_region;
+  info->usable_xinerama_region = cur_workspace->xinerama_region[xinerama_info->number];
 
   /* Log all this information for debugging */
   meta_topic (META_DEBUG_GEOMETRY,
@@ -652,10 +651,7 @@ place_window_if_needed(MetaWindow     *window,
        */
       const MetaXineramaScreenInfo *xinerama_info =
         meta_screen_get_xinerama_for_rect (window->screen, &placed_rect);
-      info->entire_xinerama.x      = xinerama_info->x_origin;
-      info->entire_xinerama.y      = xinerama_info->y_origin;
-      info->entire_xinerama.width  = xinerama_info->width;
-      info->entire_xinerama.height = xinerama_info->height;
+      info->entire_xinerama = xinerama_info->rect;
       meta_window_get_work_area_for_xinerama (window,
                                               xinerama_info->number,
                                               &info->work_area_xinerama);
@@ -737,39 +733,27 @@ update_onscreen_requirements (MetaWindow     *window,
    * window to be on fully onscreen.
    */
   old = window->require_fully_onscreen;
-  GList *fully_onscreen_region = 
-    get_screen_relative_spanning_rects (window->screen, 0, 0, 0, 0);
   window->require_fully_onscreen =
-    meta_rectangle_contained_in_region (fully_onscreen_region,
+    meta_rectangle_contained_in_region (info->usable_screen_region,
                                         &info->current);
   if (old ^ window->require_fully_onscreen)
     meta_topic (META_DEBUG_GEOMETRY,
                 "require_fully_onscreen for %s toggled to %s\n"
                 window->desc,
                 window->require_fully_onscreen ? "TRUE" : "FALSE");
-  meta_rectangle_free_spanning_set (fully_onscreen_region);
 
   /* Update whether we want future constraint runs to require the
    * window to be on a single xinerama.
    */
   old = window->require_on_single_xinerama;
-  GSList *all_struts;
-  GList  *single_xinerama_region;
-  all_struts = get_all_workspace_struts (window->screen->active_workspace);
-  single_xinerama_region =
-    meta_rectangle_get_minimal_spanning_set_for_region (&info->entire_xinerama,
-                                                        all_struts,
-                                                        0, 0, 0, 0);
   window->require_on_single_xinerama =
-    meta_rectangle_contained_in_region (single_xinerama_region,
+    meta_rectangle_contained_in_region (info->usable_xinerama_region,
                                         &info->current);
   if (old ^ window->require_on_single_xinerama)
     meta_topic (META_DEBUG_GEOMETRY,
                 "require_on_single_xinerama for %s toggled to %s\n",
                 window->desc, 
                 window->require_on_single_xinerama ? "TRUE" : "FALSE");
-  meta_rectangle_free_spanning_set (single_xinerama_region);
-  g_slist_free (all_struts);
 
   /* Don't forget to restore the position of the window */
   unextend_by_frame (&info->current, info->fgeom);
@@ -1190,54 +1174,6 @@ do_screen_and_xinerama_relative_constraints (
   return TRUE;
 }
 
-static GSList*
-get_all_workspace_struts (const MetaWorkspace *workspace)
-{
-  GSList *all_struts;
-  all_struts = g_slist_concat (g_slist_copy (workspace->left_struts),
-                               NULL);
-  all_struts = g_slist_concat (g_slist_copy (workspace->right_struts),
-                               all_struts);
-  all_struts = g_slist_concat (g_slist_copy (workspace->top_struts),
-                               all_struts);
-  all_struts = g_slist_concat (g_slist_copy (workspace->bottom_struts),
-                               all_struts);
-  return all_struts;
-}
-
-static void
-get_screen_rect_size (const MetaScreen *screen, MetaRectangle *rect)
-{
-  rect->x = rect->y = 0;
-  rect->width  = screen->width;
-  rect->height = screen->height;
-}
-
-static GList*
-get_screen_relative_spanning_rects (const MetaScreen *screen,
-                                    const int         left_expand,
-                                    const int         right_expand,
-                                    const int         top_expand,
-                                    const int         bottom_expand)
-{
-  MetaRectangle  whole_screen;
-  GSList         *all_struts;
-  GList          *fully_onscreen_region;
-
-  get_screen_rect_size (screen, &whole_screen);
-  all_struts = get_all_workspace_struts (screen->active_workspace);
-  fully_onscreen_region =
-    meta_rectangle_get_minimal_spanning_set_for_region (&whole_screen,
-                                                        all_struts,
-                                                        left_expand,
-                                                        right_expand,
-                                                        top_expand,
-                                                        bottom_expand);
-  g_slist_free (all_struts);
-
-  return fully_onscreen_region;
-}
-
 static gboolean
 constrain_to_single_xinerama (MetaWindow         *window,
                               ConstraintInfo     *info,
@@ -1259,22 +1195,13 @@ constrain_to_single_xinerama (MetaWindow         *window,
     return TRUE;
 
   /* Have a helper function handle the constraint for us */
-  GSList         *all_struts;
-  GList          *single_xinerama_region;
-  all_struts = get_all_workspace_struts (window->screen->active_workspace);
-  single_xinerama_region =
-    meta_rectangle_get_minimal_spanning_set_for_region (&info->entire_xinerama,
-                                                        all_struts,
-                                                        0, 0, 0, 0);
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
-                                                 single_xinerama_region,
+                                                 info->usable_xinerama_region,
                                                  info,
                                                  check_only);
 
   /* Free up the data we allocated */
-  meta_rectangle_free_spanning_set (single_xinerama_region);
-  g_slist_free (all_struts);
   return retval;
 }
 
@@ -1298,16 +1225,12 @@ constrain_fully_onscreen (MetaWindow         *window,
     return TRUE;
 
   /* Have a helper function handle the constraint for us */
-  GList *fully_onscreen_region = 
-    get_screen_relative_spanning_rects (window->screen, 0, 0, 0, 0);
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
-                                                 fully_onscreen_region,
+                                                 info->usable_screen_region,
                                                  info,
                                                  check_only);
 
-  /* Free up the data we allocated */
-  meta_rectangle_free_spanning_set (fully_onscreen_region);
   return retval;
 }
 
@@ -1346,21 +1269,25 @@ constrain_partially_onscreen (MetaWindow         *window,
    * doesn't move the window further offscreen than it already is.
    */
 
-  /* Have a helper function handle the constraint for us */
-  GList *partially_onscreen_region;
-  partially_onscreen_region = 
-    get_screen_relative_spanning_rects (window->screen,
-                                        horiz_amount,
-                                        horiz_amount, 
-                                        vert_amount,
-                                        vert_amount);
+  /* Extend the region, have a helper function handle the constraint,
+   * then return the region to its original size.
+   */
+  meta_rectangle_expand_region (info->usable_screen_region,
+                                horiz_amount,
+                                horiz_amount, 
+                                vert_amount,
+                                vert_amount);
   gboolean retval =
     do_screen_and_xinerama_relative_constraints (window, 
-                                                 partially_onscreen_region,
+                                                 info->usable_screen_region,
                                                  info,
                                                  check_only);
+  meta_rectangle_expand_region (info->usable_screen_region,
+                                -horiz_amount,
+                                -horiz_amount, 
+                                -vert_amount,
+                                -vert_amount);
 
   /* Free up the data we allocated */
-  meta_rectangle_free_spanning_set (partially_onscreen_region);
   return retval;
 }

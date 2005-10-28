@@ -291,7 +291,13 @@ merge_spanning_rects_in_region (GList *region)
   num_contains = num_merged = num_part_contains = num_adjacent = 0;
 #endif
   compare = region;
-  g_assert (region);
+
+  if (region == NULL)
+    {
+      meta_warning ("Region to merge was empty!  Either you have a some "
+                    "pathological STRUT list or there's a bug somewhere!\n");
+      return NULL;
+    }
 
 #ifdef PRINT_DEBUG
   char spanning_region[1 + 28 * g_list_length (region)];
@@ -489,11 +495,7 @@ compare_rect_areas (gconstpointer a, gconstpointer b)
 GList*
 meta_rectangle_get_minimal_spanning_set_for_region (
   const MetaRectangle *basic_rect,
-  const GSList  *all_struts,
-  const int      left_expand,
-  const int      right_expand,
-  const int      top_expand,
-  const int      bottom_expand)
+  const GSList  *all_struts)
 {
   /* NOTE FOR OPTIMIZERS: This function *might* be somewhat slow,
    * especially due to the call to merge_spanning_rects_in_region() (which
@@ -655,8 +657,24 @@ meta_rectangle_get_minimal_spanning_set_for_region (
       strut_iter = strut_iter->next;
     }
 
+  /* Sort by maximal area, just because I feel like it... */
+  ret = g_list_sort (ret, compare_rect_areas);
+
+  /* Merge rectangles if possible so that the list really is minimal */
+  ret = merge_spanning_rects_in_region (ret);
+
+  return ret;
+}
+
+GList*
+meta_rectangle_expand_region (GList     *region,
+                              const int  left_expand,
+                              const int  right_expand,
+                              const int  top_expand,
+                              const int  bottom_expand)
+{
   /* Now it's time to do the directional expansion */
-  tmp_list = ret;
+  GList *tmp_list = region;
   while (tmp_list)
     {
       MetaRectangle *rect = (MetaRectangle*) tmp_list->data;
@@ -667,13 +685,7 @@ meta_rectangle_get_minimal_spanning_set_for_region (
       tmp_list = tmp_list->next;
     }
 
-  /* Sort by maximal area, just because I feel like it... */
-  ret = g_list_sort (ret, compare_rect_areas);
-
-  /* Merge rectangles if possible so that the list really is minimal */
-  ret = merge_spanning_rects_in_region (ret);
-
-  return ret;
+  return region;
 }
 
 void

@@ -42,12 +42,11 @@ struct _MetaWorkspace
   GList *windows;
   GList *mru_list;
 
-  MetaRectangle all_work_areas;
-  MetaRectangle *work_areas;
-  GSList *left_struts;
-  GSList *right_struts;
-  GSList *top_struts;
-  GSList *bottom_struts;
+  MetaRectangle work_area_screen;
+  MetaRectangle *work_area_xinerama;
+  GList  *screen_region;
+  GList  **xinerama_region;
+  GSList *all_struts;
   guint work_areas_invalid : 1;
 
   guint showing_desktop : 1;

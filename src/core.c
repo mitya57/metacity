@@ -851,9 +851,9 @@ meta_core_get_screen_size (Display *xdisplay,
     meta_bug ("No such frame window 0x%lx!\n", frame_on_screen);  
 
   if (width)
-    *width = window->screen->width;
+    *width = window->screen->rect.width;
   if (height)
-    *height = window->screen->height;
+    *height = window->screen->rect.height;
 }
 
 void
