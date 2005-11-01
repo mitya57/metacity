@@ -184,6 +184,22 @@ typedef enum
   META_VIRTUAL_MOD5_MASK     = 1 << 14
 } MetaVirtualModifier;
 
+/* Relative directions or sides seem to come up all over the place... */
+/* FIXME: Replace
+ *   place.[ch]:MetaWindowEdgePosition,
+ *   screen.[ch]:MetaScreenDirection,
+ *   workspace.[ch]:MetaMotionDirection,
+ * with the use of MetaDirection.
+ */
+typedef enum
+{
+  META_DIRECTION_LEFT      = 1 << 0,
+  META_DIRECTION_RIGHT     = 1 << 1,
+  META_DIRECTION_TOP       = 1 << 2,
+  META_DIRECTION_BOTTOM    = 1 << 3,
+  META_DIRECTION_UP        = 1 << 2, /* Alternate name for TOP */
+  META_DIRECTION_DOWN      = 1 << 3  /* Alternate name for BOTTOM */
+} MetaDirection;
 
 /* Function a window button can have.  Note, you can't add stuff here
  * without extending the theme format to draw a new function and
@@ -226,7 +242,3 @@ struct _MetaButtonLayout
   (ycoord) <  ((rect).y + (rect).height))
 
 #endif
-
-
-
-

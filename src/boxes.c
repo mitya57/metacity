@@ -60,6 +60,10 @@ meta_rectangle_region_to_string (GList      *region,
    * rectangle.
    */
   char rect_string[27];
+
+  if (region == NULL)
+    snprintf (output, 10, "(EMPTY)");
+
   char *cur = output;
   GList *tmp = region;
   while (tmp)
@@ -67,6 +71,60 @@ meta_rectangle_region_to_string (GList      *region,
       MetaRectangle *rect = tmp->data;
       snprintf (rect_string, 27, "[%d,%d +%d,%d]", 
                rect->x, rect->y, rect->width, rect->height);
+      cur = g_stpcpy (cur, rect_string);
+      tmp = tmp->next;
+      if (tmp)
+        cur = g_stpcpy (cur, separator_string);
+    }
+
+  return output;
+}
+
+char*
+meta_rectangle_edge_to_string (const MetaEdge *edge,
+                               char           *output)
+{
+  /* 25 = 2 commas, space, plus, trailing \0 + 5 for each digit.
+   * Should be more than enough space.  Note that of this space, the
+   * trailing \0 will be overwritten for all but the last rectangle.
+   *
+   * Plus 2 for parenthesis, 4 for 2 more numbers, 2 more commas, and
+   * 2 more spaces, for a total of 10 more.
+   */
+  snprintf (output, 35, "[%d,%d +%d,%d], %2d, %2d", 
+            edge->rect.x, edge->rect.y, edge->rect.width, edge->rect.height,
+            edge->side_type, edge->edge_type);
+
+  return output;
+}
+
+char*
+meta_rectangle_edge_list_to_string (GList      *edge_list,
+                                    const char *separator_string,
+                                    char       *output)
+{
+  /* 27 = 2 commas, 2 square brackets, space, plus, trailing \0 + 5 for
+   * each digit.  Should be more than enough space.  Note that of this
+   * space, the trailing \0 will be overwritten for all but the last
+   * rectangle.
+   *
+   * Plus 2 for parenthesis, 4 for 2 more numbers, 2 more commas, and
+   * 2 more spaces, for a total of 10 more.
+   */
+  char rect_string[27 + 10];
+
+  if (edge_list == NULL)
+    snprintf (output, 10, "(EMPTY)");
+
+  char *cur = output;
+  GList *tmp = edge_list;
+  while (tmp)
+    {
+      MetaEdge      *edge = tmp->data;
+      MetaRectangle *rect = &edge->rect;
+      snprintf (rect_string, 37, "([%d,%d +%d,%d], %2d, %2d)", 
+                rect->x, rect->y, rect->width, rect->height,
+                edge->side_type, edge->edge_type);
       cur = g_stpcpy (cur, rect_string);
       tmp = tmp->next;
       if (tmp)
@@ -548,13 +606,14 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   MetaRectangle *temp_rect;
 
   /* The algorithm is basically as follows:
-   *   Ignore directional expansions until the end
    *   Initialize rectangle_set to basic_rect
    *   Foreach strut:
    *     Foreach rectangle in rectangle_set:
    *       - Split the rectangle into new rectangles that don't overlap the
    *         strut (but which are as big as possible otherwise)
-   *   Now do directional expansion of all rectangles in rectangle_set
+   *       - Remove the old (pre-split) rectangle from the rectangle_set,
+   *         and replace it with the new rectangles generated from the
+   *         splitting
    */
 
   temp_rect = g_new (MetaRectangle, 1);
@@ -689,12 +748,12 @@ meta_rectangle_expand_region (GList     *region,
 }
 
 void
-meta_rectangle_free_spanning_set (GList *spanning_rects)
+meta_rectangle_free_list_and_elements (GList *filled_list)
 {
-  g_list_foreach (spanning_rects, 
+  g_list_foreach (filled_list, 
                   (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
                   NULL);
-  g_list_free (spanning_rects);
+  g_list_free (filled_list);
 }
 
 gboolean
@@ -1049,4 +1108,422 @@ meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
 
   *valx = (py*diffx*diffy + px*diffx*diffx + y2*x1*diffy - y1*x2*diffy) / den;
   *valy = (px*diffx*diffy + py*diffy*diffy + x2*y1*diffx - x1*y2*diffx) / den;
+}
+
+/***************************************************************************/
+/*                                                                         */
+/* Switching gears to code for edges instead of just rectangles            */
+/*                                                                         */
+/***************************************************************************/
+
+/* Just make sure the given rectangle list is composed of disjoint rectangles */
+static gboolean
+struts_are_disjoint (const GSList *struts)
+{
+  const GSList *tmp;
+  gboolean disjoint = TRUE;
+
+  tmp = struts;
+  while (tmp && disjoint)
+    {
+      const GSList *compare;
+
+      MetaRectangle *cur = tmp->data;
+      compare = tmp->next;
+      while (compare && disjoint)
+        {
+          MetaRectangle *comp = compare->data;
+          disjoint = disjoint && !meta_rectangle_overlap (cur, comp);
+          compare = compare->next;
+        }
+
+      tmp = tmp->next;
+    }
+
+  return disjoint;
+}
+
+/* To make things easily testable, provide a nice way of sorting edges */
+static gint
+sort_edges (gconstpointer a, gconstpointer b)
+{
+  const MetaEdge *a_edge_rect = (gconstpointer) a;
+  const MetaEdge *b_edge_rect = (gconstpointer) b;
+
+  int a_compare, b_compare;
+
+  a_compare = a_edge_rect->side_type;
+  b_compare = b_edge_rect->side_type;
+
+  if (a_compare == b_compare)
+    {
+      if (a_edge_rect->side_type == META_DIRECTION_LEFT ||
+          a_edge_rect->side_type == META_DIRECTION_RIGHT)
+        {
+          a_compare = a_edge_rect->rect.x;
+          b_compare = b_edge_rect->rect.x;
+          if (a_compare == b_compare)
+            {
+              a_compare = a_edge_rect->rect.y;
+              b_compare = b_edge_rect->rect.y;
+            }
+        }
+      else if (a_edge_rect->side_type == META_DIRECTION_TOP ||
+               a_edge_rect->side_type == META_DIRECTION_BOTTOM)
+        {
+          a_compare = a_edge_rect->rect.y;
+          b_compare = b_edge_rect->rect.y;
+          if (a_compare == b_compare)
+            {
+              a_compare = a_edge_rect->rect.x;
+              b_compare = b_edge_rect->rect.x;
+            }
+        }
+      else
+        g_assert ("Some idiot wanted to sort sides of different types.\n");
+    }
+
+  return a_compare - b_compare; /* positive value denotes a > b ... */
+}
+
+/* Determine whether two given edges overlap */
+static gboolean
+edges_overlap (const MetaEdge *edge1,
+               const MetaEdge *edge2)
+{
+  switch (edge1->side_type)
+    {
+    case META_DIRECTION_LEFT:
+    case META_DIRECTION_RIGHT:
+      return (edge2->side_type == META_DIRECTION_LEFT || 
+              edge2->side_type == META_DIRECTION_RIGHT)               &&
+             meta_rectangle_vert_overlap (&edge1->rect, &edge2->rect) &&
+             edge1->rect.x == edge2->rect.x;
+    case META_DIRECTION_TOP:
+    case META_DIRECTION_BOTTOM:
+      return (edge2->side_type == META_DIRECTION_TOP || 
+              edge2->side_type == META_DIRECTION_BOTTOM)               &&
+             meta_rectangle_horiz_overlap (&edge1->rect, &edge2->rect) &&
+             edge1->rect.y == edge2->rect.y;
+    }
+
+  g_assert (0 == 1);
+}
+
+static gboolean
+rectangle_and_edge_intersection (const MetaRectangle *rect,
+                                 const MetaEdge      *edge,
+                                 MetaEdge            *overlap,
+                                 int                 *handle_type)
+{
+  const MetaRectangle *rect2  = &edge->rect;
+  MetaRectangle *result = &overlap->rect;
+  gboolean intersect = TRUE;
+
+  overlap->edge_type = edge->edge_type;
+  overlap->side_type = edge->side_type;
+  
+  result->x = MAX (rect->x, rect2->x);
+  result->y = MAX (rect->y, rect2->y);
+  result->width  = MIN (BOX_RIGHT (*rect),  BOX_RIGHT (*rect2))  - result->x;
+  result->height = MIN (BOX_BOTTOM (*rect), BOX_BOTTOM (*rect2)) - result->y;
+
+  /* Find out if we didn't get any intersections; have to do it this way since
+   * edges have a thickness of 0
+   */
+  if (((edge->side_type == META_DIRECTION_TOP ||
+        edge->side_type == META_DIRECTION_BOTTOM) &&
+       (result->width <= 0 || result->height <  0)) ||
+      ((edge->side_type == META_DIRECTION_LEFT ||
+        edge->side_type == META_DIRECTION_RIGHT) &&
+       (result->width <  0 || result->height <= 0)))
+    {
+      result->width = 0;
+      result->height = 0;
+      intersect = FALSE;
+    }
+  else
+    {
+      /* Need to figure out the handle_type, a somewhat weird quantity:
+       *   0 - overlap is in middle of rect
+       *  -1 - overlap is at the side of rect, and is on the opposite side
+       *       of rect than the edge->side_type side
+       *   1 - overlap is at the side of rect, and the side of rect it is
+       *       on is the edge->side_type side
+       */
+      switch (edge->side_type)
+        {
+        case META_DIRECTION_LEFT:
+          if (result->x == rect->x)
+            *handle_type = 1;
+          else if (result->x == BOX_RIGHT (*rect))
+            *handle_type = -1;
+          else
+            *handle_type = 0;
+          break;
+        case META_DIRECTION_RIGHT:
+          if (result->x == rect->x)
+            *handle_type = -1;
+          else if (result->x == BOX_RIGHT (*rect))
+            *handle_type = 1;
+          else
+            *handle_type = 0;
+          break;
+        case META_DIRECTION_TOP:
+          if (result->y == rect->y)
+            *handle_type = 1;
+          else if (result->y == BOX_BOTTOM (*rect))
+            *handle_type = -1;
+          else
+            *handle_type = 0;
+          break;
+        case META_DIRECTION_BOTTOM:
+          if (result->y == rect->y)
+            *handle_type = -1;
+          else if (result->y == BOX_BOTTOM (*rect))
+            *handle_type = 1;
+          else
+            *handle_type = 0;
+          break;
+        }
+    }
+  return intersect;
+}
+
+/* Add all edges of the given rect to cur_edges and return the result.  If
+ * rect_is_internal is false, the side types are switched (LEFT<->RIGHT and
+ * TOP<->BOTTOM).
+ */
+static GList*
+add_edges (GList               *cur_edges, 
+           const MetaRectangle *rect,
+           gboolean             rect_is_internal)
+{
+  MetaEdge *temp_edge;
+  int i;
+
+  for (i=0; i<4; i++)
+    {
+      temp_edge = g_new (MetaEdge, 1);
+      temp_edge->rect = *rect;
+      switch (i)
+        {
+        case 0:
+          temp_edge->side_type = 
+            rect_is_internal ? META_DIRECTION_LEFT : META_DIRECTION_RIGHT;
+          temp_edge->rect.width = 0;
+          break;
+        case 1:
+          temp_edge->side_type = 
+            rect_is_internal ? META_DIRECTION_RIGHT : META_DIRECTION_LEFT;
+          temp_edge->rect.x     += temp_edge->rect.width;
+          temp_edge->rect.width  = 0;
+          break;
+        case 2:
+          temp_edge->side_type = 
+            rect_is_internal ? META_DIRECTION_TOP : META_DIRECTION_BOTTOM;
+          temp_edge->rect.height = 0;
+          break;
+        case 3:
+          temp_edge->side_type = 
+            rect_is_internal ? META_DIRECTION_BOTTOM : META_DIRECTION_TOP;
+          temp_edge->rect.y      += temp_edge->rect.height;
+          temp_edge->rect.height  = 0;
+          break;
+        }
+      temp_edge->edge_type = META_EDGE_ONSCREEN;
+      cur_edges = g_list_prepend (cur_edges, temp_edge);
+    }
+
+  return cur_edges;
+}
+
+/* Remove any part of old_edge that intersects remove and add any resulting
+ * edges to cur_list.  Return cur_list when finished.
+ */
+static GList*
+split_edge (GList *cur_list, 
+            const MetaEdge *old_edge, 
+            const MetaEdge *remove)
+{
+  MetaEdge *temp_edge;
+  switch (old_edge->side_type)
+    {
+    case META_DIRECTION_LEFT:
+    case META_DIRECTION_RIGHT:
+      g_assert (meta_rectangle_vert_overlap (&old_edge->rect, &remove->rect));
+      if (BOX_TOP (old_edge->rect)  < BOX_TOP (remove->rect))
+        {
+          temp_edge = g_new (MetaEdge, 1);
+          *temp_edge = *old_edge;
+          temp_edge->rect.height = BOX_TOP (remove->rect)
+                                 - BOX_TOP (old_edge->rect);
+          cur_list = g_list_prepend (cur_list, temp_edge);
+        }
+      if (BOX_BOTTOM (old_edge->rect) > BOX_BOTTOM (remove->rect))
+        {
+          temp_edge = g_new (MetaEdge, 1);
+          *temp_edge = *old_edge;
+          temp_edge->rect.y      = BOX_BOTTOM (remove->rect);
+          temp_edge->rect.height = BOX_BOTTOM (old_edge->rect)
+                                 - BOX_BOTTOM (remove->rect);
+          cur_list = g_list_prepend (cur_list, temp_edge);
+        }
+      break;
+    case META_DIRECTION_TOP:
+    case META_DIRECTION_BOTTOM:
+      g_assert (meta_rectangle_horiz_overlap (&old_edge->rect, &remove->rect));
+      if (BOX_LEFT (old_edge->rect)  < BOX_LEFT (remove->rect))
+        {
+          temp_edge = g_new (MetaEdge, 1);
+          *temp_edge = *old_edge;
+          temp_edge->rect.width = BOX_LEFT (remove->rect)
+                                - BOX_LEFT (old_edge->rect);
+          cur_list = g_list_prepend (cur_list, temp_edge);
+        }
+      if (BOX_RIGHT (old_edge->rect) > BOX_RIGHT (remove->rect))
+        {
+          temp_edge = g_new (MetaEdge, 1);
+          *temp_edge = *old_edge;
+          temp_edge->rect.x     = BOX_RIGHT (remove->rect);
+          temp_edge->rect.width = BOX_RIGHT (old_edge->rect)
+                                - BOX_RIGHT (remove->rect);
+          cur_list = g_list_prepend (cur_list, temp_edge);
+        }
+      break;
+    }
+
+  return cur_list;
+}
+
+/* Split up edge and remove preliminary edges from strut_edges depending on
+ * if and how strut and edge intersect.
+ */
+static void
+fix_up_edges (MetaRectangle *strut,        MetaEdge *edge, 
+              GList         **strut_edges, GList    **edge_splits,
+              gboolean      *edge_needs_removal)
+{
+  MetaEdge overlap;
+  int      handle_type;
+
+  if (!rectangle_and_edge_intersection (strut, edge, &overlap, &handle_type))
+    return;
+
+  if (handle_type == 0 || handle_type == 1)
+    {
+      /* Put the result of removing overlap from edge into edge_splits */
+      *edge_splits = split_edge (*edge_splits, edge, &overlap);
+      *edge_needs_removal = TRUE;
+    }
+
+  if (handle_type == -1 || handle_type == 1)
+    {
+      /* Remove the overlap from strut_edges */
+      /* First, loop over the edges of the strut */
+      GList *tmp = *strut_edges;
+      while (tmp)
+        {
+          MetaEdge *cur = tmp->data;
+          /* If this is the edge that overlaps, then we need to split it */
+          if (edges_overlap (cur, &overlap))
+            {
+              /* Split this edge into some new ones */
+              *strut_edges = split_edge (*strut_edges, cur, &overlap);
+
+              /* Delete the old one */
+              GList *delete_me = tmp;
+              tmp = tmp->next;
+              g_free (cur);
+              *strut_edges = g_list_delete_link (*strut_edges, delete_me);
+            }
+          else
+            tmp = tmp->next;
+        }
+    }
+}
+
+/* This function is trying to find all the edges of an onscreen region. */
+GList*
+meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
+                                    const GSList        *all_struts)
+{
+  GList        *ret;
+  GList        *edge_iter; 
+  const GSList *strut_iter;
+
+  /* The algorithm is basically as follows:
+   *   Make sure the struts are disjoint
+   *   Initialize the edge_set to the edges of basic_rect
+   *   Foreach strut:
+   *     Put together a preliminary new edge from the edges of the strut
+   *     Foreach edge in edge_set:
+   *       - Split the edge if it is partially contained inside the strut
+   *       - If the edge matches an edge of the strut (i.e. a strut just
+   *         against the edge of the screen or a not-next-to-edge-of-screen
+   *         strut adjacent to another), then both the edge from the
+   *         edge_set and the preliminary edge for the strut will need to
+   *         be split
+   *     Add any remaining "preliminary" strut edges to the edge_set
+   */
+
+  /* Make sure the struts are disjoint */
+  if (!struts_are_disjoint (all_struts))
+    {
+      meta_warning ("Struts must be disjoint for %s to work!\n", __FUNCTION__);
+      return NULL;
+    }
+
+  /* Start off the list with the edges of basic_rect */
+  ret = add_edges (NULL, basic_rect, TRUE);
+
+  strut_iter = all_struts;
+  while (strut_iter)
+    {
+      MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
+
+      /* Only look at the onscreen portion of the strut, and get the new
+       * possible edges we may need to add from that.
+       */
+      meta_rectangle_intersect (strut, basic_rect, strut);
+      GList *new_strut_edges = add_edges (NULL, strut, FALSE);
+
+      edge_iter = ret;
+      while (edge_iter)
+        {
+          MetaEdge *cur_edge = edge_iter->data;
+          GList *splits_of_cur_edge = NULL;
+          gboolean edge_needs_removal = FALSE;
+
+          fix_up_edges (strut,            cur_edge, 
+                        &new_strut_edges, &splits_of_cur_edge,
+                        &edge_needs_removal);
+
+          if (edge_needs_removal)
+            {
+              /* Delete the old edge */
+              GList *delete_me = edge_iter;
+              edge_iter = edge_iter->next;
+              g_free (cur_edge);
+              ret = g_list_delete_link (ret, delete_me);
+
+              /* Add the new split parts of the edge */
+              ret = g_list_concat (splits_of_cur_edge, ret);
+            }
+          else
+            {
+              edge_iter = edge_iter->next;
+            }
+
+          /* edge_iter was already advanced above */
+        }
+
+      ret = g_list_concat (new_strut_edges, ret);
+      strut_iter = strut_iter->next;
+    }
+
+  /* Sort the list */
+  ret = g_list_sort (ret, sort_edges);
+
+  return ret;
 }

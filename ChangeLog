@@ -1,3 +1,81 @@
+2005-10-31  Elijah Newren  <newren@gmail.com>
+
+	Add routines to find all the "screen edges" (where struts are
+	considered to be offscreen), plus a thorough testing case.
+
+	* src/boxes.[ch] (meta_rectangle_free_list_and_elements):
+	* src/testboxes.c (test_regions_okay, test_region_fitting,
+	  test_clamping_to_region, test_clipping_to_region,
+	  test_shoving_into_region):
+	* src/workspace.c (meta_workspace_free,
+	  meta_workspace_invalidate_work_area):
+	meta_rectangle_free_spanning_set() was renamed to
+	meta_rectangle_free_list_and_elements()
+
+	* src/boxes.c:
+
+	(meta_rectangle_region_to_string):
+	Output SOMETHING if the list is empty
+
+	(meta_rectangle_edge_to_string, meta_rectangle_edge_list_to_string):
+	new printing functions for edges
+
+	(meta_rectangle_get_minimal_spanning_set_for_region):
+	clean up the overview comment a little
+
+	(struts_are_disjoint):
+	(sort_edges):
+	(edges_overlap):
+	(rectangle_and_edge_intersection):
+	(add_edges):
+	(split_edge):
+	(fix_up_edges):
+	(meta_rectangle_find_onscreen_edges):
+	New functions to do various parts of finding all the screen edges
+
+	* src/boxes.h:
+
+	(BOX_LEFT, BOX_RIGHT, BOX_TOP, BOX_BOTTOM):
+	convenience macros that I should have defined a long time ago
+
+	(enum MetaEdgeType):
+	(struct MetaEdge):
+	new types for edges
+
+	(meta_rectangle_edge_to_string):
+	(meta_rectangle_edge_list_to_string):
+	(meta_rectangle_find_onscreen_edges):
+	new functions
+
+	* src/common.h:
+
+	(enum MetaDirection):
+	direction stuff seems to be used everywhere so add a type here;
+	only used in boxes for now, but add a note explaining several
+	other places where it could be used to remove duplicative enums
+
+	* src/testboxes.c:
+
+	(new_onscreen_edge):
+	(verify_edge_lists_are_equal):
+	(test_find_onscreen_edges):
+	new functions for testing the new "screen edge" finding abilities
+
+	(main):
+	add test_find_onscreen_edges() to the list
+
+	(get_strut_list):
+	new function factored out from get_screen_region()
+
+	(get_screen_region):
+	call get_strut_list() since it now has most of the code this
+	function used to have.
+
+	(get_screen_edges):
+	new function to compute the screen edges using the struts in
+	get_strut_list() and the meta_rectangle_find_onscreen_edges()
+	function.
+
 2005-10-28  Elijah Newren  <newren@gmail.com>
 
 	Three major changes: (1) Caching the spanning_rectangles in each

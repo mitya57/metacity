@@ -23,6 +23,7 @@
 #define META_BOXES_H
 
 #include <glib.h>
+#include "common.h"
 
 typedef struct _MetaRectangle MetaRectangle;
 
@@ -34,13 +35,10 @@ struct _MetaRectangle
   int height;
 };
 
-typedef enum
-{
-  META_RECTANGLE_LEFT      = 1 << 0,
-  META_RECTANGLE_RIGHT     = 1 << 1,
-  META_RECTANGLE_TOP       = 1 << 2,
-  META_RECTANGLE_BOTTOM    = 1 << 3
-} MetaRectDirection;
+#define BOX_LEFT(box)    ((box).x)                /* Leftmost pixel of rect */
+#define BOX_RIGHT(box)   ((box).x + (box).width)  /* One pixel past right   */
+#define BOX_TOP(box)     ((box).y)                /* Topmost pixel of rect  */
+#define BOX_BOTTOM(box)  ((box).y + (box).height) /* One pixel past bottom  */
 
 typedef enum
 {
@@ -48,13 +46,36 @@ typedef enum
   FIXED_DIRECTION_Y = 1 << 1,
 } FixedDirections;
 
+typedef enum
+{
+  META_EDGE_WINDOW,
+  META_EDGE_XINERAMA,
+  META_EDGE_ONSCREEN
+} MetaEdgeType;
+
+typedef struct _MetaEdge MetaEdge;
+struct _MetaEdge
+{
+  MetaRectangle rect;      /* width or height should be 1 */
+  MetaDirection side_type; /* should only have 1 of the 4 directions set */
+  MetaEdgeType  edge_type;
+};
+
 /* Output functions -- note that the output buffer had better be big enough:
- *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
  *   rect_to_string:   1 + 24
+ *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
+ *   edge_to_string:   1 + 24 + 10
+ *   edge_list_to_...: 1 + (36+strlen(sep..._string))*g_list_length (edge_list)
  */
 char* meta_rectangle_to_string        (const MetaRectangle *rect,
                                        char                *output);
 char* meta_rectangle_region_to_string (GList               *region,
+                                       const char          *separator_string,
+                                       char                *output);
+char* meta_rectangle_edge_to_string   (const MetaEdge      *edge,
+                                       char                *output);
+char* meta_rectangle_edge_list_to_string (
+                                       GList               *edge_list,
                                        const char          *separator_string,
                                        char                *output);
 
@@ -125,10 +146,16 @@ GList*   meta_rectangle_expand_region   (GList               *region,
                                          const int            bottom_expand);
 
 /* Free the list created by
- * meta_rectangle_get_minimal_spanning_set_for_region()
+ *   meta_rectangle_get_minimal_spanning_set_for_region()
+ * or
+ *   meta_rectangle_find_onscreen_edges ()
  */
-void     meta_rectangle_free_spanning_set (GList *spanning_rects);
+void     meta_rectangle_free_list_and_elements (GList *filled_list);
 
+/* could_fit_in_region determines whether one of the spanning_rects is
+ * big enough to contain rect.  contained_in_region checks whether one
+ * actually contains it.
+ */
 gboolean meta_rectangle_could_fit_in_region (
                                          const GList         *spanning_rects,
                                          const MetaRectangle *rect);
@@ -168,5 +195,12 @@ void meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
                                                      double x2,    double y2,
                                                      double px,    double py,
                                                      double *valx, double *valy);
+
+/* Finds all the edges of an onscreen region, returning a GList* of
+ * MetaEdgeRect's.
+ */
+GList*
+meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
+                                    const GSList        *all_struts);
 
 #endif /* META_BOXES_H */
