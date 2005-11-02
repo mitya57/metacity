@@ -1191,23 +1191,20 @@ static gboolean
 edges_overlap (const MetaEdge *edge1,
                const MetaEdge *edge2)
 {
-  switch (edge1->side_type)
+  if (edge1->rect.width == 0 && edge2->rect.width == 0)
     {
-    case META_DIRECTION_LEFT:
-    case META_DIRECTION_RIGHT:
-      return (edge2->side_type == META_DIRECTION_LEFT || 
-              edge2->side_type == META_DIRECTION_RIGHT)               &&
-             meta_rectangle_vert_overlap (&edge1->rect, &edge2->rect) &&
+      return meta_rectangle_vert_overlap (&edge1->rect, &edge2->rect) &&
              edge1->rect.x == edge2->rect.x;
-    case META_DIRECTION_TOP:
-    case META_DIRECTION_BOTTOM:
-      return (edge2->side_type == META_DIRECTION_TOP || 
-              edge2->side_type == META_DIRECTION_BOTTOM)               &&
-             meta_rectangle_horiz_overlap (&edge1->rect, &edge2->rect) &&
+    }
+  else if (edge1->rect.height == 0 && edge2->rect.height == 0)
+    {
+      return meta_rectangle_horiz_overlap (&edge1->rect, &edge2->rect) &&
              edge1->rect.y == edge2->rect.y;
     }
-
-  g_assert (0 == 1);
+  else
+    {
+      return FALSE;
+    }
 }
 
 static gboolean
@@ -1220,23 +1217,21 @@ rectangle_and_edge_intersection (const MetaRectangle *rect,
   MetaRectangle *result = &overlap->rect;
   gboolean intersect = TRUE;
 
-  overlap->edge_type = edge->edge_type;
-  overlap->side_type = edge->side_type;
-  
+  /* We don't know how to set these, so set them to invalid values */
+  overlap->edge_type = -1;
+  overlap->side_type = -1;
+
+  /* Figure out what the intersection is */  
   result->x = MAX (rect->x, rect2->x);
   result->y = MAX (rect->y, rect2->y);
   result->width  = MIN (BOX_RIGHT (*rect),  BOX_RIGHT (*rect2))  - result->x;
   result->height = MIN (BOX_BOTTOM (*rect), BOX_BOTTOM (*rect2)) - result->y;
 
-  /* Find out if we didn't get any intersections; have to do it this way since
+  /* Find out if the intersection is empty; have to do it this way since
    * edges have a thickness of 0
    */
-  if (((edge->side_type == META_DIRECTION_TOP ||
-        edge->side_type == META_DIRECTION_BOTTOM) &&
-       (result->width <= 0 || result->height <  0)) ||
-      ((edge->side_type == META_DIRECTION_LEFT ||
-        edge->side_type == META_DIRECTION_RIGHT) &&
-       (result->width <  0 || result->height <= 0)))
+  if ((result->width < 0 || result->height < 0) ||
+      (result->width == 0 && result->height == 0))
     {
       result->width = 0;
       result->height = 0;

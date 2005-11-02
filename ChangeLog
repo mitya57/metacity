@@ -1,3 +1,13 @@
+2005-11-01  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: Add more ideas mostly relating to edge
+	resistance just to ensure I don't forget them, make sure I don't
+	forget the important edge resistance and documentation things to
+	cover
+
+	* src/boxes.c (edges_overlap, rectangle_and_edge_intersection):
+	some basic code simplifications and a couple more comments
+
 2005-10-31  Elijah Newren  <newren@gmail.com>
 
 	Add routines to find all the "screen edges" (where struts are

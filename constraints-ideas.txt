@@ -64,6 +64,39 @@ Short-term (I hope...) TODO list/reminders:
     timeout-resistance be much larger for the screen edges, (e) it may be
     difficult determining where the screen edges are
 
+  - Various extra random ideas
+    - Could make edge resistance infinite if move/resize was
+      click-on-titlebar-area activated (or perhaps just if the
+      grab_anchor_root_(x|y) is in the titlebar area?)
+    - Could get rid of the big comment at the beginning of
+      meta_rectangle_get_minimal_spanning_set_for_region()
+    - checking for obscured edges could make use of boxes.c:split_edge()
+    - when timeout fires, edge-resistance for _any_ edge should be disabled
+      until the mouse moves at least <threshold> pixels (from
+      last_motion_(x|y) or edge resisted x,y?)
+    X check if test_find_onscreen_edges() passes when struts are disjoint
+    X change edges_overlap() to not depend on type (allow undefined type;
+      just check thicknesses)
+
+  - Important edge resistance points
+    - Both moving and resizing
+    - Real edges, not workarea
+    - Screen vs. xinerama vs. window edges
+    - 0-distance magnetism + resistance
+    - pixel-distance, timeouts (mouse only), build-up (keyboard only)
+    - ignore unseen edges
+    - cache edges
+    - put all this functionality into on common location
+
+  - Important documentation points
+    - All fields of ConstraintsInfo struct
+    - Inner vs Outer window
+    - meta_window_move_resize_internal() and other changes
+    - priority structure
+    - basic function addition
+    - spanning rects
+    - boxes.[ch] & testboxes.c
+
   - Need to clean out lots of FIXMEs in the code.
 
   - Need to do the titlebar offscreen checking, partial maximization, etc.
@@ -255,7 +288,7 @@ Bugs to fix:
     122670  - jerky/random resizing of windows via keyboard
               (drop extra events -- not really needed)
      81704  - edge magnetism/resistance/snapping/etc.
-    151842  - maximize to fill feature...
+    151842  - maximize to fill feature (gripe: patch doesn't do maximal grow)
     302456  - dragging offscreen too restrictive
     308521  - better alt-middle-drag resizing
 
