@@ -1,3 +1,15 @@
+2005-11-04  Elijah Newren  <newren@gmail.com>
+
+	Cache screen and xinerama edges for edge resistance/snapping at
+	the same time the workarea and on-screen/on-xinerama areas are
+	computed.
+
+	* src/workspace.[ch] (struct MetaWorkspace, meta_workspace_new,
+	  meta_workspace_free, meta_workspace_invalidate_work_area,
+	  ensure_work_areas_validated):
+	add new screen_edges and xinerama_edges data fields to the
+	workspace
+
 2005-11-03  Elijah Newren  <newren@gmail.com>
 
 	Add routines to find all the edges between adjacent xineramas,

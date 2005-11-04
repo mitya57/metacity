@@ -65,6 +65,8 @@ meta_workspace_new (MetaScreen *screen)
 
   workspace->screen_region = NULL;
   workspace->xinerama_region = NULL;
+  workspace->screen_edges = NULL;
+  workspace->xinerama_edges = NULL;
 
   workspace->all_struts = NULL;
 
@@ -116,6 +118,8 @@ meta_workspace_free (MetaWorkspace *workspace)
     meta_rectangle_free_list_and_elements (workspace->xinerama_region[i]);
   g_free (workspace->xinerama_region);
   meta_rectangle_free_list_and_elements (workspace->screen_region);
+  meta_rectangle_free_list_and_elements (workspace->screen_edges);
+  meta_rectangle_free_list_and_elements (workspace->xinerama_edges);
 
   g_free (workspace);
 
@@ -455,8 +459,12 @@ meta_workspace_invalidate_work_area (MetaWorkspace *workspace)
     meta_rectangle_free_list_and_elements (workspace->xinerama_region[i]);
   g_free (workspace->xinerama_region);
   meta_rectangle_free_list_and_elements (workspace->screen_region);
+  meta_rectangle_free_list_and_elements (workspace->screen_edges);
+  meta_rectangle_free_list_and_elements (workspace->xinerama_edges);
   workspace->xinerama_region = NULL;
   workspace->screen_region = NULL;
+  workspace->screen_edges = NULL;
+  workspace->xinerama_edges = NULL;
   
   workspace->work_areas_invalid = TRUE;
 
@@ -498,6 +506,8 @@ ensure_work_areas_validated (MetaWorkspace *workspace)
   g_assert (workspace->all_struts == NULL);
   g_assert (workspace->xinerama_region == NULL);
   g_assert (workspace->screen_region == NULL);
+  g_assert (workspace->screen_edges == NULL);
+  g_assert (workspace->xinerama_edges == NULL);
   
   windows = meta_workspace_list_windows (workspace);
 
@@ -706,6 +716,21 @@ ensure_work_areas_validated (MetaWorkspace *workspace)
       *nonempty_region = workspace->work_area_screen;
       workspace->screen_region = g_list_prepend (NULL, nonempty_region);
     }
+
+  /* Now cache the screen and xinerama edges for edge resistance and snapping */
+  g_assert (workspace->screen_edges    == NULL);
+  g_assert (workspace->xinerama_edges  == NULL);
+  workspace->screen_edges =
+    meta_rectangle_find_onscreen_edges (&workspace->screen->rect,
+                                        workspace->all_struts);
+  tmp = NULL;
+  for (i = 0; i < workspace->screen->n_xinerama_infos; i++)
+    tmp = g_list_prepend (tmp, &workspace->screen->xinerama_infos[i].rect);
+  workspace->xinerama_edges =
+    meta_rectangle_find_nonintersected_xinerama_edges (tmp,
+                                                       workspace->all_struts);
+  g_list_free (tmp);
+
 
   /* We're all done, YAAY!  Record that everything has been validated. */
   workspace->work_areas_invalid = FALSE;

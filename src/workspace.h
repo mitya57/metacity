@@ -46,6 +46,8 @@ struct _MetaWorkspace
   MetaRectangle *work_area_xinerama;
   GList  *screen_region;
   GList  **xinerama_region;
+  GList  *screen_edges;
+  GList  *xinerama_edges;
   GSList *all_struts;
   guint work_areas_invalid : 1;
 
