@@ -79,6 +79,9 @@ char* meta_rectangle_edge_list_to_string (
                                        const char          *separator_string,
                                        char                *output);
 
+/* Function to make initializing a rect with a single line of code easy */
+MetaRectangle                 meta_rect (int x, int y, int width, int height);
+
 /* Basic comparison functions */
 int      meta_rectangle_area            (const MetaRectangle *rect);
 gboolean meta_rectangle_intersect       (const MetaRectangle *src1,
@@ -149,6 +152,8 @@ GList*   meta_rectangle_expand_region   (GList               *region,
  *   meta_rectangle_get_minimal_spanning_set_for_region()
  * or
  *   meta_rectangle_find_onscreen_edges ()
+ * or
+ *   meta_rectangle_find_nonintersected_xinerama_edges()
  */
 void     meta_rectangle_free_list_and_elements (GList *filled_list);
 
@@ -199,8 +204,11 @@ void meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
 /* Finds all the edges of an onscreen region, returning a GList* of
  * MetaEdgeRect's.
  */
-GList*
-meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
-                                    const GSList        *all_struts);
+GList* meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
+                                           const GSList        *all_struts);
+
+GList* meta_rectangle_find_nonintersected_xinerama_edges (
+                                           const GList         *xinerama_rects,
+                                           const GSList        *all_struts);
 
 #endif /* META_BOXES_H */

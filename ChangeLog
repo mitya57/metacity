@@ -1,3 +1,19 @@
+2005-11-03  Elijah Newren  <newren@gmail.com>
+
+	Add routines to find all the edges between adjacent xineramas,
+	minus those intersected by struts.  Includes a thorough testing
+	case.
+
+	* src/boxes.[ch] (meta_rect): new convenience function, moved here
+	from testboxes.c,
+	(meta_rectangle_find_nonintersected_xinerama_edges): new function
+
+	* src/testboxes.c (meta_rect): removed now that it's in boxes.c,
+	(new_xinerama_edge): new helper function to make a xinerama edge,
+	(get_xinerama_edges): new helper function to find a pre-defined
+	set of xinerama edges, (test_find_nonintersected_xinerama_edges):
+	new test function
+
 2005-11-01  Elijah Newren  <newren@gmail.com>
 
 	* constraints-ideas.txt: Add more ideas mostly relating to edge

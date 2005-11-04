@@ -134,6 +134,18 @@ meta_rectangle_edge_list_to_string (GList      *edge_list,
   return output;
 }
 
+MetaRectangle
+meta_rect (int x, int y, int width, int height)
+{
+  MetaRectangle temporary;
+  temporary.x = x;
+  temporary.y = y;
+  temporary.width  = width;
+  temporary.height = height;
+
+  return temporary;
+}
+
 int
 meta_rectangle_area (const MetaRectangle *rect)
 {
@@ -1514,6 +1526,167 @@ meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
         }
 
       ret = g_list_concat (new_strut_edges, ret);
+      strut_iter = strut_iter->next;
+    }
+
+  /* Sort the list */
+  ret = g_list_sort (ret, sort_edges);
+
+  return ret;
+}
+
+GList*
+meta_rectangle_find_nonintersected_xinerama_edges (
+                                    const GList         *xinerama_rects,
+                                    const GSList        *all_struts)
+{
+  /* This function cannot easily be merged with
+   * meta_rectangle_find_onscreen_edges() because real screen edges
+   * and strut edges both are of the type "there ain't anything
+   * immediately on the other side"; xinerama edges are different.
+   */
+  GList *ret;
+  const GList  *cur;
+  const GSList *strut_iter;
+
+  /* Initialize the return list to be empty */
+  ret = NULL;
+
+  /* start of ret with all the edges of xineramas that are adjacent to
+   * another xinerama.
+   */
+  cur = xinerama_rects;
+  while (cur)
+    {
+      MetaRectangle *cur_rect = cur->data;
+      const GList *compare = xinerama_rects;
+      while (compare)
+        {
+          MetaRectangle *compare_rect = compare->data;
+
+          /* Check if cur might be horizontally adjacent to compare */
+          if (meta_rectangle_vert_overlap(cur_rect, compare_rect))
+            {
+              MetaDirection side_type;
+              int y      = MAX (cur_rect->y, compare_rect->y);
+              int height = MIN (BOX_BOTTOM (*cur_rect) - y,
+                                BOX_BOTTOM (*compare_rect) - y);
+              int width  = 0;
+              int x;
+
+              if (BOX_LEFT (*cur_rect)  == BOX_RIGHT (*compare_rect))
+                {
+                  /* compare_rect is to the left of cur_rect */
+                  x = BOX_LEFT (*cur_rect);
+                  side_type = META_DIRECTION_LEFT;
+                }
+              else if (BOX_RIGHT (*cur_rect) == BOX_LEFT (*compare_rect))
+                {
+                  /* compare_rect is to the right of cur_rect */
+                  x = BOX_RIGHT (*cur_rect);
+                  side_type = META_DIRECTION_RIGHT;
+                }
+              else
+                /* These rectangles aren't adjacent after all */
+                x = INT_MIN;
+
+              /* If the rectangles really are adjacent */
+              if (x != INT_MIN)
+                {
+                  /* We need a left edge for the xinerama on the right, and
+                   * a right edge for the xinerama on the left.  Just fill
+                   * up the edges and stick 'em on the list.
+                   */
+                  MetaEdge *new_edge  = g_new (MetaEdge, 1);
+
+                  new_edge->rect = meta_rect (x, y, width, height);
+                  new_edge->side_type = side_type;
+                  new_edge->edge_type = META_EDGE_XINERAMA;
+
+                  ret = g_list_prepend (ret, new_edge);
+                }
+            }
+
+          /* Check if cur might be vertically adjacent to compare */
+          if (meta_rectangle_horiz_overlap(cur_rect, compare_rect))
+            {
+              MetaDirection side_type;
+              int x      = MAX (cur_rect->x, compare_rect->x);
+              int width  = MIN (BOX_RIGHT (*cur_rect) - x,
+                                BOX_RIGHT (*compare_rect) - x);
+              int height = 0;
+              int y;
+
+              if (BOX_TOP (*cur_rect)  == BOX_BOTTOM (*compare_rect))
+                {
+                  /* compare_rect is to the top of cur_rect */
+                  y = BOX_TOP (*cur_rect);
+                  side_type = META_DIRECTION_TOP;
+                }
+              else if (BOX_BOTTOM (*cur_rect) == BOX_TOP (*compare_rect))
+                {
+                  /* compare_rect is to the bottom of cur_rect */
+                  y = BOX_BOTTOM (*cur_rect);
+                  side_type = META_DIRECTION_BOTTOM;
+                }
+              else
+                /* These rectangles aren't adjacent after all */
+                y = INT_MIN;
+
+              /* If the rectangles really are adjacent */
+              if (y != INT_MIN)
+                {
+                  /* We need a top edge for the xinerama on the bottom, and
+                   * a bottom edge for the xinerama on the top.  Just fill
+                   * up the edges and stick 'em on the list.
+                   */
+                  MetaEdge *new_edge = g_new (MetaEdge, 1);
+
+                  new_edge->rect = meta_rect (x, y, width, height);
+                  new_edge->side_type = side_type;
+                  new_edge->edge_type = META_EDGE_XINERAMA;
+
+                  ret = g_list_prepend (ret, new_edge);
+                }
+            }
+
+          compare = compare->next;
+        }
+      cur = cur->next;
+    }
+
+  /* Now remove all intersections of struts with the xinerama edge list */
+  strut_iter = all_struts;
+  while (strut_iter)
+    {
+      MetaRectangle *strut = strut_iter->data;
+      GList *edge_iter = ret;
+      while (edge_iter)
+        {
+          MetaEdge *edge = edge_iter->data;
+          MetaEdge overlap;
+          int      bla;
+
+          /* If this edge overlaps with this strut... */
+          if (rectangle_and_edge_intersection (strut, edge, &overlap, &bla))
+            {
+              /* Keep track of this edge so we can delete it below */
+              GList *delete_me = edge_iter;
+              edge_iter = edge_iter->next;
+
+              /* Split the edge and add the result to the beginning of ret */
+              ret = split_edge (ret, edge, &overlap);
+
+              /* Now free the edge... */
+              g_free (edge);
+              ret = g_list_delete_link (ret, delete_me);
+            }
+          else
+            edge_iter = edge_iter->next;
+
+          /* edge_iter was already advanced above */
+        }
+
       strut_iter = strut_iter->next;
     }
 

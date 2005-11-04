@@ -43,18 +43,6 @@ get_random_rect (MetaRectangle *rect)
   rect->height = rand () % 1200 + 1;
 }
 
-static MetaRectangle
-meta_rect (int x, int y, int width, int height)
-{
-  MetaRectangle temporary;
-  temporary.x = x;
-  temporary.y = y;
-  temporary.width  = width;
-  temporary.height = height;
-
-  return temporary;
-}
-
 static MetaRectangle*
 new_meta_rect (int x, int y, int width, int height)
 {
@@ -79,6 +67,21 @@ new_onscreen_edge (int x, int y, int width, int height, int side_type)
   temporary->rect.height = height;
   temporary->side_type = side_type;
   temporary->edge_type = META_EDGE_ONSCREEN;
+
+  return temporary;
+}
+
+static MetaEdge*
+new_xinerama_edge (int x, int y, int width, int height, int side_type)
+{
+  MetaEdge* temporary;
+  temporary = g_new (MetaEdge, 1);
+  temporary->rect.x = x;
+  temporary->rect.y = y;
+  temporary->rect.width  = width;
+  temporary->rect.height = height;
+  temporary->side_type = side_type;
+  temporary->edge_type = META_EDGE_XINERAMA;
 
   return temporary;
 }
@@ -291,6 +294,46 @@ get_screen_edges (int which)
   struts = get_strut_list (which);
   ret = meta_rectangle_find_onscreen_edges (&basic_rect, struts);
   free_strut_list (struts);
+
+  return ret;
+}
+
+static GList*
+get_xinerama_edges (int which_xinerama_set, int which_strut_set)
+{
+  GList *ret;
+  GSList *struts;
+  GList *xins;
+
+  xins = NULL;
+  g_assert (which_xinerama_set >=0 && which_xinerama_set <= 3);
+  switch (which_xinerama_set)
+    {
+    case 0:
+      xins = g_list_prepend (xins, new_meta_rect (  0,   0, 1600, 1200));
+      break;
+    case 1:
+      xins = g_list_prepend (xins, new_meta_rect (  0,   0,  800, 1200));
+      xins = g_list_prepend (xins, new_meta_rect (800,   0,  800, 1200));
+      break;
+    case 2:
+      xins = g_list_prepend (xins, new_meta_rect (  0,   0, 1600,  600));
+      xins = g_list_prepend (xins, new_meta_rect (  0, 600, 1600,  600));
+      break;
+    case 3:
+      xins = g_list_prepend (xins, new_meta_rect (  0,   0, 1600,  600));
+      xins = g_list_prepend (xins, new_meta_rect (  0, 600,  800,  600));
+      xins = g_list_prepend (xins, new_meta_rect (800, 600,  800,  600));
+      break;
+    }
+
+  ret = NULL;
+
+  struts = get_strut_list (which_strut_set);
+  ret = meta_rectangle_find_nonintersected_xinerama_edges (xins, struts);
+
+  free_strut_list (struts);
+  meta_rectangle_free_list_and_elements (xins);
 
   return ret;
 }
@@ -1035,7 +1078,7 @@ test_find_onscreen_edges ()
   char big_buffer1[1 + (16+FUDGE)*38], big_buffer2[1 + 16*38];
   meta_rectangle_edge_list_to_string (edges, "\n ", big_buffer1);
   meta_rectangle_edge_list_to_string (tmp,   "\n ", big_buffer2);
-  printf("Real edge list:\n %s\nComparison edges list:\n %s\n", 
+  printf("Generated edge list:\n %s\nComparison edges list:\n %s\n", 
          big_buffer1, big_buffer2);
 #endif
 
@@ -1060,6 +1103,94 @@ test_find_onscreen_edges ()
   /* Make sure test region 5 has the correct edges */
   /*************************************************/  
   edges = get_screen_edges (5);
+  tmp = NULL;
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  printf ("%s passed.\n", __PRETTY_FUNCTION__);
+}
+
+static void
+test_find_nonintersected_xinerama_edges ()
+{
+  GList* edges;
+  GList* tmp;
+
+  int left   = META_DIRECTION_LEFT;
+  int right  = META_DIRECTION_RIGHT;
+  int top    = META_DIRECTION_TOP;
+  int bottom = META_DIRECTION_BOTTOM;
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 0 for with region 0 has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (0, 0);
+  tmp = NULL;
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 2 for with region 1 has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (2, 1);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_xinerama_edge (   0,  600, 1600, 0, bottom));
+  tmp = g_list_prepend (tmp, new_xinerama_edge (   0,  600, 1600, 0, top));
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 1 for with region 2 has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (1, 2);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1080, right));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1080, left));
+#if 0
+  #define FUDGE 50
+  char big_buffer1[1 + (16+FUDGE)*38], big_buffer2[1 + 16*38];
+  meta_rectangle_edge_list_to_string (edges, "\n ", big_buffer1);
+  meta_rectangle_edge_list_to_string (tmp,   "\n ", big_buffer2);
+  printf("Generated edge list:\n %s\nComparison edges list:\n %s\n", 
+         big_buffer1, big_buffer2);
+#endif
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 3 for with region 3 has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (3, 3);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 900,  600,  700, 0, bottom));
+  tmp = g_list_prepend (tmp, new_xinerama_edge (   0,  600,  700, 0, bottom));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 900,  600,  700, 0, top));
+  tmp = g_list_prepend (tmp, new_xinerama_edge (   0,  600,  700, 0, top));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  675, 0,  425, right));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  675, 0,  425, left));
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 3 for with region 4 has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (3, 4);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  600,  800, 0, bottom));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  600,  800, 0, top));
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************************************/  
+  /* Make sure test xinerama set 3 for with region 5has the correct edges */
+  /*************************************************************************/  
+  edges = get_xinerama_edges (3, 5);
   tmp = NULL;
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
@@ -1240,6 +1371,7 @@ main()
 
   /* And now the functions dealing with edges more than boxes */
   test_find_onscreen_edges ();
+  test_find_nonintersected_xinerama_edges ();
 
   /* And now the misfit functions that don't quite fit in anywhere else... */
   test_gravity_resize ();
