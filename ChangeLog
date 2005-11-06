@@ -1,8 +1,43 @@
+2005-11-06  Elijah Newren  <newren@gmail.com>
+
+	Compute the non-obscured normal window edges for edge
+	resistance/snapping.  Not yet used, but one more step is done.  :)
+
+	* src/boxes.[ch]:
+
+	(meta_rectangle_edge_cmp, meta_rectangle_find_onscreen_edges,
+	  meta_rectangle_find_nonintersected_xinerama_edges):
+	rename sort_edges to meta_rectangle_edge_cmp
+
+	(meta_rectangle_remove_intersections_with_boxes_from_edges,
+	  meta_rectangle_find_nonintersected_xinerama_edges):
+	split out some common functionality from
+	meta_rectangle_find_nonintersected_xinerama_edges() into the new
+	meta_rectangle_remove_intersections_with_boxes_from_edges()
+
+	* src/testboxes.c:
+
+	(test_find_nonintersected_xinerama_edges):
+	correct a couple tests
+
+	* src/display.c
+
+	(meta_display_begin_grab_op):
+	add a call to meta_display_compute_resistance_and_snapping_edges()
+	for moving/resizing operations
+
+	(WINDOW_EDGE_RELEVANT):
+	new macro for whether a window's edges should be considered
+	relevant in computing window eges
+
+	(meta_display_compute_resistance_and_snapping_edges):
+	new function
+
 2005-11-04  Elijah Newren  <newren@gmail.com>
 
-	Cache screen and xinerama edges for edge resistance/snapping at
-	the same time the workarea and on-screen/on-xinerama areas are
-	computed.
+	Compute screen and xinerama edges for edge resistance/snapping
+	when we compute the workarea and on-screen/on-xinerama areas, and
+	then cache them.
 
 	* src/workspace.[ch] (struct MetaWorkspace, meta_workspace_new,
 	  meta_workspace_free, meta_workspace_invalidate_work_area,

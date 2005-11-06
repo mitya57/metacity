@@ -477,8 +477,6 @@ typedef enum
 {
   META_TAB_LIST_NORMAL,
   META_TAB_LIST_DOCKS
-  
-
 } MetaTabList;
 
 GList* meta_display_get_tab_list (MetaDisplay   *display,

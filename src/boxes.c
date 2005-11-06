@@ -1156,8 +1156,8 @@ struts_are_disjoint (const GSList *struts)
 }
 
 /* To make things easily testable, provide a nice way of sorting edges */
-static gint
-sort_edges (gconstpointer a, gconstpointer b)
+gint
+meta_rectangle_edge_cmp (gconstpointer a, gconstpointer b)
 {
   const MetaEdge *a_edge_rect = (gconstpointer) a;
   const MetaEdge *b_edge_rect = (gconstpointer) b;
@@ -1450,6 +1450,71 @@ fix_up_edges (MetaRectangle *strut,        MetaEdge *edge,
     }
 }
 
+/* This function removes intersections of edges with the rectangles from the
+ * list of edges.
+ */
+GList*
+meta_rectangle_remove_intersections_with_boxes_from_edges (
+  GList        *edges,
+  const GSList *rectangles,
+  gboolean      rectangles_are_struts)
+{
+  const GSList *rect_iter;
+  const int opposing = rectangles_are_struts ? 1 : -1;
+
+  /* Now remove all intersections of rectangles with the edge list */
+  rect_iter = rectangles;
+  while (rect_iter)
+    {
+      MetaRectangle *rect = rect_iter->data;
+      GList *edge_iter = edges;
+      while (edge_iter)
+        {
+          MetaEdge *edge = edge_iter->data;
+          MetaEdge overlap;
+          int      handle;
+          gboolean edge_iter_advanced = FALSE;
+
+          /* If this edge overlaps with this rect... */
+          if (rectangle_and_edge_intersection (rect, edge, &overlap, &handle))
+            {
+
+              /* "Intersections" where the edges touch but are opposite
+               * sides (e.g. a left edge against the right side of a rect)
+               * should not be split.  For normal windows, these "opposing"
+               * edges occur when handle is -1.  Struts are weird, because
+               * we consider the left edge of a strut to be a right screen
+               * edge -- meaning that "opposing" edges occur when handle is
+               * 1.  To make this all work, we use the opposing constant
+               * set up above and if handle isn't equal to that, then we
+               * know the edge should be split.
+               */
+              if (handle != opposing)
+                {
+                  /* Keep track of this edge so we can delete it below */
+                  GList *delete_me = edge_iter;
+                  edge_iter = edge_iter->next;
+                  edge_iter_advanced = TRUE;
+
+                  /* Split the edge and add the result to beginning of edges */
+                  edges = split_edge (edges, edge, &overlap);
+
+                  /* Now free the edge... */
+                  g_free (edge);
+                  edges = g_list_delete_link (edges, delete_me);
+                }
+            }
+
+          if (!edge_iter_advanced)
+            edge_iter = edge_iter->next;
+        }
+
+      rect_iter = rect_iter->next;
+    }
+
+  return edges;
+}
+
 /* This function is trying to find all the edges of an onscreen region. */
 GList*
 meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
@@ -1530,7 +1595,7 @@ meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
     }
 
   /* Sort the list */
-  ret = g_list_sort (ret, sort_edges);
+  ret = g_list_sort (ret, meta_rectangle_edge_cmp);
 
   return ret;
 }
@@ -1547,7 +1612,6 @@ meta_rectangle_find_nonintersected_xinerama_edges (
    */
   GList *ret;
   const GList  *cur;
-  const GSList *strut_iter;
 
   /* Initialize the return list to be empty */
   ret = NULL;
@@ -1655,43 +1719,12 @@ meta_rectangle_find_nonintersected_xinerama_edges (
       cur = cur->next;
     }
 
-  /* Now remove all intersections of struts with the xinerama edge list */
-  strut_iter = all_struts;
-  while (strut_iter)
-    {
-      MetaRectangle *strut = strut_iter->data;
-      GList *edge_iter = ret;
-      while (edge_iter)
-        {
-          MetaEdge *edge = edge_iter->data;
-          MetaEdge overlap;
-          int      bla;
-
-          /* If this edge overlaps with this strut... */
-          if (rectangle_and_edge_intersection (strut, edge, &overlap, &bla))
-            {
-              /* Keep track of this edge so we can delete it below */
-              GList *delete_me = edge_iter;
-              edge_iter = edge_iter->next;
-
-              /* Split the edge and add the result to the beginning of ret */
-              ret = split_edge (ret, edge, &overlap);
-
-              /* Now free the edge... */
-              g_free (edge);
-              ret = g_list_delete_link (ret, delete_me);
-            }
-          else
-            edge_iter = edge_iter->next;
-
-          /* edge_iter was already advanced above */
-        }
-
-      strut_iter = strut_iter->next;
-    }
+  ret = meta_rectangle_remove_intersections_with_boxes_from_edges (ret, 
+                                                                   all_struts,
+                                                                   TRUE);
 
   /* Sort the list */
-  ret = g_list_sort (ret, sort_edges);
+  ret = g_list_sort (ret, meta_rectangle_edge_cmp);
 
   return ret;
 }

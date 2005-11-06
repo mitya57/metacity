@@ -1148,7 +1148,7 @@ test_find_nonintersected_xinerama_edges ()
   edges = get_xinerama_edges (1, 2);
   tmp = NULL;
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1080, right));
-  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1080, left));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1180, left));
 #if 0
   #define FUDGE 50
   char big_buffer1[1 + (16+FUDGE)*38], big_buffer2[1 + 16*38];
@@ -1171,7 +1171,7 @@ test_find_nonintersected_xinerama_edges ()
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 900,  600,  700, 0, top));
   tmp = g_list_prepend (tmp, new_xinerama_edge (   0,  600,  700, 0, top));
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  675, 0,  425, right));
-  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  675, 0,  425, left));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  675, 0,  525, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
@@ -1183,6 +1183,7 @@ test_find_nonintersected_xinerama_edges ()
   tmp = NULL;
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  600,  800, 0, bottom));
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  600,  800, 0, top));
+  tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,  600,  0, 600, right));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);

@@ -201,12 +201,34 @@ void meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
                                                      double px,    double py,
                                                      double *valx, double *valy);
 
+/***************************************************************************/
+/*                                                                         */
+/* Switching gears to code for edges instead of just rectangles            */
+/*                                                                         */
+/***************************************************************************/
+
+/* Compare two edges, so that sorting functions can put a list of edges in
+ * canonical order.
+ */
+gint   meta_rectangle_edge_cmp (gconstpointer a, gconstpointer b);
+
+/* Removes an parts of edges in the given list that intersect any box in the
+ * given rectangle list.  Returns the result.
+ */
+GList* meta_rectangle_remove_intersections_with_boxes_from_edges (
+                                           GList *edges,
+                                           const GSList *rectangles,
+                                           gboolean      rectangles_are_struts);
+
 /* Finds all the edges of an onscreen region, returning a GList* of
  * MetaEdgeRect's.
  */
 GList* meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
                                            const GSList        *all_struts);
 
+/* Finds edges between adjacent xineramas which are not covered by the given
+ * struts.
+ */
 GList* meta_rectangle_find_nonintersected_xinerama_edges (
                                            const GList         *xinerama_rects,
                                            const GSList        *all_struts);
