@@ -217,8 +217,7 @@ gint   meta_rectangle_edge_cmp (gconstpointer a, gconstpointer b);
  */
 GList* meta_rectangle_remove_intersections_with_boxes_from_edges (
                                            GList *edges,
-                                           const GSList *rectangles,
-                                           gboolean      rectangles_are_struts);
+                                           const GSList *rectangles);
 
 /* Finds all the edges of an onscreen region, returning a GList* of
  * MetaEdgeRect's.

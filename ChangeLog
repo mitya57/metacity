@@ -1,3 +1,21 @@
+2005-11-07  Elijah Newren  <newren@gmail.com>
+
+	* src/boxes.[ch]:
+
+	(meta_rectangle_remove_intersections_with_boxes_from_edges):
+	remove rectangles_are_struts parameter as we in general want left
+	sides of windows to be treated as resisting the right edge of the
+	moving window -- i.e. everything is treated the same as struts.
+
+	* src/display.c:
+
+	(compute_resistance_and_snapping_edges):
+	note that left sides of windows are considered right edges because
+	that's what the right side of the moving window will be
+	resisted-by/snapped-to (and similarly for all the other edges),
+	combine the obscuring_windows and obscuring_docks as made possible
+	by this change
+
 2005-11-06  Elijah Newren  <newren@gmail.com>
 
 	Cache (and sort) all the edges in some nice arrays for quick

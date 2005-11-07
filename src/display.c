@@ -3974,12 +3974,11 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
   GList *edges;
   /* Lists of window positions (rects) and their relative stacking positions */
   int stack_position;
-  GSList *obscuring_windows, *obscuring_docks;
-  GSList *window_stacking, *dock_stacking;
+  GSList *obscuring_windows, *window_stacking;
   /* The portions of the above lists that still remain at the stacking position
    * in the layer that we are working on
    */
-  GSList *rem_windows, *rem_docks, *rem_win_stacking, *rem_dock_stacking;
+  GSList *rem_windows, *rem_win_stacking;
 
   /*
    * 1st: Get the list of relevant windows, from bottom to top
@@ -3989,13 +3988,12 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
                              display->grab_screen->active_workspace);
 
   /*
-   * 2nd: we need to separate that stacked list into a list of normal
-   * windows that can obscure other edges, and a list of docks that can
-   * obscure the edges of other windows.  To make sure we only have windows
-   * obscuring those below it instead of going both ways, we also need to
-   * keep some counter lists.  Messy, I know.
+   * 2nd: we need to separate that stacked list into a list of windows that
+   * can obscure other edges.  To make sure we only have windows obscuring
+   * those below it instead of going both ways, we also need to keep a
+   * counter list.  Messy, I know.
    */
-  obscuring_windows = obscuring_docks = window_stacking = dock_stacking = NULL;
+  obscuring_windows = window_stacking = NULL;
   cur_window_iter = stacked_windows;
   stack_position = 0;
   while (cur_window_iter != NULL)
@@ -4006,20 +4004,9 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
           MetaRectangle *new_rect;
           new_rect = g_new (MetaRectangle, 1);
           meta_window_get_outer_rect (cur_window, new_rect);
-          if (cur_window->type != META_WINDOW_DOCK)
-            {
-              obscuring_windows = g_slist_prepend (obscuring_windows, new_rect);
-              window_stacking = 
-                g_slist_prepend (window_stacking, 
-                                 GINT_TO_POINTER (stack_position));
-            }
-          else
-            {
-              obscuring_docks = g_slist_prepend (obscuring_docks, new_rect);
-              dock_stacking = 
-                g_slist_prepend (dock_stacking, 
-                                 GINT_TO_POINTER (stack_position));
-            }
+          obscuring_windows = g_slist_prepend (obscuring_windows, new_rect);
+          window_stacking = 
+            g_slist_prepend (window_stacking, GINT_TO_POINTER (stack_position));
         }
 
       stack_position++;
@@ -4027,9 +4014,7 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
     }
   /* Put 'em in bottom to top order */
   rem_windows       = g_slist_reverse (obscuring_windows);
-  rem_docks         = g_slist_reverse (obscuring_docks);
   rem_win_stacking  = g_slist_reverse (window_stacking);
-  rem_dock_stacking = g_slist_reverse (dock_stacking);
 
   /*
    * 3rd: loop over the windows again, this time getting the edges from
@@ -4066,37 +4051,45 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
 
           new_edges = NULL;
 
-          /* Add left edge */
+          /* Left side of this window is resistance for the right edge of
+           * the window being moved.
+           */
           new_edge = g_new (MetaEdge, 1);
           new_edge->rect = reduced;
-          new_edge->rect.width = 0;
-          new_edge->side_type = META_DIRECTION_LEFT;
-          new_edge->edge_type = META_EDGE_WINDOW;
-          new_edges = g_list_prepend (new_edges, new_edge);
-
-          /* Add right edge */
-          new_edge = g_new (MetaEdge, 1);
-          new_edge->rect = reduced;
-          new_edge->rect.x += new_edge->rect.width;
           new_edge->rect.width = 0;
           new_edge->side_type = META_DIRECTION_RIGHT;
           new_edge->edge_type = META_EDGE_WINDOW;
           new_edges = g_list_prepend (new_edges, new_edge);
+
+          /* Right side of this window is resistance for the left edge of
+           * the window being moved.
+           */
+          new_edge = g_new (MetaEdge, 1);
+          new_edge->rect = reduced;
+          new_edge->rect.x += new_edge->rect.width;
+          new_edge->rect.width = 0;
+          new_edge->side_type = META_DIRECTION_LEFT;
+          new_edge->edge_type = META_EDGE_WINDOW;
+          new_edges = g_list_prepend (new_edges, new_edge);
           
-          /* Add top edge */
+          /* Top side of this window is resistance for the bottom edge of
+           * the window being moved.
+           */
           new_edge = g_new (MetaEdge, 1);
           new_edge->rect = reduced;
           new_edge->rect.height = 0;
-          new_edge->side_type = META_DIRECTION_TOP;
+          new_edge->side_type = META_DIRECTION_BOTTOM;
           new_edge->edge_type = META_EDGE_WINDOW;
           new_edges = g_list_prepend (new_edges, new_edge);
 
-          /* Add bottom edge */
+          /* Top side of this window is resistance for the bottom edge of
+           * the window being moved.
+           */
           new_edge = g_new (MetaEdge, 1);
           new_edge->rect = reduced;
           new_edge->rect.y += new_edge->rect.height;
           new_edge->rect.height = 0;
-          new_edge->side_type = META_DIRECTION_BOTTOM;
+          new_edge->side_type = META_DIRECTION_TOP;
           new_edge->edge_type = META_EDGE_WINDOW;
           new_edges = g_list_prepend (new_edges, new_edge);
 
@@ -4109,24 +4102,12 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
               rem_windows      = rem_windows->next;
               rem_win_stacking = rem_win_stacking->next;
             }
-          while (rem_dock_stacking && 
-                 stack_position >= (int)rem_dock_stacking->data)
-            {
-              rem_docks         = rem_docks->next;
-              rem_dock_stacking = rem_dock_stacking->next;
-            }
 
           /* Remove edge portions overlapped by rem_windows and rem_docks */
           new_edges = 
             meta_rectangle_remove_intersections_with_boxes_from_edges (
               new_edges,
-              rem_windows,
-              FALSE);
-          new_edges = 
-            meta_rectangle_remove_intersections_with_boxes_from_edges (
-              new_edges,
-              rem_docks,
-              TRUE);
+              rem_windows);
 
           /* Save the new edges */
           edges = g_list_concat (new_edges, edges);
@@ -4141,7 +4122,6 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
    */
   /* Free the memory used by the obscuring windows/docks lists */
   g_slist_free (window_stacking);
-  g_slist_free (dock_stacking);
   /* FIXME: Shouldn't there be a helper function to make this one line of code
    * to free a list instead of four ugly ones?
    */
@@ -4149,10 +4129,6 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
                    (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
                    NULL);
   g_slist_free (obscuring_windows);
-  g_slist_foreach (obscuring_docks, 
-                   (void (*)(gpointer,gpointer))&g_free, /* ew, for ugly */
-                   NULL);
-  g_slist_free (obscuring_docks);
 
   /* Sort the list.  FIXME: Should I bother with this sorting?  I just
    * sort again later in cache_edges() anyway...

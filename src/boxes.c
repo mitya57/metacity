@@ -1456,11 +1456,10 @@ fix_up_edges (MetaRectangle *strut,        MetaEdge *edge,
 GList*
 meta_rectangle_remove_intersections_with_boxes_from_edges (
   GList        *edges,
-  const GSList *rectangles,
-  gboolean      rectangles_are_struts)
+  const GSList *rectangles)
 {
   const GSList *rect_iter;
-  const int opposing = rectangles_are_struts ? 1 : -1;
+  const int opposing = 1;
 
   /* Now remove all intersections of rectangles with the edge list */
   rect_iter = rectangles;
@@ -1480,14 +1479,16 @@ meta_rectangle_remove_intersections_with_boxes_from_edges (
             {
 
               /* "Intersections" where the edges touch but are opposite
-               * sides (e.g. a left edge against the right side of a rect)
-               * should not be split.  For normal windows, these "opposing"
-               * edges occur when handle is -1.  Struts are weird, because
-               * we consider the left edge of a strut to be a right screen
-               * edge -- meaning that "opposing" edges occur when handle is
-               * 1.  To make this all work, we use the opposing constant
-               * set up above and if handle isn't equal to that, then we
-               * know the edge should be split.
+               * sides (e.g. a left edge against the right edge) should not
+               * be split.  Note that the comments in
+               * rectangle_and_edge_intersection() say that opposing edges
+               * occur when handle is -1, BUT you need to remember that we
+               * treat the left side of a window as a right edge because
+               * it's what the right side of the window being moved should
+               * be-resisted-by/snap-to.  So opposing is really 1.  Anyway,
+               * we just keep track of it in the opposing constant set up
+               * above and if handle isn't equal to that, then we know the
+               * edge should be split.
                */
               if (handle != opposing)
                 {
@@ -1720,8 +1721,7 @@ meta_rectangle_find_nonintersected_xinerama_edges (
     }
 
   ret = meta_rectangle_remove_intersections_with_boxes_from_edges (ret, 
-                                                                   all_struts,
-                                                                   TRUE);
+                                                                   all_struts);
 
   /* Sort the list */
   ret = g_list_sort (ret, meta_rectangle_edge_cmp);
