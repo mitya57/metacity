@@ -1,5 +1,41 @@
 2005-11-06  Elijah Newren  <newren@gmail.com>
 
+	Cache (and sort) all the edges in some nice arrays for quick
+	access.  Clean them up when the grab op ends.
+
+	* src/display.[ch]:
+
+	(struct MetaDisplay):
+	add a grab_edge_resistance_data field for caching information
+	relevant for edge resistance
+	
+	* src/display.c:
+
+	(struct MetaEdgeResistanceData):
+	new struct where we cache all these edges in a nice sorted way
+
+	(cleanup_edges):
+	new function
+
+	(meta_display_end_grab_op):
+	if it's a move or resize operation, call cleanup_edges()
+
+	(stupid_sort_requiring_extra_pointer_dereference):
+	simple helper function for cache_edges()
+
+	(cache_edges):
+	new function -- make arrays for each of the edges types, fill them
+	up, and sort them
+
+	(compute_resistance_and_snapping_edges):
+	make sure to cache the edges and then free the temporary window
+	edge list now that the data is in the cache
+
+	(meta_display_open):
+	initialize grab_edge_resistance_data to NULL too
+
+2005-11-06  Elijah Newren  <newren@gmail.com>
+
 	Compute the non-obscured normal window edges for edge
 	resistance/snapping.  Not yet used, but one more step is done.  :)
 

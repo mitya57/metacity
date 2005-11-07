@@ -57,6 +57,8 @@ typedef struct _MetaWorkspace  MetaWorkspace;
 typedef struct _MetaWindowPropHooks MetaWindowPropHooks;
 typedef struct _MetaGroupPropHooks  MetaGroupPropHooks;
 
+typedef struct MetaEdgeResistanceData MetaEdgeResistanceData;
+
 typedef void (* MetaWindowPingFunc) (MetaDisplay *display,
 				     Window       xwindow,
 				     Time         timestamp,
@@ -267,6 +269,7 @@ struct _MetaDisplay
   int         grab_wireframe_last_display_width;
   int         grab_wireframe_last_display_height;
   GList*      grab_old_window_stacking;
+  MetaEdgeResistanceData *grab_edge_resistance_data;
   
   /* we use property updates as sentinels for certain window focus events
    * to avoid some race conditions on EnterNotify events

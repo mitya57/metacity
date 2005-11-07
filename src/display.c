@@ -89,6 +89,25 @@ typedef struct
   Window xwindow;
 } MetaAutoRaiseData;
 
+/* A simple macro for whether a given window's edges are potentially
+ * relevant for resistance/snapping during a move/resize operation
+ */
+#define WINDOW_EDGES_RELEVANT(window, display) \
+  meta_window_should_be_showing (window) &&    \
+  window->screen == display->grab_screen &&    \
+  window         != display->grab_window &&    \
+  window->type   != META_WINDOW_DESKTOP &&     \
+  window->type   != META_WINDOW_MENU    &&     \
+  window->type   != META_WINDOW_SPLASHSCREEN
+
+struct MetaEdgeResistanceData
+{
+  GArray *left_edges;
+  GArray *right_edges;
+  GArray *top_edges;
+  GArray *bottom_edges;
+};
+
 static GSList *all_displays = NULL;
 
 static void   meta_spew_event           (MetaDisplay    *display,
@@ -121,6 +140,7 @@ static void    prefs_changed_callback    (MetaPreference pref,
 static void    sanity_check_timestamps   (MetaDisplay *display,
                                           Time         known_good_timestamp);
 static void    compute_resistance_and_snapping_edges (MetaDisplay *display);
+static void    cleanup_edges                         (MetaDisplay *display);
 
 
 static void
@@ -529,6 +549,8 @@ meta_display_open (const char *name)
   display->grab_window = NULL;
   display->grab_screen = NULL;
   display->grab_resize_popup = NULL;
+
+  display->grab_edge_resistance_data = NULL;
 
 #ifdef HAVE_XSYNC
   {
@@ -3457,6 +3479,15 @@ meta_display_end_grab_op (MetaDisplay *display,
       display->ungrab_should_not_cause_focus_window = display->grab_xwindow;
     }
   
+  /* If this was a move or resize clear out the edge cache */
+  if (meta_grab_op_is_resizing (display->grab_op) || 
+      meta_grab_op_is_moving (display->grab_op))
+    {
+      meta_topic (META_DEBUG_WINDOW_OPS,
+                  "Clearing out the edges for resistance/snapping");
+      cleanup_edges (display);
+    }
+
   if (display->grab_old_window_stacking != NULL)
     {
       meta_topic (META_DEBUG_WINDOW_OPS,
@@ -3737,13 +3768,203 @@ meta_display_ungrab_focus_window_button (MetaDisplay *display,
   }
 }
 
-#define WINDOW_EDGES_RELEVANT(window, display) \
-  meta_window_should_be_showing (window) &&    \
-  window->screen == display->grab_screen &&    \
-  window         != display->grab_window &&    \
-  window->type   != META_WINDOW_DESKTOP &&     \
-  window->type   != META_WINDOW_MENU    &&     \
-  window->type   != META_WINDOW_SPLASHSCREEN
+static void
+cleanup_edges (MetaDisplay *display)
+{
+  g_assert (display->grab_edge_resistance_data != NULL);
+  guint i,j;
+
+  /* We first need to clean out any window edges */
+  for (i = 0; i < 4; i++)
+    {
+      GArray *tmp = NULL;
+      switch (i)
+        {
+        case 0:
+          tmp = display->grab_edge_resistance_data->left_edges;
+          break;
+        case 1:
+          tmp = display->grab_edge_resistance_data->right_edges;
+          break;
+        case 2:
+          tmp = display->grab_edge_resistance_data->top_edges;
+          break;
+        case 3:
+          tmp = display->grab_edge_resistance_data->bottom_edges;
+          break;
+        default:
+          g_assert_not_reached ();
+        }
+
+      for (j = 0; j < tmp->len; j++)
+        {
+          MetaEdge *edge = g_array_index (tmp, MetaEdge*, j);
+          if (edge->edge_type == META_EDGE_WINDOW)
+            g_free (edge);
+        }
+    }
+
+  /* Now free the arrays and data */
+  g_array_free (display->grab_edge_resistance_data->left_edges, TRUE);
+  g_array_free (display->grab_edge_resistance_data->right_edges, TRUE);
+  g_array_free (display->grab_edge_resistance_data->top_edges, TRUE);
+  g_array_free (display->grab_edge_resistance_data->bottom_edges, TRUE);
+  g_free (display->grab_edge_resistance_data);
+  display->grab_edge_resistance_data = NULL;
+}
+
+static int
+stupid_sort_requiring_extra_pointer_dereference (gconstpointer a, 
+                                                 gconstpointer b)
+{
+  const MetaEdge * const *a_edge = a;
+  const MetaEdge * const *b_edge = b;
+  return meta_rectangle_edge_cmp (*a_edge, *b_edge);
+}
+
+static void
+cache_edges (MetaDisplay *display,
+             GList *window_edges,
+             GList *xinerama_edges,
+             GList *screen_edges)
+{
+  MetaEdgeResistanceData *edge_data;
+  GList *tmp;
+  int num_left, num_right, num_top, num_bottom;
+  int i;
+
+  /*
+   * 1st: Get the total number of each kind of edge
+   */
+  num_left = num_right = num_top = num_bottom = 0;
+  for (i = 0; i < 3; i++)
+    {
+      tmp = NULL;
+      switch (i)
+        {
+        case 0:
+          tmp = window_edges;
+          break;
+        case 1:
+          tmp = xinerama_edges;
+          break;
+        case 2:
+          tmp = screen_edges;
+          break;
+        default:
+          g_assert_not_reached ();
+        }
+
+      while (tmp)
+        {
+          MetaEdge *edge = tmp->data;
+          switch (edge->side_type)
+            {
+            case META_DIRECTION_LEFT:
+              num_left++;
+              break;
+            case META_DIRECTION_RIGHT:
+              num_right++;
+              break;
+            case META_DIRECTION_TOP:
+              num_top++;
+              break;
+            case META_DIRECTION_BOTTOM:
+              num_bottom++;
+              break;
+            default:
+              g_assert_not_reached ();
+            }
+          tmp = tmp->next;
+        }
+    }
+
+  meta_warning ("%d %d %d %d\n", num_left, num_right, num_top, num_bottom);
+
+  /*
+   * 2nd: Allocate the edges
+   */
+  g_assert (display->grab_edge_resistance_data == NULL);
+  display->grab_edge_resistance_data = g_new (MetaEdgeResistanceData, 1);
+  edge_data = display->grab_edge_resistance_data;
+  edge_data->left_edges   = g_array_sized_new (FALSE,
+                                               FALSE,
+                                               sizeof(MetaEdge*),
+                                               num_left);
+  edge_data->right_edges  = g_array_sized_new (FALSE,
+                                               FALSE,
+                                               sizeof(MetaEdge*),
+                                               num_right);
+  edge_data->top_edges    = g_array_sized_new (FALSE,
+                                               FALSE,
+                                               sizeof(MetaEdge*),
+                                               num_top);
+  edge_data->bottom_edges = g_array_sized_new (FALSE,
+                                               FALSE,
+                                               sizeof(MetaEdge*),
+                                               num_bottom);
+
+  /*
+   * 3rd: Add the edges to the arrays
+   */
+  num_left = num_right = num_top = num_bottom = 0;
+  for (i = 0; i < 3; i++)
+    {
+      tmp = NULL;
+      switch (i)
+        {
+        case 0:
+          tmp = window_edges;
+          break;
+        case 1:
+          tmp = xinerama_edges;
+          break;
+        case 2:
+          tmp = screen_edges;
+          break;
+        default:
+          g_assert_not_reached ();
+        }
+
+      while (tmp)
+        {
+          MetaEdge *edge = tmp->data;
+          switch (edge->side_type)
+            {
+            case META_DIRECTION_LEFT:
+              g_array_append_val (edge_data->left_edges, edge);
+              break;
+            case META_DIRECTION_RIGHT:
+              g_array_append_val (edge_data->right_edges, edge);
+              break;
+            case META_DIRECTION_TOP:
+              g_array_append_val (edge_data->top_edges, edge);
+              break;
+            case META_DIRECTION_BOTTOM:
+              g_array_append_val (edge_data->bottom_edges, edge);
+              break;
+            default:
+              g_assert_not_reached ();
+            }
+          tmp = tmp->next;
+        }
+    }
+
+  /*
+   * 4th: Sort the arrays (FIXME: This is kinda dumb since the arrays were
+   * individually sorted earlier and we could have done this faster and
+   * avoided this sort by sticking them into the array with some simple
+   * merging of the lists).
+   */
+  g_array_sort (display->grab_edge_resistance_data->left_edges, 
+                stupid_sort_requiring_extra_pointer_dereference);
+  g_array_sort (display->grab_edge_resistance_data->right_edges, 
+                stupid_sort_requiring_extra_pointer_dereference);
+  g_array_sort (display->grab_edge_resistance_data->top_edges, 
+                stupid_sort_requiring_extra_pointer_dereference);
+  g_array_sort (display->grab_edge_resistance_data->bottom_edges, 
+                stupid_sort_requiring_extra_pointer_dereference);
+}
 
 static void
 compute_resistance_and_snapping_edges (MetaDisplay *display)
@@ -3915,6 +4136,9 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
       cur_window_iter = cur_window_iter->next;
     }
 
+  /*
+   * 4th: Free the extra memory not needed and sort the list
+   */
   /* Free the memory used by the obscuring windows/docks lists */
   g_slist_free (window_stacking);
   g_slist_free (dock_stacking);
@@ -3930,8 +4154,21 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
                    NULL);
   g_slist_free (obscuring_docks);
 
-  /* Sort the list */
+  /* Sort the list.  FIXME: Should I bother with this sorting?  I just
+   * sort again later in cache_edges() anyway...
+   */
   edges = g_list_sort (edges, meta_rectangle_edge_cmp);
+
+  /*
+   * 5th: Cache the combination of these edges with the onscreen and
+   * xinerama edges in an array for quick access.  Free the edges since
+   * they've been cached elsewhere.
+   */
+  cache_edges (display,
+               edges,
+               display->grab_screen->active_workspace->xinerama_edges,
+               display->grab_screen->active_workspace->screen_edges);
+  g_list_free (edges);
 }
 
 void
