@@ -3303,6 +3303,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
   display->grab_old_window_stacking = NULL;
 #ifdef HAVE_XSYNC
   display->grab_sync_request_alarm = None;
+  display->grab_last_used_state_for_resize = 0;
 #endif
   display->grab_was_cancelled = FALSE;
   
@@ -3771,12 +3772,11 @@ meta_display_ungrab_focus_window_button (MetaDisplay *display,
 /***** Begin gobs of edge_resistance functions *****/
 
 static int
-find_index_of_edge_near_position (GArray   *edges,
-                                  int       position,
-                                  gboolean  want_interval_min,
-                                  gboolean  horizontal)
+find_index_of_edge_near_position (const GArray *edges,
+                                  int           position,
+                                  gboolean      want_interval_min,
+                                  gboolean      horizontal)
 {
-
   /* This is basically like a binary search, except that we're trying to
    * find a range instead of an exact value.  So, if we have in our array
    *   Value: 3  27 316 316 316 505 522 800 1213
@@ -3875,6 +3875,119 @@ find_index_of_edge_near_position (GArray   *edges,
 }
 
 static int
+find_nearest_position (const GArray        *edges,
+                       int                  position,
+                       int                  old_position,
+                       const MetaRectangle *new_rect,
+                       gboolean             horizontal)
+{
+  /* This is basically just a binary search except that we're looking
+   * for the value closest to position, rather than finding that
+   * actual value.  Also, we ignore any edges that aren't relevant
+   * given the horizontal/vertical position of new_rect.
+   */
+  int low, high, mid;
+  int compare;
+  MetaEdge *edge;
+  int best, best_dist, i;
+
+  /* Initialize mid, edge, & compare in the off change that the array only
+   * has one element.
+   */
+  mid  = 0;
+  edge = g_array_index (edges, MetaEdge*, mid);
+  compare = horizontal ? edge->rect.x : edge->rect.y;
+
+  /* Begin the search... */
+  low  = 0;
+  high = edges->len - 1;
+  while (low < high)
+    {
+      mid = low + (high - low)/2;
+      edge = g_array_index (edges, MetaEdge*, mid);
+      compare = horizontal ? edge->rect.x : edge->rect.y;
+
+      if (compare == position)
+        break;
+
+      if (compare > position)
+        high = mid - 1;
+      else
+        low = mid + 1;
+    }
+
+  /* mid should now be _really_ close to the index we want, so we
+   * start searching nearby for something that overlaps and is closer
+   * than the original position.
+   */
+  best = old_position;
+  best_dist = INT_MAX;
+
+  /* Start the search at mid */
+  edge = g_array_index (edges, MetaEdge*, mid);
+  compare = horizontal ? edge->rect.x : edge->rect.y;
+  gboolean edges_align = horizontal ? 
+    meta_rectangle_vert_overlap (&edge->rect, new_rect) :
+    meta_rectangle_horiz_overlap (&edge->rect, new_rect);
+  if (edges_align)
+    {
+      int dist = ABS (compare - position);
+      if (dist < best_dist)
+        {
+          best = compare;
+          best_dist = dist;
+        }
+    }
+
+  /* Now start searching higher than mid */
+  for (i = mid + 1; i < (int)edges->len; i++)
+    {
+      edge = g_array_index (edges, MetaEdge*, i);
+      compare = horizontal ? edge->rect.x : edge->rect.y;
+  
+      gboolean edges_align = horizontal ? 
+        meta_rectangle_vert_overlap (&edge->rect, new_rect) :
+        meta_rectangle_horiz_overlap (&edge->rect, new_rect);
+
+      if (edges_align)
+        {
+          int dist = ABS (compare - position);
+          if (dist < best_dist)
+            {
+              best = compare;
+              best_dist = dist;
+            }
+          break;
+        }
+    }
+
+  /* Now start searching lower than mid */
+  for (i = mid-1; i >= 0; i--)
+    {
+      edge = g_array_index (edges, MetaEdge*, i);
+      compare = horizontal ? edge->rect.x : edge->rect.y;
+  
+      gboolean edges_align = horizontal ? 
+        meta_rectangle_vert_overlap (&edge->rect, new_rect) :
+        meta_rectangle_horiz_overlap (&edge->rect, new_rect);
+
+      if (edges_align)
+        {
+          int dist = ABS (compare - position);
+          if (dist < best_dist)
+            {
+              best = compare;
+              best_dist = dist;
+            }
+          break;
+        }
+    }
+
+  /* Return the best one found */
+  return best;
+}
+
+static int
 apply_edge_resistance (int                  old_pos,
                        int                  new_pos,
                        const MetaRectangle *new_rect,
@@ -3921,6 +4034,36 @@ apply_edge_resistance (int                  old_pos,
   return new_pos;
 }
 
+static int
+apply_edge_snapping (int                  old_pos,
+                     int                  new_pos,
+                     const MetaRectangle *new_rect,
+                     GArray              *edges1,
+                     GArray              *edges2,
+                     gboolean             xdir)
+{
+  int pos1, pos2;
+
+  if (old_pos == new_pos)
+    return new_pos;
+
+  pos1 = find_nearest_position (edges1,
+                                new_pos,
+                                old_pos,
+                                new_rect,
+                                xdir);
+  pos2 = find_nearest_position (edges2,
+                                new_pos,
+                                old_pos,
+                                new_rect,
+                                xdir);
+
+  if (ABS (pos1 - new_pos) < ABS (pos2 - new_pos))
+    return pos1;
+  else
+    return pos2;
+}
+
 /* This function takes the position (including any frame) of the window and
  * a proposed new position (ignoring edge resistance/snapping), and then
  * applies edge resistance to EACH edge (separately) updating new_outer.
@@ -3931,7 +4074,8 @@ apply_edge_resistance (int                  old_pos,
  */
 gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
                                              const MetaRectangle *old_outer,
-                                             MetaRectangle       *new_outer)
+                                             MetaRectangle       *new_outer,
+                                             gboolean             auto_snap)
 {
   /* FIXME: I need to know and use
    *   a) whether this is mouse or keyboard resize (if keyboard resize, a
@@ -3947,27 +4091,66 @@ gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
   g_assert (display->grab_edge_resistance_data != NULL);
   edge_data = display->grab_edge_resistance_data;
 
-  /* Now, do the edge resistance application */
-  new_left   = apply_edge_resistance (BOX_LEFT (*old_outer),
-                                      BOX_LEFT (*new_outer),
-                                      new_outer,
-                                      edge_data->left_edges,
-                                      TRUE);
-  new_right  = apply_edge_resistance (BOX_RIGHT (*old_outer),
-                                      BOX_RIGHT (*new_outer),
-                                      new_outer,
-                                      edge_data->right_edges,
-                                      TRUE);
-  new_top    = apply_edge_resistance (BOX_TOP (*old_outer),
-                                      BOX_TOP (*new_outer),
-                                      new_outer,
-                                      edge_data->top_edges,
-                                      FALSE);
-  new_bottom = apply_edge_resistance (BOX_BOTTOM (*old_outer),
-                                      BOX_BOTTOM (*new_outer),
-                                      new_outer,
-                                      edge_data->bottom_edges,
-                                      FALSE);
+  if (auto_snap)
+    {
+      /* Do the auto snapping instead of normal edge resistance; in all
+       * cases, we allow snapping to opposite kinds of edges (e.g. left
+       * sides of windows to both left and right edges.
+       */
+
+      new_left   = apply_edge_snapping (BOX_LEFT (*old_outer),
+                                        BOX_LEFT (*new_outer),
+                                        new_outer,
+                                        edge_data->left_edges,
+                                        edge_data->right_edges,
+                                        TRUE);
+
+      new_right  = apply_edge_snapping (BOX_RIGHT (*old_outer),
+                                        BOX_RIGHT (*new_outer),
+                                        new_outer,
+                                        edge_data->left_edges,
+                                        edge_data->right_edges,
+                                        TRUE);
+
+      new_top    = apply_edge_snapping (BOX_TOP (*old_outer),
+                                        BOX_TOP (*new_outer),
+                                        new_outer,
+                                        edge_data->top_edges,
+                                        edge_data->bottom_edges,
+                                        FALSE);
+
+      new_bottom = apply_edge_snapping (BOX_BOTTOM (*old_outer),
+                                        BOX_BOTTOM (*new_outer),
+                                        new_outer,
+                                        edge_data->top_edges,
+                                        edge_data->bottom_edges,
+                                        FALSE);
+
+    }
+  else
+    {
+      /* Now, apply the normal edge resistance */
+      new_left   = apply_edge_resistance (BOX_LEFT (*old_outer),
+                                          BOX_LEFT (*new_outer),
+                                          new_outer,
+                                          edge_data->left_edges,
+                                          TRUE);
+      new_right  = apply_edge_resistance (BOX_RIGHT (*old_outer),
+                                          BOX_RIGHT (*new_outer),
+                                          new_outer,
+                                          edge_data->right_edges,
+                                          TRUE);
+      new_top    = apply_edge_resistance (BOX_TOP (*old_outer),
+                                          BOX_TOP (*new_outer),
+                                          new_outer,
+                                          edge_data->top_edges,
+                                          FALSE);
+      new_bottom = apply_edge_resistance (BOX_BOTTOM (*old_outer),
+                                          BOX_BOTTOM (*new_outer),
+                                          new_outer,
+                                          edge_data->bottom_edges,
+                                          FALSE);
+    }
 
   /* Determine whether anything changed, and save the changes */
   modified_rect = meta_rect (new_left, 

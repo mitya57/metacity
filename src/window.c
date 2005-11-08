@@ -6377,7 +6377,7 @@ update_move (MetaWindow  *window,
   int dx, dy;
   int new_x, new_y;
   int old_x, old_y;
-  MetaRectangle old_outer, new_outer;
+  MetaRectangle old_outer, proposed_outer, new_outer;
   int shake_threshold;
   
   window->display->grab_latest_motion_x = x;
@@ -6495,13 +6495,15 @@ update_move (MetaWindow  *window,
 
   /* Do any edge resistance/snapping */
   meta_window_get_outer_rect (window, &old_outer);
-  new_outer = old_outer;
-  new_outer.x += (new_x - old_x);
-  new_outer.y += (new_y - old_y);
+  proposed_outer = old_outer;
+  proposed_outer.x += (new_x - old_x);
+  proposed_outer.y += (new_y - old_y);
+  new_outer = proposed_outer;
 
   if (meta_display_apply_edge_resistance (window->display,
                                           &old_outer,
-                                          &new_outer))
+                                          &new_outer,
+                                          mask & ShiftMask))
     {
       /* meta_display_apply_edge_resistance independently applies
        * resistance to both the right and left edges of new_outer as both
@@ -6509,38 +6511,34 @@ update_move (MetaWindow  *window,
        * just have both edges move according to the stricter of the
        * resistances.  Same thing goes for top & bottom edges.
        */
+      MetaRectangle *reference;
       int left_change, right_change, smaller_x_change;
       int top_change, bottom_change, smaller_y_change;
 
-      left_change  = BOX_LEFT (new_outer)  - BOX_LEFT (old_outer);
-      right_change = BOX_RIGHT (new_outer) - BOX_RIGHT (old_outer);
+      if (mask & ShiftMask)
+        reference = &proposed_outer;
+      else
+        reference = &old_outer;
+
+      left_change  = BOX_LEFT (new_outer)  - BOX_LEFT (*reference);
+      right_change = BOX_RIGHT (new_outer) - BOX_RIGHT (*reference);
       if (ABS (left_change) < ABS (right_change))
         smaller_x_change = left_change;
       else
         smaller_x_change = right_change;
 
-      top_change    = BOX_TOP (new_outer)    - BOX_TOP (old_outer);
-      bottom_change = BOX_BOTTOM (new_outer) - BOX_BOTTOM (old_outer);
+      top_change    = BOX_TOP (new_outer)    - BOX_TOP (*reference);
+      bottom_change = BOX_BOTTOM (new_outer) - BOX_BOTTOM (*reference);
       if (ABS (top_change) < ABS (bottom_change))
         smaller_y_change = top_change;
       else
         smaller_y_change = bottom_change;
 
-      new_x = old_x + smaller_x_change;
-      new_y = old_y + smaller_y_change;
+      new_x = old_x + smaller_x_change + 
+              (BOX_LEFT (*reference) - BOX_LEFT (old_outer));
+      new_y = old_y + smaller_y_change +
+              (BOX_TOP (*reference) - BOX_TOP (old_outer));
     }
-
-#if 0
-  if (mask & ShiftMask)
-    {
-      /* snap to edges */
-      if (new_x != old_x)
-        new_x = meta_window_find_nearest_vertical_edge (window, new_x);
-
-      if (new_y != old_y)
-        new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
-    }
-#endif
 
   if (window->display->grab_wireframe_active)
     meta_window_update_wireframe (window, new_x, new_y, 
@@ -6550,10 +6548,11 @@ update_move (MetaWindow  *window,
     meta_window_move (window, TRUE, new_x, new_y);
 }
 
-static void update_resize (MetaWindow *window,
-			   int         x,
-			   int         y,
-			   gboolean    force);
+static void update_resize (MetaWindow   *window,
+                           unsigned int  mask,
+			   int           x,
+			   int           y,
+			   gboolean      force);
 
 static gboolean
 update_resize_timeout (gpointer data)
@@ -6561,14 +6560,16 @@ update_resize_timeout (gpointer data)
   MetaWindow *window = data;
 
   update_resize (window, 
-		 window->display->grab_latest_motion_x,
-		 window->display->grab_latest_motion_y,
-		 TRUE);
+                 window->display->grab_last_used_state_for_resize,
+                 window->display->grab_latest_motion_x,
+                 window->display->grab_latest_motion_y,
+                 TRUE);
   return FALSE;
 }
 
 static void
 update_resize (MetaWindow *window,
+               unsigned int mask,
                int x, int y,
 	       gboolean force)
 {
@@ -6768,9 +6769,11 @@ update_resize (MetaWindow *window,
                                           new_outer_width,
                                           new_outer_height);
 
+      window->display->grab_last_used_state_for_resize = mask;
       if (meta_display_apply_edge_resistance (window->display,
                                               &old_outer,
-                                              &new_outer))
+                                              &new_outer,
+                                              mask & ShiftMask))
         {
           new_w = old.width  + (new_outer.width  - old_outer.width);
           new_h = old.height + (new_outer.height - old_outer.height);
@@ -6909,6 +6912,7 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         case META_GRAB_OP_KEYBOARD_RESIZING_NW:
           /* no pointer round trip here, to keep in sync */
           update_resize (window,
+                         window->display->grab_last_used_state_for_resize,
                          window->display->grab_latest_motion_x,
                          window->display->grab_latest_motion_y,
 			 TRUE);
@@ -6933,9 +6937,10 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         {
           if (event->xbutton.root == window->screen->xroot)
             update_resize (window,
-			   event->xbutton.x_root,
-			   event->xbutton.y_root,
-			   TRUE);
+                           event->xbutton.state,
+                           event->xbutton.x_root,
+                           event->xbutton.y_root,
+                           TRUE);
         }
 
       meta_display_end_grab_op (window->display, event->xbutton.time);
@@ -6961,9 +6966,10 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
               if (check_use_this_motion_notify (window,
                                                 event))
                 update_resize (window,
+                               event->xmotion.state,
                                event->xmotion.x_root,
                                event->xmotion.y_root,
-			       FALSE);
+                               FALSE);
             }
         }
       break;
@@ -6983,9 +6989,10 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         {
           if (event->xcrossing.root == window->screen->xroot)
             update_resize (window,
+                           event->xcrossing.state,
                            event->xcrossing.x_root,
                            event->xcrossing.y_root,
-			   FALSE);
+                           FALSE);
         }
       break;
 #endif

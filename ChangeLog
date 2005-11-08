@@ -1,5 +1,62 @@
 2005-11-08  Elijah Newren  <newren@gmail.com>
 
+	Get edge auto-snapping to work again (and for the first time ever
+	for mouse resizing).  NOTE THAT EDGE RESISTANCE IS STILL NOT
+	COMPLETE AND I STILL HAVE A RIDICULOUSLY HUGE THRESHOLD FOR THAT
+	REASON.  ;-)
+
+	* src/display.h:
+
+	(struct MetaDisplay):
+	new display->grab_last_used_state_for_resize field, so that xsync
+	messages know whether to snap-resize or just normally resize.  I
+	don't know if this is the right way to do this or not...
+
+	(meta_display_apply_edge_resistance):
+	take an auto_snap parameter
+
+	* src/display.c:
+
+	(meta_display_begin_grab_op):
+	initialize display->grab_last_used_state_for_resize
+
+	(find_index_of_edge_near_position):
+	declare the edge array to be const
+
+	(find_nearest_position):
+	new function, also binary-search-esque
+
+	(apply_edge_snapping):
+	simple front-end to find_nearest_position() so that it can be
+	called for multiple edge arrays and the closest overall one used.
+
+	(meta_display_apply_edge_resistance):
+	take an auto_snap parameter and use apply_edge_snapping() instead
+	of apply_edge_resistance() if it is set
+
+	* src/window.c:
+
+	(update_move):
+	track the proposed window size so that we can compare the
+	edge-resisted-modifications to both the original window and the
+	size initially proposed, handle snapping too
+
+	(update_resize_timeout, meta_window_handle_mouse_grab_op_event):
+	make use of display->grab_last_used_state_for_resize so that the
+	resize knows whether to snap or not.  I hope this is the right way
+	to do this.
+
+	(update_resize):
+	take a mask tracking which buttons are pressed (like update_move),
+	save the mask to window->display->grab_last_used_state_for_resize,
+	handle snapping
+
+	(meta_window_handle_mouse_grab_op_event):
+	pass the xbutton/xmotion/xcrossing modifier state to
+	update_resize()
+
+2005-11-08  Elijah Newren  <newren@gmail.com>
+
 	* src/window.c (update_resize): get basic edge resistance to work
 	with resizing too.  I'm so cool.  :-)
 

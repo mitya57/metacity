@@ -340,6 +340,7 @@ struct _MetaDisplay
   int render_error_base;
 #endif
 #ifdef HAVE_XSYNC
+  unsigned int grab_last_used_state_for_resize;
   unsigned int have_xsync : 1;
 #define META_DISPLAY_HAS_XSYNC(display) ((display)->have_xsync)
 #else
@@ -451,7 +452,8 @@ void meta_display_ungrab_focus_window_button (MetaDisplay *display,
 
 gboolean meta_display_apply_edge_resistance  (MetaDisplay         *display,
                                               const MetaRectangle *old_outer,
-                                              MetaRectangle       *new_outer);
+                                              MetaRectangle       *new_outer,
+                                              gboolean             auto_snap);
 
 /* make a request to ensure the event serial has changed */
 void     meta_display_increment_event_serial (MetaDisplay *display);
