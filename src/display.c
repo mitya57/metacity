@@ -3768,6 +3768,217 @@ meta_display_ungrab_focus_window_button (MetaDisplay *display,
   }
 }
 
+/***** Begin gobs of edge_resistance functions *****/
+
+static int
+find_index_of_edge_near_position (GArray   *edges,
+                                  int       position,
+                                  gboolean  want_interval_min,
+                                  gboolean  horizontal)
+{
+
+  /* This is basically like a binary search, except that we're trying to
+   * find a range instead of an exact value.  So, if we have in our array
+   *   Value: 3  27 316 316 316 505 522 800 1213
+   *   Index: 0   1   2   3   4   5   6   7    8
+   * and we call this function with position=500 & want_interval_min=TRUE
+   * then we should get 5 (because 505 is the first value bigger than 500).
+   * If we call this function with position=805 and want_interval_min=FALSE
+   * then we should get 7 (because 800 is the last value smaller than 800).
+   * A couple more, to make things clear:
+   *    position  want_interval_min  correct_answer
+   *         316               TRUE               2
+   *         316              FALSE               4
+   *           2              FALSE              -1
+   *        2000               TRUE               9
+   */
+  int low, high, mid;
+  int compare;
+  MetaEdge *edge;
+
+  /* Initialize mid, edge, & compare in the off change that the array only
+   * has one element.
+   */
+  mid  = 0;
+  edge = g_array_index (edges, MetaEdge*, mid);
+  compare = horizontal ? edge->rect.x : edge->rect.y;
+
+  /* Begin the search... */
+  low  = 0;
+  high = edges->len - 1;
+  while (low < high)
+    {
+      mid = low + (high - low)/2;
+      edge = g_array_index (edges, MetaEdge*, mid);
+      compare = horizontal ? edge->rect.x : edge->rect.y;
+
+      if (compare == position)
+        break;
+
+      if (compare > position)
+        high = mid - 1;
+      else
+        low = mid + 1;
+    }
+
+  /* mid should now be _really_ close to the index we want, so we start
+   * linearly searching.  However, note that we don't know if mid is less
+   * than or greater than what we need and it's possible that there are
+   * several equal values equal to what we were searching for and we ended
+   * up in the middle of them instead of at the end.  So we may need to
+   * move mid multiple locations over.
+   */
+  if (want_interval_min)
+    {
+      while (compare >= position && mid > 0)
+        {
+          mid--;
+          edge = g_array_index (edges, MetaEdge*, mid);
+          compare = horizontal ? edge->rect.x : edge->rect.y;
+        }
+      while (compare < position && mid < (int)edges->len - 1)
+        {
+          mid++;
+          edge = g_array_index (edges, MetaEdge*, mid);
+          compare = horizontal ? edge->rect.x : edge->rect.y;
+        }
+
+      /* Special case for no values in array big enough */
+      if (compare < position)
+        return edges->len;
+
+      /* Return the found value */
+      return mid;
+    }
+  else
+    {
+      while (compare <= position && mid < (int)edges->len - 1)
+        {
+          mid++;
+          edge = g_array_index (edges, MetaEdge*, mid);
+          compare = horizontal ? edge->rect.x : edge->rect.y;
+        }
+      while (compare > position && mid > 0)
+        {
+          mid--;
+          edge = g_array_index (edges, MetaEdge*, mid);
+          compare = horizontal ? edge->rect.x : edge->rect.y;
+        }
+
+      /* Special case for no values in array small enough */
+      if (compare > position)
+        return -1;
+
+      /* Return the found value */
+      return mid;
+    }
+}
+
+static int
+apply_edge_resistance (int                  old_pos,
+                       int                  new_pos,
+                       const MetaRectangle *new_rect,
+                       GArray              *edges,
+                       gboolean             xdir)
+{
+  int i, begin, end;
+  gboolean increasing = new_pos > old_pos;
+  int      increment = increasing ? 1 : -1;
+
+  /* ridiculously huge for testing */
+  const int EDGE_RESISTANCE_THRESHOLD = 96;
+
+  if (old_pos == new_pos)
+    return new_pos;
+
+  begin = find_index_of_edge_near_position (edges, old_pos,  increasing, xdir);
+  end   = find_index_of_edge_near_position (edges, new_pos, !increasing, xdir);
+
+  i = begin;
+  while ((increasing  && i <= end) ||
+         (!increasing && i >= end))
+    {
+      gboolean  edges_align;
+      MetaEdge *edge = g_array_index (edges, MetaEdge*, i);
+      int       compare = xdir ? edge->rect.x : edge->rect.y;
+
+      /* Find out if this edge is relevant */
+      edges_align = xdir ? 
+        meta_rectangle_vert_overlap (&edge->rect, new_rect) :
+        meta_rectangle_horiz_overlap (&edge->rect, new_rect);
+
+      /* If the edge is relevant and we haven't moved at least
+       * EDGE_RESISTANCE_THRESHOLD pixels past this edge, stop movement at
+       * this edge.
+       */
+      if (edges_align && ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
+        return compare;
+
+      /* Go to the next edge in the range */
+      i += increment;
+    }
+
+  return new_pos;
+}
+
+/* This function takes the position (including any frame) of the window and
+ * a proposed new position (ignoring edge resistance/snapping), and then
+ * applies edge resistance to EACH edge (separately) updating new_outer.
+ * It returns true if new_outer is modified, false otherwise.
+ *
+ * display->grab_edge_resistance_data MUST already be setup or calling this
+ * function will cause a crash.
+ */
+gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
+                                             const MetaRectangle *old_outer,
+                                             MetaRectangle       *new_outer)
+{
+  /* FIXME: I need to know and use
+   *   a) whether this is mouse or keyboard resize (if keyboard resize, a
+   *      set amount can just be ignored and adds to the "buildup"
+   *      parameter)
+   *   b) if the user wants to auto-snap instead of just edge-resist
+   */
+  MetaEdgeResistanceData *edge_data;
+  MetaRectangle           modified_rect;
+  gboolean                modified;
+  int new_left, new_right, new_top, new_bottom;
+
+  g_assert (display->grab_edge_resistance_data != NULL);
+  edge_data = display->grab_edge_resistance_data;
+
+  /* Now, do the edge resistance application */
+  new_left   = apply_edge_resistance (BOX_LEFT (*old_outer),
+                                      BOX_LEFT (*new_outer),
+                                      new_outer,
+                                      edge_data->left_edges,
+                                      TRUE);
+  new_right  = apply_edge_resistance (BOX_RIGHT (*old_outer),
+                                      BOX_RIGHT (*new_outer),
+                                      new_outer,
+                                      edge_data->right_edges,
+                                      TRUE);
+  new_top    = apply_edge_resistance (BOX_TOP (*old_outer),
+                                      BOX_TOP (*new_outer),
+                                      new_outer,
+                                      edge_data->top_edges,
+                                      FALSE);
+  new_bottom = apply_edge_resistance (BOX_BOTTOM (*old_outer),
+                                      BOX_BOTTOM (*new_outer),
+                                      new_outer,
+                                      edge_data->bottom_edges,
+                                      FALSE);
+
+  /* Determine whether anything changed, and save the changes */
+  modified_rect = meta_rect (new_left, 
+                             new_top,
+                             new_right - new_left,
+                             new_bottom - new_top);
+  modified = !meta_rectangle_equal (new_outer, &modified_rect);
+  *new_outer = modified_rect;
+  return modified;
+}
+
 static void
 cleanup_edges (MetaDisplay *display)
 {
@@ -3878,8 +4089,6 @@ cache_edges (MetaDisplay *display,
           tmp = tmp->next;
         }
     }
-
-  meta_warning ("%d %d %d %d\n", num_left, num_right, num_top, num_bottom);
 
   /*
    * 2nd: Allocate the edges
@@ -4146,6 +4355,8 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
                display->grab_screen->active_workspace->screen_edges);
   g_list_free (edges);
 }
+
+/***** End gobs of edge_resistance functions *****/
 
 void
 meta_display_increment_event_serial (MetaDisplay *display)

@@ -1,3 +1,34 @@
+2005-11-08  Elijah Newren  <newren@gmail.com>
+
+	Very basic edge resistance stuff starting to work.  Only for
+	moves, debugging threshold ridiculously huge for easier testing,
+	snap-moving disabled, yadda yadda yadda IT ISN'T READY YET.
+
+	* src/display.c:
+
+	(find_index_of_edge_near_position):
+	new binary-search-esque function
+
+	(apply_edge_resistance):
+	new function, only very basics implemented so far (with a
+	ridiculously huge threshold just for testing)
+
+	(cache_edges):
+	remove an extraneous debugging warning that I missed earlier
+
+	* src/display.[ch]:
+
+	(meta_display_apply_edge_resistance):
+	new public function, doing work through calls to
+	apply_edge_resistance() currently
+
+	* src/window.c:
+
+	(update_move):
+	temporarily disable snap moving, call
+	meta_display_apply_edge_resistance() to get some basic edge
+	resistance working
+
 2005-11-07  Elijah Newren  <newren@gmail.com>
 
 	* src/boxes.[ch]:

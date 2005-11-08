@@ -6377,6 +6377,7 @@ update_move (MetaWindow  *window,
   int dx, dy;
   int new_x, new_y;
   int old_x, old_y;
+  MetaRectangle old_outer, new_outer;
   int shake_threshold;
   
   window->display->grab_latest_motion_x = x;
@@ -6486,6 +6487,50 @@ update_move (MetaWindow  *window,
 
   meta_window_get_position (window, &old_x, &old_y);
 
+  /* Don't allow movement in the maximized directions */
+  if (window->maximized_horizontally)
+    new_x = old_x;
+  if (window->maximized_vertically)
+    new_y = old_y;
+
+  /* Do any edge resistance/snapping */
+  meta_window_get_outer_rect (window, &old_outer);
+  new_outer = old_outer;
+  new_outer.x += (new_x - old_x);
+  new_outer.y += (new_y - old_y);
+
+  if (meta_display_apply_edge_resistance (window->display,
+                                          &old_outer,
+                                          &new_outer))
+    {
+      /* meta_display_apply_edge_resistance independently applies
+       * resistance to both the right and left edges of new_outer as both
+       * could meet areas of resistance.  But we don't want a resize, so we
+       * just have both edges move according to the stricter of the
+       * resistances.  Same thing goes for top & bottom edges.
+       */
+      int left_change, right_change, smaller_x_change;
+      int top_change, bottom_change, smaller_y_change;
+
+      left_change  = BOX_LEFT (new_outer)  - BOX_LEFT (old_outer);
+      right_change = BOX_RIGHT (new_outer) - BOX_RIGHT (old_outer);
+      if (ABS (left_change) < ABS (right_change))
+        smaller_x_change = left_change;
+      else
+        smaller_x_change = right_change;
+
+      top_change    = BOX_TOP (new_outer)    - BOX_TOP (old_outer);
+      bottom_change = BOX_BOTTOM (new_outer) - BOX_BOTTOM (old_outer);
+      if (ABS (top_change) < ABS (bottom_change))
+        smaller_y_change = top_change;
+      else
+        smaller_y_change = bottom_change;
+
+      new_x = old_x + smaller_x_change;
+      new_y = old_y + smaller_y_change;
+    }
+
+#if 0
   if (mask & ShiftMask)
     {
       /* snap to edges */
@@ -6495,12 +6540,7 @@ update_move (MetaWindow  *window,
       if (new_y != old_y)
         new_y = meta_window_find_nearest_horizontal_edge (window, new_y);
     }
-
-  /* Don't allow movement in the maximized directions */
-  if (window->maximized_horizontally)
-    new_x = old_x;
-  if (window->maximized_vertically)
-    new_y = old_y;
+#endif
 
   if (window->display->grab_wireframe_active)
     meta_window_update_wireframe (window, new_x, new_y, 

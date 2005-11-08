@@ -449,6 +449,10 @@ void meta_display_grab_focus_window_button   (MetaDisplay *display,
 void meta_display_ungrab_focus_window_button (MetaDisplay *display,
                                               MetaWindow  *window);
 
+gboolean meta_display_apply_edge_resistance  (MetaDisplay         *display,
+                                              const MetaRectangle *old_outer,
+                                              MetaRectangle       *new_outer);
+
 /* make a request to ensure the event serial has changed */
 void     meta_display_increment_event_serial (MetaDisplay *display);
 
