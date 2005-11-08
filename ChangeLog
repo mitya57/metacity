@@ -1,5 +1,10 @@
 2005-11-08  Elijah Newren  <newren@gmail.com>
 
+	* src/window.c (update_resize): get basic edge resistance to work
+	with resizing too.  I'm so cool.  :-)
+
+2005-11-08  Elijah Newren  <newren@gmail.com>
+
 	Very basic edge resistance stuff starting to work.  Only for
 	moves, debugging threshold ridiculously huge for easier testing,
 	snap-moving disabled, yadda yadda yadda IT ISN'T READY YET.

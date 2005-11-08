@@ -6755,6 +6755,27 @@ update_resize (MetaWindow *window,
     }
   else
     {
+      MetaRectangle old_outer, new_outer;
+      int new_outer_width, new_outer_height;
+
+      /* Do any edge resistance/snapping */
+      meta_window_get_outer_rect (window, &old_outer);
+      new_outer_width  = old_outer.width  + (new_w - old.width);
+      new_outer_height = old_outer.height + (new_h - old.height);
+      meta_rectangle_resize_with_gravity (&old_outer, 
+                                          &new_outer,
+                                          gravity,
+                                          new_outer_width,
+                                          new_outer_height);
+
+      if (meta_display_apply_edge_resistance (window->display,
+                                              &old_outer,
+                                              &new_outer))
+        {
+          new_w = old.width  + (new_outer.width  - old_outer.width);
+          new_h = old.height + (new_outer.height - old_outer.height);
+        }
+
       /* We don't need to update unless the specified width and height
        * are actually different from what we had before.
        */
