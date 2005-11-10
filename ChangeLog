@@ -1,3 +1,57 @@
+2005-11-09  Elijah Newren  <newren@gmail.com>
+
+	Get timeouts for screen/xinerama edge resistance working.
+
+	* src/constraints-ideas.txt: Update slightly
+
+	* src/constraint.c (constrain_fully_onscreen): don't apply this
+	constraint for user resizes as edge resistance does that well
+	enough
+
+	* src/display.h (meta_display_apply_edge_resistance): needs to
+	take a couple extra arguments to get the job done
+
+	* src/display.c:
+
+	(struct EdgeResistanceTimeoutData):
+	new struct
+
+	(struct MetaEdgeResistanceData):
+	add an EdgeResistanceTimeoutData for each side
+
+	(movement_towards_edge):
+	new function to determine if the user is moving a window towards a
+	certain side or away (so that, e.g. timeouts are only added when
+	trying to move offscreen instead of moving back onscreen)
+
+	(edge_resistance_timeout):
+	helper function called when a edge resistance timer goes off,
+	which calls the real timeout function as well as handles some
+	extra basic janitorial stuff with edge timeout data
+
+	(apply_edge_resistance):
+	add handling for timeouts, lower the edge resistance threshold for
+	normal window edge resistance
+
+	(meta_display_apply_edge_resistance):
+	take extra arguments and pass them on to functions so they can do
+	the timeout stuff
+
+	(cleanup_edges):
+	cleanup the timeouts too
+
+	(compute_resistance_and_snapping_edges):
+	initialize the timeouts to not-setup-state too
+
+	* src/window.c:
+
+	(update_move_timeout):
+	new function
+
+	(update_move, update_resize):
+	pass the extra arguments that meta_display_apply_edge_resistance()
+	now needs
+
 2005-11-08  Elijah Newren  <newren@gmail.com>
 
 	Get edge auto-snapping to work again (and for the first time ever

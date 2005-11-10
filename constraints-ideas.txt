@@ -70,8 +70,8 @@ Short-term (I hope...) TODO list/reminders:
       grab_anchor_root_(x|y) is in the titlebar area?)
     - Could get rid of the big comment at the beginning of
       meta_rectangle_get_minimal_spanning_set_for_region()
-    - checking for obscured edges could make use of boxes.c:split_edge()
-    - when timeout fires, edge-resistance for _any_ edge should be disabled
+    X checking for obscured edges could make use of boxes.c:split_edge()
+    X when timeout fires, edge-resistance for _any_ edge should be disabled
       until the mouse moves at least <threshold> pixels (from
       last_motion_(x|y) or edge resisted x,y?)
     X check if test_find_onscreen_edges() passes when struts are disjoint
@@ -86,7 +86,7 @@ Short-term (I hope...) TODO list/reminders:
     - pixel-distance, timeouts (mouse only), build-up (keyboard only)
     - ignore unseen edges
     - cache edges
-    - put all this functionality into on common location
+    - put all this functionality into one common location
 
   - Important documentation points
     - All fields of ConstraintsInfo struct

@@ -100,12 +100,28 @@ typedef struct
   window->type   != META_WINDOW_MENU    &&     \
   window->type   != META_WINDOW_SPLASHSCREEN
 
+struct EdgeResistanceTimeoutData
+{
+  gboolean     setup;
+  guint        id;
+  int          edge_pos;
+  gboolean     over;
+  GSourceFunc  real_func;
+  MetaWindow  *window;
+};
+typedef struct EdgeResistanceTimeoutData EdgeResistanceTimeoutData;
+
 struct MetaEdgeResistanceData
 {
   GArray *left_edges;
   GArray *right_edges;
   GArray *top_edges;
   GArray *bottom_edges;
+
+  EdgeResistanceTimeoutData left_timeout;
+  EdgeResistanceTimeoutData right_timeout;
+  EdgeResistanceTimeoutData top_timeout;
+  EdgeResistanceTimeoutData bottom_timeout;
 };
 
 static GSList *all_displays = NULL;
@@ -3987,26 +4003,73 @@ find_nearest_position (const GArray        *edges,
   return best;
 }
 
+static gboolean
+movement_towards_edge (MetaDirection side, int increment)
+{
+  switch (side)
+    {
+    case META_DIRECTION_LEFT:
+    case META_DIRECTION_TOP:
+      return increment < 0;
+    case META_DIRECTION_RIGHT:
+    case META_DIRECTION_BOTTOM:
+      return increment > 0;
+    }
+
+  g_assert_not_reached ();
+}
+
+static gboolean
+edge_resistance_timeout (gpointer data)
+{
+  EdgeResistanceTimeoutData *timeout = data;
+
+  timeout->over = TRUE;
+  timeout->id = 0;
+  (*timeout->real_func)(timeout->window);
+
+  return FALSE;
+}
+
 static int
-apply_edge_resistance (int                  old_pos,
-                       int                  new_pos,
-                       const MetaRectangle *new_rect,
-                       GArray              *edges,
-                       gboolean             xdir)
+apply_edge_resistance (MetaWindow                *window,
+                       int                        old_pos,
+                       int                        new_pos,
+                       const MetaRectangle       *new_rect,
+                       GArray                    *edges,
+                       EdgeResistanceTimeoutData *timeout,
+                       GSourceFunc                timeout_func,
+                       gboolean                   xdir)
 {
   int i, begin, end;
   gboolean increasing = new_pos > old_pos;
   int      increment = increasing ? 1 : -1;
 
   /* ridiculously huge for testing */
-  const int EDGE_RESISTANCE_THRESHOLD = 96;
+  const int EDGE_RESISTANCE_THRESHOLD = 16;
 
+  /* Quit if no movement was specified */
   if (old_pos == new_pos)
     return new_pos;
 
+  /* Remove the old timeout if it's no longer relevant */
+  if (timeout->setup &&
+      ((timeout->edge_pos > old_pos && timeout->edge_pos > new_pos) ||
+       (timeout->edge_pos < old_pos && timeout->edge_pos < new_pos)))
+    {
+      timeout->setup = FALSE;
+      if (timeout->id != 0)
+        {
+          g_source_remove (timeout->id);
+          timeout->id = 0;
+        }
+    }
+
+  /* Get the range of indices in the edge array that we move past/to. */
   begin = find_index_of_edge_near_position (edges, old_pos,  increasing, xdir);
   end   = find_index_of_edge_near_position (edges, new_pos, !increasing, xdir);
 
+  /* Loop over all these edges we're moving past/to. */
   i = begin;
   while ((increasing  && i <= end) ||
          (!increasing && i >= end))
@@ -4024,7 +4087,41 @@ apply_edge_resistance (int                  old_pos,
        * EDGE_RESISTANCE_THRESHOLD pixels past this edge, stop movement at
        * this edge.
        */
-      if (edges_align && ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
+      if (edges_align && movement_towards_edge (edge->side_type, increment) &&
+          ((window->require_fully_onscreen &&
+            edge->edge_type == META_EDGE_ONSCREEN) ||
+           (window->require_on_single_xinerama &&
+            edge->edge_type == META_EDGE_XINERAMA)))
+        {
+          if (!timeout->setup /* FIXME?: || compare != timeout->edge_pos */ )
+            {
+              timeout->id = g_timeout_add (750,
+                                           edge_resistance_timeout,
+                                           timeout);
+              timeout->setup = TRUE;
+              timeout->edge_pos = compare;
+              timeout->over = FALSE;
+              timeout->real_func = timeout_func;
+              timeout->window = window;
+            }
+          if (!timeout->over)
+            return compare;
+        }
+#if 0
+      FIXME: Do I want the following code?  In the case that the window isn't
+      required to be fully onscreen, this would give a resistance to screen
+      edges when moving more offscreen that is different from the normal
+      threshold used for normal windows.  (If I do use this, I should
+      probably do something similar for xinerama, and should stick the 100
+      somewhere else as a const or #define instead of hard coding it...)
+
+      if (edges_align && edge->edge_type == META_EDGE_ONSCREEN &&
+          movement_towards_edge (edge->side_type, increment) &&
+          ABS (compare - new_pos) < 100)
+        return compare;
+#endif
+      if (edges_align &&
+          ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
         return compare;
 
       /* Go to the next edge in the range */
@@ -4072,17 +4169,14 @@ apply_edge_snapping (int                  old_pos,
  * display->grab_edge_resistance_data MUST already be setup or calling this
  * function will cause a crash.
  */
-gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
-                                             const MetaRectangle *old_outer,
-                                             MetaRectangle       *new_outer,
-                                             gboolean             auto_snap)
+gboolean 
+meta_display_apply_edge_resistance (MetaDisplay         *display,
+                                    MetaWindow          *window,
+                                    const MetaRectangle *old_outer,
+                                    MetaRectangle       *new_outer,
+                                    GSourceFunc          timeout_func,
+                                    gboolean             auto_snap)
 {
-  /* FIXME: I need to know and use
-   *   a) whether this is mouse or keyboard resize (if keyboard resize, a
-   *      set amount can just be ignored and adds to the "buildup"
-   *      parameter)
-   *   b) if the user wants to auto-snap instead of just edge-resist
-   */
   MetaEdgeResistanceData *edge_data;
   MetaRectangle           modified_rect;
   gboolean                modified;
@@ -4130,25 +4224,37 @@ gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
   else
     {
       /* Now, apply the normal edge resistance */
-      new_left   = apply_edge_resistance (BOX_LEFT (*old_outer),
+      new_left   = apply_edge_resistance (window,
+                                          BOX_LEFT (*old_outer),
                                           BOX_LEFT (*new_outer),
                                           new_outer,
                                           edge_data->left_edges,
+                                          &edge_data->left_timeout,
+                                          timeout_func,
                                           TRUE);
-      new_right  = apply_edge_resistance (BOX_RIGHT (*old_outer),
+      new_right  = apply_edge_resistance (window,
+                                          BOX_RIGHT (*old_outer),
                                           BOX_RIGHT (*new_outer),
                                           new_outer,
                                           edge_data->right_edges,
+                                          &edge_data->right_timeout,
+                                          timeout_func,
                                           TRUE);
-      new_top    = apply_edge_resistance (BOX_TOP (*old_outer),
+      new_top    = apply_edge_resistance (window,
+                                          BOX_TOP (*old_outer),
                                           BOX_TOP (*new_outer),
                                           new_outer,
                                           edge_data->top_edges,
+                                          &edge_data->top_timeout,
+                                          timeout_func,
                                           FALSE);
-      new_bottom = apply_edge_resistance (BOX_BOTTOM (*old_outer),
+      new_bottom = apply_edge_resistance (window,
+                                          BOX_BOTTOM (*old_outer),
                                           BOX_BOTTOM (*new_outer),
                                           new_outer,
                                           edge_data->bottom_edges,
+                                          &edge_data->bottom_timeout,
+                                          timeout_func,
                                           FALSE);
     }
 
@@ -4165,7 +4271,8 @@ gboolean meta_display_apply_edge_resistance (MetaDisplay         *display,
 static void
 cleanup_edges (MetaDisplay *display)
 {
-  g_assert (display->grab_edge_resistance_data != NULL);
+  MetaEdgeResistanceData *edge_data = display->grab_edge_resistance_data;
+  g_assert (edge_data != NULL);
   guint i,j;
 
   /* We first need to clean out any window edges */
@@ -4175,16 +4282,16 @@ cleanup_edges (MetaDisplay *display)
       switch (i)
         {
         case 0:
-          tmp = display->grab_edge_resistance_data->left_edges;
+          tmp = edge_data->left_edges;
           break;
         case 1:
-          tmp = display->grab_edge_resistance_data->right_edges;
+          tmp = edge_data->right_edges;
           break;
         case 2:
-          tmp = display->grab_edge_resistance_data->top_edges;
+          tmp = edge_data->top_edges;
           break;
         case 3:
-          tmp = display->grab_edge_resistance_data->bottom_edges;
+          tmp = edge_data->bottom_edges;
           break;
         default:
           g_assert_not_reached ();
@@ -4199,10 +4306,21 @@ cleanup_edges (MetaDisplay *display)
     }
 
   /* Now free the arrays and data */
-  g_array_free (display->grab_edge_resistance_data->left_edges, TRUE);
-  g_array_free (display->grab_edge_resistance_data->right_edges, TRUE);
-  g_array_free (display->grab_edge_resistance_data->top_edges, TRUE);
-  g_array_free (display->grab_edge_resistance_data->bottom_edges, TRUE);
+  g_array_free (edge_data->left_edges, TRUE);
+  g_array_free (edge_data->right_edges, TRUE);
+  g_array_free (edge_data->top_edges, TRUE);
+  g_array_free (edge_data->bottom_edges, TRUE);
+
+  /* Cleanup the timeouts */
+  if (edge_data->left_timeout.setup   && edge_data->left_timeout.id   != 0)
+    g_source_remove (edge_data->left_timeout.id);
+  if (edge_data->right_timeout.setup  && edge_data->right_timeout.id  != 0)
+    g_source_remove (edge_data->right_timeout.id);
+  if (edge_data->top_timeout.setup    && edge_data->top_timeout.id    != 0)
+    g_source_remove (edge_data->top_timeout.id);
+  if (edge_data->bottom_timeout.setup && edge_data->bottom_timeout.id != 0)
+    g_source_remove (edge_data->bottom_timeout.id);
+
   g_free (display->grab_edge_resistance_data);
   display->grab_edge_resistance_data = NULL;
 }
@@ -4537,6 +4655,14 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
                display->grab_screen->active_workspace->xinerama_edges,
                display->grab_screen->active_workspace->screen_edges);
   g_list_free (edges);
+
+  /*
+   * 6th: Initialize the timeouts
+   */
+  display->grab_edge_resistance_data->left_timeout.setup   = FALSE;
+  display->grab_edge_resistance_data->right_timeout.setup  = FALSE;
+  display->grab_edge_resistance_data->top_timeout.setup    = FALSE;
+  display->grab_edge_resistance_data->bottom_timeout.setup = FALSE;
 }
 
 /***** End gobs of edge_resistance functions *****/

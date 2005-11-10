@@ -1221,7 +1221,7 @@ constrain_fully_onscreen (MetaWindow         *window,
   if (window->type == META_WINDOW_DESKTOP ||
       window->type == META_WINDOW_DOCK    ||
       !window->require_fully_onscreen     || 
-      (info->is_user_action && info->action_type != ACTION_RESIZE))
+      info->is_user_action)
     return TRUE;
 
   /* Have a helper function handle the constraint for us */

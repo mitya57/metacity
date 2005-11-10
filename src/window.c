@@ -6368,6 +6368,25 @@ check_moveresize_frequency (MetaWindow *window,
     }
 }
 
+static void update_move (MetaWindow   *window,
+                         unsigned int  mask,
+                         int           x,
+                         int           y);
+
+static gboolean
+update_move_timeout (gpointer data)
+{
+  MetaWindow *window = data;
+
+  update_move (window, 
+               window->display->grab_last_used_state_for_resize,
+               window->display->grab_latest_motion_x,
+               window->display->grab_latest_motion_y);
+
+  /* Return value is ignored, but whatever... */
+  return FALSE;
+}
+
 static void
 update_move (MetaWindow  *window,
              unsigned int mask,
@@ -6501,8 +6520,10 @@ update_move (MetaWindow  *window,
   new_outer = proposed_outer;
 
   if (meta_display_apply_edge_resistance (window->display,
+                                          window,
                                           &old_outer,
                                           &new_outer,
+                                          update_move_timeout,
                                           mask & ShiftMask))
     {
       /* meta_display_apply_edge_resistance independently applies
@@ -6771,8 +6792,10 @@ update_resize (MetaWindow *window,
 
       window->display->grab_last_used_state_for_resize = mask;
       if (meta_display_apply_edge_resistance (window->display,
+                                              window,
                                               &old_outer,
                                               &new_outer,
+                                              update_resize_timeout,
                                               mask & ShiftMask))
         {
           new_w = old.width  + (new_outer.width  - old_outer.width);
