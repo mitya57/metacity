@@ -38,7 +38,7 @@ Short-term (I hope...) TODO list/reminders:
       all the flickering that I saw.  However, this configure request stuff
       doesn't appear to be the cause of the drift...
     - There's still a drift...
-    - Interplay between various onscreen constraints is not very good
+    X Interplay between various onscreen constraints is not very good
       (resizing should stop when any window edge hits the screen edge,
       instead of arbitrarily clipping that edge).  Similar problems
       probably occur for overlap with other constraints (do we care about
@@ -54,7 +54,7 @@ Short-term (I hope...) TODO list/reminders:
       value if all constraints couldn't be satisfied
       simultaneously...)
 
-  - edge resistance need not be much different than the current code that
+  X edge resistance need not be much different than the current code that
     exists for the keyboard except that (a) only non-covered edges should
     count (same ought to be true for keyboard moving/resizing as well), (b)
     it'd be nice to have timeouts (think of two windows, A and B, separated
@@ -96,6 +96,23 @@ Short-term (I hope...) TODO list/reminders:
     - basic function addition
     - spanning rects
     - boxes.[ch] & testboxes.c
+
+  - Questions for UI experts:
+    - should I have left edges lining up to left edges of other
+      windows result in resistance as well, or just left edges lining
+      up against right edges as I currently do?
+    - should I do the extend-by-1-thing when checking for overlap?
+    - what should the threshold be for resistance?  screen-size-dependent?
+    - timeout for offscreen stuff?
+    - make timeout different for xinerama edges?
+    - if window offscreen, have different threshold for offscreen edge
+      resistance than for normal window edges?  (xinerama?)
+    - how much keyboard buildup before moving past various edges?  timeout?
+    - amount windows are allowed offscreen
+    - should I turn off all onscreen & on-single-xinerama constraints
+      for decorationless windows?
+    - ??? length of timeout on mouse_resize without threshold movement
+      before shoving window entirely onscreen
 
   - Need to clean out lots of FIXMEs in the code.
 

@@ -1,5 +1,10 @@
 2005-11-09  Elijah Newren  <newren@gmail.com>
 
+	* src/constraints-ideas.txt: Add a bunch of questions that I want
+	to ask the usability guys
+
+2005-11-09  Elijah Newren  <newren@gmail.com>
+
 	Get timeouts for screen/xinerama edge resistance working.
 
 	* src/constraints-ideas.txt: Update slightly
