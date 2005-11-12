@@ -390,6 +390,22 @@ void        meta_window_activate           (MetaWindow  *window,
 void        meta_window_make_fullscreen    (MetaWindow  *window);
 void        meta_window_unmake_fullscreen  (MetaWindow  *window);
 
+void        meta_window_edge_resistance_for_move   (MetaWindow *window,
+                                                    int         old_x,
+                                                    int         old_y,
+                                                    int        *new_x,
+                                                    int        *new_y,
+                                                    gboolean    snap,
+                                                    gboolean    is_keyboard_op);
+void        meta_window_edge_resistance_for_resize (MetaWindow *window,
+                                                    int         old_width,
+                                                    int         old_height,
+                                                    int        *new_width,
+                                                    int        *new_height,
+                                                    int         gravity,
+                                                    gboolean    snap,
+                                                    gboolean    is_keyboard_op);
+
 /* args to move are window pos, not frame pos */
 void        meta_window_move               (MetaWindow  *window,
                                             gboolean     user_op,

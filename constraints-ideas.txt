@@ -78,7 +78,7 @@ Short-term (I hope...) TODO list/reminders:
     X change edges_overlap() to not depend on type (allow undefined type;
       just check thicknesses)
 
-  - Important edge resistance points
+  X Important edge resistance points
     - Both moving and resizing
     - Real edges, not workarea
     - Screen vs. xinerama vs. window edges

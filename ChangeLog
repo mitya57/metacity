@@ -1,3 +1,89 @@
+2005-11-12  Elijah Newren  <newren@gmail.com>
+
+	Get keyboard buildup edge resistance working, and convert old (and
+	buggy) edge resistance for keyboard move/resize to new framework.
+	Despite this being a large increase in functionality, I almost
+	removed as many lines as I added from the cleanups that were
+	made possible (388 lines added, 328 removed).
+
+	* src/constraints-ideas.txt: Mark edge resistance as done (there
+	may be a few bugs left, and I'm sure I'll need to tweak some of
+	the parameters but there's nothing big left)
+
+	* src/display.[hc]:
+
+	(struct MetaDisplay):
+	rename grab_last_used_state_for_resize field to
+	grab_last_user_action_was_snap
+	
+	(meta_display_apply_edge_resistance):
+	take a keyboard_op parameter and pass it on to
+	apply_edge_resistance() and apply_edge_snapping()
+
+	* src/display.c:
+
+	(struct EdgeResistanceTimeoutData):
+	add a keyboard_buildup field
+
+	(meta_display_begin_grab_op):
+	handle rename of grab_last_used_state_for_resize to
+	grab_last_user_action_was_snap
+
+	(points_on_same_side):
+	new function
+
+	(find_nearest_position):
+	take an only_forward parameter and if true, only look for the
+	nearest position in the direction away from old_postion towards
+	(or past) position.
+
+	(apply_edge_resistance):
+	take a keyboard_op parameter, don't do timeout for keyboard op,
+	add special case for keyboard op that does keyboard energy buildup
+	resistance, explain the pixel distance mouse resistance better
+
+	(apply_edge_snapping):
+	take a keyboard_op parameter, add some comments, make sure that
+	the snapping is in the right direction for keyboard ops
+
+	(compute_resistance_and_snapping_edges):
+	initialize the keyboard_buildup field of the edge resistance data
+
+	* src/keybindings.c:
+
+	(process_keyboard_move_grab, process_keyboard_resize_grab):
+	SIMPLIFY MASSIVELY by using the new edge resistance and snapping
+	functionality.
+
+	* src/window.[ch]:
+
+	(meta_window_edge_resistance_for_move,
+	 meta_window_edge_resistance_for_resize):
+	new functions needed for handling common operations for both mouse
+	and keyboard moves and resizes; most of the work is handled by
+	meta_display_apply_edge_resistance() but these functions prepare
+	the necessary input parameters and correctly interpret the output
+	as needed.
+
+	* src/window.c:
+
+	(update_move, update_resize,
+	 meta_window_handle_mouse_grab_op_event):
+	have update_move() and update_resize() take a snap boolean
+	parameter instead of a mask unsigned int parameter since we don't
+	really know the keystate in some places where these functions need
+	to be called and don't really need that much info anyway
+
+	(update_move, update_resize):
+	move common functionality needed by keyboard move/resize into
+	meta_window_edge_resistance_for_move() and
+	meta_window_edge_resistance_for_resize()
+
+	(update_move_timeout, update_resize_timeout,
+	 meta_window_handle_mouse_grab_op_event):
+	handle rename of grab_last_used_state_for_resize to
+	grab_last_user_action_was_snap
+
 2005-11-09  Elijah Newren  <newren@gmail.com>
 
 	* src/constraints-ideas.txt: Add a bunch of questions that I want

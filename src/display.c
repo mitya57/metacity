@@ -108,6 +108,7 @@ struct EdgeResistanceTimeoutData
   gboolean     over;
   GSourceFunc  real_func;
   MetaWindow  *window;
+  int          keyboard_buildup;
 };
 typedef struct EdgeResistanceTimeoutData EdgeResistanceTimeoutData;
 
@@ -3319,7 +3320,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
   display->grab_old_window_stacking = NULL;
 #ifdef HAVE_XSYNC
   display->grab_sync_request_alarm = None;
-  display->grab_last_used_state_for_resize = 0;
+  display->grab_last_user_action_was_snap = FALSE;
 #endif
   display->grab_was_cancelled = FALSE;
   
@@ -3890,12 +3891,19 @@ find_index_of_edge_near_position (const GArray *edges,
     }
 }
 
+static gboolean
+points_on_same_side (int ref, int pt1, int pt2)
+{
+  return (pt1 - ref) * (pt2 - ref) > 0;
+}
+
 static int
 find_nearest_position (const GArray        *edges,
                        int                  position,
                        int                  old_position,
                        const MetaRectangle *new_rect,
-                       gboolean             horizontal)
+                       gboolean             horizontal,
+                       gboolean             only_forward)
 {
   /* This is basically just a binary search except that we're looking
    * for the value closest to position, rather than finding that
@@ -3945,7 +3953,8 @@ find_nearest_position (const GArray        *edges,
   gboolean edges_align = horizontal ? 
     meta_rectangle_vert_overlap (&edge->rect, new_rect) :
     meta_rectangle_horiz_overlap (&edge->rect, new_rect);
-  if (edges_align)
+  if (edges_align &&
+      (!only_forward || !points_on_same_side (position, compare, old_position)))
     {
       int dist = ABS (compare - position);
       if (dist < best_dist)
@@ -3965,7 +3974,9 @@ find_nearest_position (const GArray        *edges,
         meta_rectangle_vert_overlap (&edge->rect, new_rect) :
         meta_rectangle_horiz_overlap (&edge->rect, new_rect);
 
-      if (edges_align)
+      if (edges_align &&
+          (!only_forward ||
+           !points_on_same_side (position, compare, old_position)))
         {
           int dist = ABS (compare - position);
           if (dist < best_dist)
@@ -3987,7 +3998,9 @@ find_nearest_position (const GArray        *edges,
         meta_rectangle_vert_overlap (&edge->rect, new_rect) :
         meta_rectangle_horiz_overlap (&edge->rect, new_rect);
 
-      if (edges_align)
+      if (edges_align &&
+          (!only_forward ||
+           !points_on_same_side (position, compare, old_position)))
         {
           int dist = ABS (compare - position);
           if (dist < best_dist)
@@ -4039,7 +4052,8 @@ apply_edge_resistance (MetaWindow                *window,
                        GArray                    *edges,
                        EdgeResistanceTimeoutData *timeout,
                        GSourceFunc                timeout_func,
-                       gboolean                   xdir)
+                       gboolean                   xdir,
+                       gboolean                   keyboard_op)
 {
   int i, begin, end;
   gboolean increasing = new_pos > old_pos;
@@ -4083,11 +4097,13 @@ apply_edge_resistance (MetaWindow                *window,
         meta_rectangle_vert_overlap (&edge->rect, new_rect) :
         meta_rectangle_horiz_overlap (&edge->rect, new_rect);
 
-      /* If the edge is relevant and we haven't moved at least
-       * EDGE_RESISTANCE_THRESHOLD pixels past this edge, stop movement at
-       * this edge.
+      /* TIMEOUT RESISTANCE for screen/xinerama edges: If the edge is
+       * relevant and we're moving towards it and it's a screen/xinerama
+       * edge, then we may want to have some kind of time delay before the
+       * user can move past this edge.
        */
-      if (edges_align && movement_towards_edge (edge->side_type, increment) &&
+      if (edges_align && !keyboard_op &&
+          movement_towards_edge (edge->side_type, increment) &&
           ((window->require_fully_onscreen &&
             edge->edge_type == META_EDGE_ONSCREEN) ||
            (window->require_on_single_xinerama &&
@@ -4107,22 +4123,51 @@ apply_edge_resistance (MetaWindow                *window,
           if (!timeout->over)
             return compare;
         }
-#if 0
-      FIXME: Do I want the following code?  In the case that the window isn't
-      required to be fully onscreen, this would give a resistance to screen
-      edges when moving more offscreen that is different from the normal
-      threshold used for normal windows.  (If I do use this, I should
-      probably do something similar for xinerama, and should stick the 100
-      somewhere else as a const or #define instead of hard coding it...)
 
-      if (edges_align && edge->edge_type == META_EDGE_ONSCREEN &&
-          movement_towards_edge (edge->side_type, increment) &&
-          ABS (compare - new_pos) < 100)
-        return compare;
-#endif
-      if (edges_align &&
-          ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
-        return compare;
+      /* Rest is easier to read if we split on keyboard vs. mouse op */
+      if (keyboard_op)
+        {
+          /* KEYBOARD ENERGY BUILDUP RESISTANCE: If the user has is moving
+           * fast enough or has already built up enough "energy", then let
+           * the user past the edge, otherwise stop at this edge.  If the
+           * user was previously stopped at this edge, add movement amount
+           * to the built up energy.
+           */
+          int threshold = EDGE_RESISTANCE_THRESHOLD
+                         - timeout->keyboard_buildup;
+          if (edges_align &&
+              ABS (compare - new_pos) < threshold)
+            {
+              if (timeout->keyboard_buildup != 0)
+                timeout->keyboard_buildup += ABS (new_pos - compare);
+              else
+                timeout->keyboard_buildup = 1; /* Can't be 0 or stuck forever */
+              return compare;
+            }
+          else
+            {
+              /* Let the user past the edge; remove any built up energy
+               * from this edge (note that there better not be any left
+               * over from previous edges either...)
+               */
+              timeout->keyboard_buildup = 0;
+            }
+        }
+      else
+        {
+          /* PIXEL DISTANCE MOUSE RESISTANCE: If the edge matters and the
+           * user hasn't moved at least EDGE_RESISTANCE_THRESHOLD pixels
+           * past this edge, stop movement at this edge.  (Note that this
+           * is different from keyboard resistance precisely because
+           * keyboard move ops are relative to previous positions, whereas
+           * mouse move ops are relative to differences in mouse position
+           * and mouse position is an absolute quantity rather than a
+           * relative quantity)
+           */
+          if (edges_align &&
+              ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
+            return compare;
+        }
 
       /* Go to the next edge in the range */
       i += increment;
@@ -4137,24 +4182,43 @@ apply_edge_snapping (int                  old_pos,
                      const MetaRectangle *new_rect,
                      GArray              *edges1,
                      GArray              *edges2,
-                     gboolean             xdir)
+                     gboolean             xdir,
+                     gboolean             keyboard_op)
 {
   int pos1, pos2;
 
   if (old_pos == new_pos)
     return new_pos;
 
+  /* We look at two sets of edges (e.g. left and right) individually
+   * finding the nearest position among each set of edges and then later
+   * finding the better of these two bests.
+   */
   pos1 = find_nearest_position (edges1,
                                 new_pos,
                                 old_pos,
                                 new_rect,
-                                xdir);
+                                xdir,
+                                keyboard_op);
   pos2 = find_nearest_position (edges2,
                                 new_pos,
                                 old_pos,
                                 new_rect,
-                                xdir);
+                                xdir,
+                                keyboard_op);
 
+  /* For keyboard snapping, ignore either pos1 or pos2 if they aren't in the
+   * right direction.
+   */
+  if (keyboard_op)
+    {
+      if (!points_on_same_side (old_pos, pos1, new_pos))
+        return pos2;
+      if (!points_on_same_side (old_pos, pos2, new_pos))
+        return pos1;
+    }
+
+  /* Find the better of pos1 and pos2 and return it */
   if (ABS (pos1 - new_pos) < ABS (pos2 - new_pos))
     return pos1;
   else
@@ -4175,7 +4239,8 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                     const MetaRectangle *old_outer,
                                     MetaRectangle       *new_outer,
                                     GSourceFunc          timeout_func,
-                                    gboolean             auto_snap)
+                                    gboolean             auto_snap,
+                                    gboolean             keyboard_op)
 {
   MetaEdgeResistanceData *edge_data;
   MetaRectangle           modified_rect;
@@ -4197,29 +4262,32 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                         new_outer,
                                         edge_data->left_edges,
                                         edge_data->right_edges,
-                                        TRUE);
+                                        TRUE,
+                                        keyboard_op);
 
       new_right  = apply_edge_snapping (BOX_RIGHT (*old_outer),
                                         BOX_RIGHT (*new_outer),
                                         new_outer,
                                         edge_data->left_edges,
                                         edge_data->right_edges,
-                                        TRUE);
+                                        TRUE,
+                                        keyboard_op);
 
       new_top    = apply_edge_snapping (BOX_TOP (*old_outer),
                                         BOX_TOP (*new_outer),
                                         new_outer,
                                         edge_data->top_edges,
                                         edge_data->bottom_edges,
-                                        FALSE);
+                                        FALSE,
+                                        keyboard_op);
 
       new_bottom = apply_edge_snapping (BOX_BOTTOM (*old_outer),
                                         BOX_BOTTOM (*new_outer),
                                         new_outer,
                                         edge_data->top_edges,
                                         edge_data->bottom_edges,
-                                        FALSE);
-
+                                        FALSE,
+                                        keyboard_op);
     }
   else
     {
@@ -4231,7 +4299,8 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           edge_data->left_edges,
                                           &edge_data->left_timeout,
                                           timeout_func,
-                                          TRUE);
+                                          TRUE,
+                                          keyboard_op);
       new_right  = apply_edge_resistance (window,
                                           BOX_RIGHT (*old_outer),
                                           BOX_RIGHT (*new_outer),
@@ -4239,7 +4308,8 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           edge_data->right_edges,
                                           &edge_data->right_timeout,
                                           timeout_func,
-                                          TRUE);
+                                          TRUE,
+                                          keyboard_op);
       new_top    = apply_edge_resistance (window,
                                           BOX_TOP (*old_outer),
                                           BOX_TOP (*new_outer),
@@ -4247,7 +4317,8 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           edge_data->top_edges,
                                           &edge_data->top_timeout,
                                           timeout_func,
-                                          FALSE);
+                                          FALSE,
+                                          keyboard_op);
       new_bottom = apply_edge_resistance (window,
                                           BOX_BOTTOM (*old_outer),
                                           BOX_BOTTOM (*new_outer),
@@ -4255,7 +4326,8 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           edge_data->bottom_edges,
                                           &edge_data->bottom_timeout,
                                           timeout_func,
-                                          FALSE);
+                                          FALSE,
+                                          keyboard_op);
     }
 
   /* Determine whether anything changed, and save the changes */
@@ -4657,12 +4729,17 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
   g_list_free (edges);
 
   /*
-   * 6th: Initialize the timeouts
+   * 6th: Initialize the resistance timeouts and buildups
    */
   display->grab_edge_resistance_data->left_timeout.setup   = FALSE;
   display->grab_edge_resistance_data->right_timeout.setup  = FALSE;
   display->grab_edge_resistance_data->top_timeout.setup    = FALSE;
   display->grab_edge_resistance_data->bottom_timeout.setup = FALSE;
+
+  display->grab_edge_resistance_data->left_timeout.keyboard_buildup   = 0;
+  display->grab_edge_resistance_data->right_timeout.keyboard_buildup  = 0;
+  display->grab_edge_resistance_data->top_timeout.keyboard_buildup    = 0;
+  display->grab_edge_resistance_data->bottom_timeout.keyboard_buildup = 0;
 }
 
 /***** End gobs of edge_resistance functions *****/
