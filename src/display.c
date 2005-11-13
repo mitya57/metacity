@@ -100,17 +100,18 @@ typedef struct
   window->type   != META_WINDOW_MENU    &&     \
   window->type   != META_WINDOW_SPLASHSCREEN
 
-struct EdgeResistanceTimeoutData
+struct ResistanceDataForAnEdge
 {
-  gboolean     setup;
-  guint        id;
-  int          edge_pos;
-  gboolean     over;
-  GSourceFunc  real_func;
+  gboolean     timeout_setup;
+  guint        timeout_id;
+  int          timeout_edge_pos;
+  gboolean     timeout_over;
+  GSourceFunc  timeout_func;
   MetaWindow  *window;
   int          keyboard_buildup;
+  gboolean     allow_past_screen_edge;
 };
-typedef struct EdgeResistanceTimeoutData EdgeResistanceTimeoutData;
+typedef struct ResistanceDataForAnEdge ResistanceDataForAnEdge;
 
 struct MetaEdgeResistanceData
 {
@@ -119,10 +120,10 @@ struct MetaEdgeResistanceData
   GArray *top_edges;
   GArray *bottom_edges;
 
-  EdgeResistanceTimeoutData left_timeout;
-  EdgeResistanceTimeoutData right_timeout;
-  EdgeResistanceTimeoutData top_timeout;
-  EdgeResistanceTimeoutData bottom_timeout;
+  ResistanceDataForAnEdge left_data;
+  ResistanceDataForAnEdge right_data;
+  ResistanceDataForAnEdge top_data;
+  ResistanceDataForAnEdge bottom_data;
 };
 
 static GSList *all_displays = NULL;
@@ -4035,11 +4036,11 @@ movement_towards_edge (MetaDirection side, int increment)
 static gboolean
 edge_resistance_timeout (gpointer data)
 {
-  EdgeResistanceTimeoutData *timeout = data;
+  ResistanceDataForAnEdge *resistance_data = data;
 
-  timeout->over = TRUE;
-  timeout->id = 0;
-  (*timeout->real_func)(timeout->window);
+  resistance_data->timeout_over = TRUE;
+  resistance_data->timeout_id = 0;
+  (*resistance_data->timeout_func)(resistance_data->window);
 
   return FALSE;
 }
@@ -4050,7 +4051,7 @@ apply_edge_resistance (MetaWindow                *window,
                        int                        new_pos,
                        const MetaRectangle       *new_rect,
                        GArray                    *edges,
-                       EdgeResistanceTimeoutData *timeout,
+                       ResistanceDataForAnEdge   *resistance_data,
                        GSourceFunc                timeout_func,
                        gboolean                   xdir,
                        gboolean                   keyboard_op)
@@ -4067,15 +4068,17 @@ apply_edge_resistance (MetaWindow                *window,
     return new_pos;
 
   /* Remove the old timeout if it's no longer relevant */
-  if (timeout->setup &&
-      ((timeout->edge_pos > old_pos && timeout->edge_pos > new_pos) ||
-       (timeout->edge_pos < old_pos && timeout->edge_pos < new_pos)))
+  if (resistance_data->timeout_setup &&
+      ((resistance_data->timeout_edge_pos > old_pos &&
+        resistance_data->timeout_edge_pos > new_pos)  ||
+       (resistance_data->timeout_edge_pos < old_pos &&
+        resistance_data->timeout_edge_pos < new_pos)))
     {
-      timeout->setup = FALSE;
-      if (timeout->id != 0)
+      resistance_data->timeout_setup = FALSE;
+      if (resistance_data->timeout_id != 0)
         {
-          g_source_remove (timeout->id);
-          timeout->id = 0;
+          g_source_remove (resistance_data->timeout_id);
+          resistance_data->timeout_id = 0;
         }
     }
 
@@ -4097,6 +4100,19 @@ apply_edge_resistance (MetaWindow                *window,
         meta_rectangle_vert_overlap (&edge->rect, new_rect) :
         meta_rectangle_horiz_overlap (&edge->rect, new_rect);
 
+      /* INFINITE RESISTANCE for screen edges under certain cases; If the
+       * edge is relevant and we're moving towards it and it's a screen
+       * edge and infinite resistance has been requested for this
+       * particular grab op then don't allow movement past it.
+       */
+      if (edges_align && !keyboard_op &&
+          movement_towards_edge (edge->side_type, increment) &&
+          edge->edge_type == META_EDGE_ONSCREEN &&
+          !resistance_data->allow_past_screen_edge)
+        {
+          return compare;
+        }
+
       /* TIMEOUT RESISTANCE for screen/xinerama edges: If the edge is
        * relevant and we're moving towards it and it's a screen/xinerama
        * edge, then we may want to have some kind of time delay before the
@@ -4109,18 +4125,20 @@ apply_edge_resistance (MetaWindow                *window,
            (window->require_on_single_xinerama &&
             edge->edge_type == META_EDGE_XINERAMA)))
         {
-          if (!timeout->setup /* FIXME?: || compare != timeout->edge_pos */ )
+          if (!resistance_data->timeout_setup
+              /* FIXME?: || compare != resistance_data->edge_pos */ )
             {
-              timeout->id = g_timeout_add (750,
-                                           edge_resistance_timeout,
-                                           timeout);
-              timeout->setup = TRUE;
-              timeout->edge_pos = compare;
-              timeout->over = FALSE;
-              timeout->real_func = timeout_func;
-              timeout->window = window;
+              resistance_data->timeout_id = 
+                g_timeout_add (750,
+                               edge_resistance_timeout,
+                               resistance_data);
+              resistance_data->timeout_setup = TRUE;
+              resistance_data->timeout_edge_pos = compare;
+              resistance_data->timeout_over = FALSE;
+              resistance_data->timeout_func = timeout_func;
+              resistance_data->window = window;
             }
-          if (!timeout->over)
+          if (!resistance_data->timeout_over)
             return compare;
         }
 
@@ -4134,14 +4152,14 @@ apply_edge_resistance (MetaWindow                *window,
            * to the built up energy.
            */
           int threshold = EDGE_RESISTANCE_THRESHOLD
-                         - timeout->keyboard_buildup;
+                         - resistance_data->keyboard_buildup;
           if (edges_align &&
               ABS (compare - new_pos) < threshold)
             {
-              if (timeout->keyboard_buildup != 0)
-                timeout->keyboard_buildup += ABS (new_pos - compare);
+              if (resistance_data->keyboard_buildup != 0)
+                resistance_data->keyboard_buildup += ABS (new_pos - compare);
               else
-                timeout->keyboard_buildup = 1; /* Can't be 0 or stuck forever */
+                resistance_data->keyboard_buildup = 1; /* Can't be 0 or stuck forever */
               return compare;
             }
           else
@@ -4150,7 +4168,7 @@ apply_edge_resistance (MetaWindow                *window,
                * from this edge (note that there better not be any left
                * over from previous edges either...)
                */
-              timeout->keyboard_buildup = 0;
+              resistance_data->keyboard_buildup = 0;
             }
         }
       else
@@ -4297,7 +4315,7 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           BOX_LEFT (*new_outer),
                                           new_outer,
                                           edge_data->left_edges,
-                                          &edge_data->left_timeout,
+                                          &edge_data->left_data,
                                           timeout_func,
                                           TRUE,
                                           keyboard_op);
@@ -4306,7 +4324,7 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           BOX_RIGHT (*new_outer),
                                           new_outer,
                                           edge_data->right_edges,
-                                          &edge_data->right_timeout,
+                                          &edge_data->right_data,
                                           timeout_func,
                                           TRUE,
                                           keyboard_op);
@@ -4315,7 +4333,7 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           BOX_TOP (*new_outer),
                                           new_outer,
                                           edge_data->top_edges,
-                                          &edge_data->top_timeout,
+                                          &edge_data->top_data,
                                           timeout_func,
                                           FALSE,
                                           keyboard_op);
@@ -4324,7 +4342,7 @@ meta_display_apply_edge_resistance (MetaDisplay         *display,
                                           BOX_BOTTOM (*new_outer),
                                           new_outer,
                                           edge_data->bottom_edges,
-                                          &edge_data->bottom_timeout,
+                                          &edge_data->bottom_data,
                                           timeout_func,
                                           FALSE,
                                           keyboard_op);
@@ -4384,14 +4402,18 @@ cleanup_edges (MetaDisplay *display)
   g_array_free (edge_data->bottom_edges, TRUE);
 
   /* Cleanup the timeouts */
-  if (edge_data->left_timeout.setup   && edge_data->left_timeout.id   != 0)
-    g_source_remove (edge_data->left_timeout.id);
-  if (edge_data->right_timeout.setup  && edge_data->right_timeout.id  != 0)
-    g_source_remove (edge_data->right_timeout.id);
-  if (edge_data->top_timeout.setup    && edge_data->top_timeout.id    != 0)
-    g_source_remove (edge_data->top_timeout.id);
-  if (edge_data->bottom_timeout.setup && edge_data->bottom_timeout.id != 0)
-    g_source_remove (edge_data->bottom_timeout.id);
+  if (edge_data->left_data.timeout_setup   &&
+      edge_data->left_data.timeout_id   != 0)
+    g_source_remove (edge_data->left_data.timeout_id);
+  if (edge_data->right_data.timeout_setup  &&
+      edge_data->right_data.timeout_id  != 0)
+    g_source_remove (edge_data->right_data.timeout_id);
+  if (edge_data->top_data.timeout_setup    &&
+      edge_data->top_data.timeout_id    != 0)
+    g_source_remove (edge_data->top_data.timeout_id);
+  if (edge_data->bottom_data.timeout_setup &&
+      edge_data->bottom_data.timeout_id != 0)
+    g_source_remove (edge_data->bottom_data.timeout_id);
 
   g_free (display->grab_edge_resistance_data);
   display->grab_edge_resistance_data = NULL;
@@ -4546,6 +4568,28 @@ cache_edges (MetaDisplay *display,
                 stupid_sort_requiring_extra_pointer_dereference);
   g_array_sort (display->grab_edge_resistance_data->bottom_edges, 
                 stupid_sort_requiring_extra_pointer_dereference);
+}
+
+static void
+initialize_grab_edge_resistance_data (MetaDisplay *display)
+{
+  MetaEdgeResistanceData *edge_data = display->grab_edge_resistance_data;
+
+  edge_data->left_data.timeout_setup   = FALSE;
+  edge_data->right_data.timeout_setup  = FALSE;
+  edge_data->top_data.timeout_setup    = FALSE;
+  edge_data->bottom_data.timeout_setup = FALSE;
+
+  edge_data->left_data.keyboard_buildup   = 0;
+  edge_data->right_data.keyboard_buildup  = 0;
+  edge_data->top_data.keyboard_buildup    = 0;
+  edge_data->bottom_data.keyboard_buildup = 0;
+
+  edge_data->left_data.allow_past_screen_edge   = TRUE;
+  edge_data->right_data.allow_past_screen_edge  = TRUE;
+  edge_data->bottom_data.allow_past_screen_edge = TRUE;
+  edge_data->top_data.allow_past_screen_edge    = 
+    display->grab_anchor_root_y >= display->grab_initial_window_pos.y;
 }
 
 static void
@@ -4731,15 +4775,7 @@ compute_resistance_and_snapping_edges (MetaDisplay *display)
   /*
    * 6th: Initialize the resistance timeouts and buildups
    */
-  display->grab_edge_resistance_data->left_timeout.setup   = FALSE;
-  display->grab_edge_resistance_data->right_timeout.setup  = FALSE;
-  display->grab_edge_resistance_data->top_timeout.setup    = FALSE;
-  display->grab_edge_resistance_data->bottom_timeout.setup = FALSE;
-
-  display->grab_edge_resistance_data->left_timeout.keyboard_buildup   = 0;
-  display->grab_edge_resistance_data->right_timeout.keyboard_buildup  = 0;
-  display->grab_edge_resistance_data->top_timeout.keyboard_buildup    = 0;
-  display->grab_edge_resistance_data->bottom_timeout.keyboard_buildup = 0;
+  initialize_grab_edge_resistance_data (display);
 }
 
 /***** End gobs of edge_resistance functions *****/

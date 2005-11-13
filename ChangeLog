@@ -1,5 +1,36 @@
 2005-11-12  Elijah Newren  <newren@gmail.com>
 
+	Some renaming of structs & vars for sanity sake, plus the
+	introduction of infinite resistance for top screen edges when
+	moving the window via the titlebar.
+
+	* src/display.c
+
+	(struct ResistanceDataForAnEdge):
+	add an allow_past_screen_edge field
+
+	(apply_edge_resistance):
+	add an infinite resistance valid for the relevant screen edges
+	when resistance_data->allow_past_screen_edge is true.
+
+	(initialize_grab_edge_resistance_data):
+	pull out growing functionality from
+	compute_resistance_and_snapping_edges() into a new function,
+	initialize_grab_edge_resistance_data().  Also, make sure to
+	initialize resistance_data->allow_past_screen_edge appropriately
+	in this new function.
+
+	(struct ResistanceDataForAnEdge, struct MetaEdgeResistanceData,
+	 edge_resistance_timeout, apply_edge_resistance,
+	 meta_display_apply_edge_resistance, cleanup_edges):
+	rename the EdgeResistanceTimeoutData struct to
+	EdgeResistanceTimeoutData, modify the names of most all fields to
+	point out which are exclusively meant for timeout stuff and which
+	aren't, rename the fields in the MetaEdgeResistanceData to clarify
+	that they aren't just timeout data
+
+2005-11-12  Elijah Newren  <newren@gmail.com>
+
 	Get keyboard buildup edge resistance working, and convert old (and
 	buggy) edge resistance for keyboard move/resize to new framework.
 	Despite this being a large increase in functionality, I almost
