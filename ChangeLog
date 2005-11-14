@@ -1,5 +1,14 @@
 2005-11-13  Elijah Newren  <newren@gmail.com>
 
+	* src/window.c (meta_window_handle_mouse_grab_op_event): don't do
+	a move or resize on ButtonRelease if the most recent move/resize
+	was a snap event--snap move/resize users often release shift and
+	the button at the same time and if shift happened to come first
+	then it would previously result in a huge jarring movement of the
+	window
+
+2005-11-13  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: update
 
 	* src/display.c (apply_edge_snapping): if mouse snap-moving,

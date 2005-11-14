@@ -7100,21 +7100,29 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
   
   switch (event->type)
     {
-    case ButtonRelease:      
-      if (meta_grab_op_is_moving (window->display->grab_op))
+    case ButtonRelease:
+      /* If the user was snap moving then ignore the button release
+       * because they may have let go of shift before releasing the
+       * mouse button and they almost certainly do not want a
+       * non-snapped movement to occur from the button release.
+       */
+      if (!window->display->grab_last_user_action_was_snap)
         {
-          if (event->xbutton.root == window->screen->xroot)
-            update_move (window, event->xbutton.state & ShiftMask,
-                         event->xbutton.x_root, event->xbutton.y_root);
-        }
-      else if (meta_grab_op_is_resizing (window->display->grab_op))
-        {
-          if (event->xbutton.root == window->screen->xroot)
-            update_resize (window,
-                           event->xbutton.state & ShiftMask,
-                           event->xbutton.x_root,
-                           event->xbutton.y_root,
-                           TRUE);
+          if (meta_grab_op_is_moving (window->display->grab_op))
+            {
+              if (event->xbutton.root == window->screen->xroot)
+                update_move (window, event->xbutton.state & ShiftMask,
+                             event->xbutton.x_root, event->xbutton.y_root);
+            }
+          else if (meta_grab_op_is_resizing (window->display->grab_op))
+            {
+              if (event->xbutton.root == window->screen->xroot)
+                update_resize (window,
+                               event->xbutton.state & ShiftMask,
+                               event->xbutton.x_root,
+                               event->xbutton.y_root,
+                               TRUE);
+            }
         }
 
       meta_display_end_grab_op (window->display, event->xbutton.time);
