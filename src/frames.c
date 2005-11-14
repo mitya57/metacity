@@ -1444,16 +1444,25 @@ meta_frames_button_press_event (GtkWidget      *widget,
           break;
         }
 
-      meta_core_begin_grab_op (gdk_display,
-                               frame->xwindow,
-                               op,
-                               TRUE,
-                               meta_ui_get_last_event_serial (gdk_display),
-                               event->button,
-                               0,
-                               event->time,
-                               event->x_root,
-                               event->y_root);
+      if (!meta_core_titlebar_is_onscreen (gdk_display,
+                                           frame->xwindow))
+        meta_core_show_window_menu (gdk_display,
+                                    frame->xwindow,
+                                    event->x_root,
+                                    event->y_root,
+                                    event->button,
+                                    event->time);
+      else
+        meta_core_begin_grab_op (gdk_display,
+                                 frame->xwindow,
+                                 op,
+                                 TRUE,
+                                 meta_ui_get_last_event_serial (gdk_display),
+                                 event->button,
+                                 0,
+                                 event->time,
+                                 event->x_root,
+                                 event->y_root);
     }
   else if (control == META_FRAME_CONTROL_TITLE &&
            event->button == 1)

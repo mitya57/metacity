@@ -60,6 +60,7 @@ static MenuItem menuitems[] = {
   { META_MENU_OP_UNABOVE, NULL, TRUE, N_("On _Top") },
   { META_MENU_OP_MOVE, NULL, FALSE, N_("_Move") },
   { META_MENU_OP_RESIZE, NULL, FALSE, N_("_Resize") },
+  { META_MENU_OP_RECOVER, NULL, FALSE, N_("Move Titlebar On_screen") },
   { 0, NULL, FALSE, NULL }, /* separator */
   { META_MENU_OP_DELETE, METACITY_STOCK_DELETE, FALSE, N_("_Close") },
   { META_MENU_OP_WORKSPACES, NULL, FALSE, NULL }, /* separator */

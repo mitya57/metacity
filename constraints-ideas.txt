@@ -4,7 +4,7 @@ Short-term (I hope...) TODO list/reminders:
     misleading now
 
   - Quicklist that I thought of:
-    - Titlebar onscreen func should use CLAMP(percent*width, 10, 75) for
+    X Titlebar onscreen func should use CLAMP(percent*width, 10, 75) for
       width and 2-3 pixels for height for checking if the titlebar is
       partially onscreen or not
     X on-single-xinerama constraint should not apply if only 1 xinerama
@@ -65,7 +65,7 @@ Short-term (I hope...) TODO list/reminders:
     difficult determining where the screen edges are
 
   - Various extra random ideas
-    - Could make edge resistance infinite if move/resize was
+    X Could make edge resistance infinite if move/resize was
       click-on-titlebar-area activated (or perhaps just if the
       grab_anchor_root_(x|y) is in the titlebar area?)
     - Could get rid of the big comment at the beginning of
@@ -77,6 +77,8 @@ Short-term (I hope...) TODO list/reminders:
     X check if test_find_onscreen_edges() passes when struts are disjoint
     X change edges_overlap() to not depend on type (allow undefined type;
       just check thicknesses)
+    - have a shove_onscreen item in the menu when the titlebar is
+      offscreen too
 
   X Important edge resistance points
     - Both moving and resizing
@@ -112,11 +114,12 @@ Short-term (I hope...) TODO list/reminders:
     - should I turn off all onscreen & on-single-xinerama constraints
       for decorationless windows?
     - ??? length of timeout on mouse_resize without threshold movement
-      before shoving window entirely onscreen
+      before shoving window entirely onscreen (and amount of titlebar
+      obscured before it's considered offscreen?)
 
   - Need to clean out lots of FIXMEs in the code.
 
-  - Need to do the titlebar offscreen checking, partial maximization, etc.
+  X Need to do the titlebar offscreen checking, partial maximization, etc.
 
   X Might be good to optimize by storing spanning rects in MetaWorkspace
 

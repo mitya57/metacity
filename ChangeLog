@@ -1,3 +1,30 @@
+2005-11-13  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: update
+
+	* src/constraints.c (constraint_partially_onscreen): remove an old
+	comment that no longer applies and is just misleading
+
+	* src/common.h (enum MetaMenuOp):
+	* src/core.c (meta_core_get_menu_accelerator):
+	* src/menu.c (menuitems):
+	* src/window.c (menu_callback):
+	add META_MENU_OP_RECOVER for shoving the titlebar back onscreen
+
+	* src/core.[ch] (meta_core_titlebar_is_onscreen): new function
+
+	* src/frames.c (meta_frames_button_press_event): show the window
+	menu instead of starting a resize operation when clicking on the
+	window frame and the titlebar is offscreen.
+
+	* src/window.[ch] (meta_window_shove_titlebar_onscreen): new
+	function for checking if a window's titlebar is onscreen,
+	(meta_window_titlebar_is_onscreen): new function shoving a
+	window's titlebar back onscreen
+
+	* src/window.c (meta_window_show_menu): add a recover titlebar
+	option if the titlebar is offscreen
+
 2005-11-12  Elijah Newren  <newren@gmail.com>
 
 	Some renaming of structs & vars for sanity sake, plus the

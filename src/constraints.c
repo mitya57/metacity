@@ -1288,6 +1288,5 @@ constrain_partially_onscreen (MetaWindow         *window,
                                 -vert_amount,
                                 -vert_amount);
 
-  /* Free up the data we allocated */
   return retval;
 }

@@ -47,6 +47,23 @@ meta_core_get_client_size (Display *xdisplay,
     *height = window->rect.height;
 }
 
+gboolean
+meta_core_titlebar_is_onscreen (Display *xdisplay,
+                                Window   frame_xwindow)
+{
+  MetaDisplay *display;
+  MetaWindow *window;
+  
+  display = meta_display_for_x_display (xdisplay);
+  window = meta_display_lookup_x_window (display, frame_xwindow);
+
+  if (window == NULL || window->frame == NULL)
+    meta_bug ("No such frame window 0x%lx!\n", frame_xwindow);
+
+  return meta_window_titlebar_is_onscreen (window);  
+}
+
+
 Window
 meta_core_get_client_xwindow (Display *xdisplay,
                               Window   frame_xwindow)
@@ -689,6 +706,9 @@ meta_core_get_menu_accelerator (MetaMenuOp           menu_op,
       break;
     case META_MENU_OP_MOVE_DOWN:
       name = META_KEYBINDING_MOVE_WORKSPACE_DOWN;
+      break;
+    case META_MENU_OP_RECOVER:
+      /* No keybinding for this one */
       break;
     }
 

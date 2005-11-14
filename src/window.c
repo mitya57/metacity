@@ -6135,6 +6135,10 @@ menu_callback (MetaWindowMenu *menu,
                                      META_GRAB_OP_KEYBOARD_RESIZING_UNKNOWN,
                                      meta_display_get_current_time (window->display));
           break;
+
+        case META_MENU_OP_RECOVER:
+          meta_window_shove_titlebar_onscreen (window);
+          break;
           
         case 0:
           /* nothing */
@@ -6193,6 +6197,9 @@ meta_window_show_menu (MetaWindow *window,
   insensitive = 0;
 
   ops |= (META_MENU_OP_DELETE | META_MENU_OP_MINIMIZE | META_MENU_OP_MOVE | META_MENU_OP_RESIZE);
+
+  if (!meta_window_titlebar_is_onscreen (window))
+    ops |= META_MENU_OP_RECOVER;
 
   n_workspaces = meta_screen_get_n_workspaces (window->screen);
 
@@ -6289,6 +6296,98 @@ meta_window_show_menu (MetaWindow *window,
   meta_verbose ("Popping up window menu for %s\n", window->desc);
   
   meta_ui_window_menu_popup (menu, root_x, root_y, button, timestamp);
+}
+
+void
+meta_window_shove_titlebar_onscreen (MetaWindow *window)
+{
+  MetaRectangle  outer_rect;
+  GList         *onscreen_region;
+  int            horiz_amount, vert_amount;
+  int            newx, newy;
+
+  /* If there's no titlebar, don't bother */
+  if (!window->frame)
+    return;
+
+  /* Get the basic info we need */
+  meta_window_get_outer_rect (window, &outer_rect);
+  onscreen_region = window->screen->active_workspace->screen_region;
+
+  /* Extend the region (just in case the window is too big to fit on the
+   * screen), then shove the window on screen, then return the region to
+   * normal.
+   */
+  horiz_amount = outer_rect.width;
+  vert_amount  = outer_rect.height;
+  meta_rectangle_expand_region (onscreen_region,
+                                horiz_amount,
+                                horiz_amount, 
+                                0,
+                                vert_amount);
+  meta_rectangle_shove_into_region(onscreen_region,
+                                   FIXED_DIRECTION_X,
+                                   &outer_rect);
+  meta_rectangle_expand_region (onscreen_region,
+                                -horiz_amount,
+                                -horiz_amount, 
+                                0,
+                                -vert_amount);
+
+  newx = outer_rect.x + window->frame->child_x;
+  newy = outer_rect.y + window->frame->child_y;
+  meta_window_move_resize (window,
+                           TRUE,
+                           newx,
+                           newy,
+                           window->rect.width, 
+                           window->rect.height);
+}
+
+gboolean
+meta_window_titlebar_is_onscreen (MetaWindow *window)
+{
+  MetaRectangle  titlebar_rect;
+  GList         *onscreen_region;
+  int            titlebar_size;
+  gboolean       is_onscreen;
+
+  const int min_height_needed  = 8;
+  const int min_width_percent  = 0.5;
+  const int min_width_absolute = 50;
+
+  /* Titlebar can't be offscreen if there is no titlebar... */
+  if (!window->frame)
+    return FALSE;
+  
+  /* Get the rectangle corresponding to the titlebar */
+  meta_window_get_outer_rect (window, &titlebar_rect);
+  titlebar_rect.height = window->frame->child_y;
+  titlebar_size = meta_rectangle_area (&titlebar_rect);
+
+  /* Run through the spanning rectangles for the screen and see if one of
+   * them overlaps with the titlebar sufficiently to consider it onscreen.
+   */
+  is_onscreen = FALSE;
+  onscreen_region = window->screen->active_workspace->screen_region;
+  while (onscreen_region)
+    {
+      MetaRectangle *spanning_rect = onscreen_region->data;
+      MetaRectangle overlap;
+      
+      meta_rectangle_intersect (&titlebar_rect, spanning_rect, &overlap);
+      if (overlap.height > MIN (titlebar_rect.height, min_height_needed) &&
+          overlap.width  > MIN (titlebar_rect.width * min_width_percent, 
+                                min_width_absolute))
+        {
+          is_onscreen = TRUE;
+          break;
+        }
+        
+      onscreen_region = onscreen_region->next;
+    }
+
+  return is_onscreen;
 }
 
 static double

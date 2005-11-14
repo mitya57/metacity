@@ -31,6 +31,9 @@ void meta_core_get_client_size (Display *xdisplay,
                                 int     *width,
                                 int     *height);
 
+gboolean meta_core_titlebar_is_onscreen (Display *xdisplay,
+                                         Window   frame_xwindow);
+
 Window meta_core_get_client_xwindow (Display *xdisplay,
                                      Window   frame_xwindow);
 

@@ -512,6 +512,9 @@ void meta_window_show_menu (MetaWindow *window,
                             int         button,
                             Time        timestamp);
 
+gboolean meta_window_titlebar_is_onscreen    (MetaWindow *window);
+void     meta_window_shove_titlebar_onscreen (MetaWindow *window);
+
 void meta_window_set_gravity (MetaWindow *window,
                               int         gravity);
 
