@@ -2,6 +2,15 @@
 
 	* constraints-ideas.txt: update
 
+	* src/display.c (apply_edge_snapping): if mouse snap-moving,
+	require that the user move at least a threshold number of pixels
+	before snapping in a given direction to make it easier to do snap
+	movement in a single direction.
+
+2005-11-13  Elijah Newren  <newren@gmail.com>
+
+	* constraints-ideas.txt: update
+
 	* src/constraints.c (constraint_partially_onscreen): remove an old
 	comment that no longer applies and is just misleading
 

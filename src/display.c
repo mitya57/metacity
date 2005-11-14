@@ -4204,6 +4204,7 @@ apply_edge_snapping (int                  old_pos,
                      gboolean             keyboard_op)
 {
   int pos1, pos2;
+  int best;
 
   if (old_pos == new_pos)
     return new_pos;
@@ -4238,9 +4239,22 @@ apply_edge_snapping (int                  old_pos,
 
   /* Find the better of pos1 and pos2 and return it */
   if (ABS (pos1 - new_pos) < ABS (pos2 - new_pos))
-    return pos1;
+    best = pos1;
   else
-    return pos2;
+    best = pos2;
+
+  /* If mouse snap-moving, the user could easily accidentally move just a
+   * couple pixels in a direction they didn't mean to move; so ignore snap
+   * movement in those cases unless it's only a small number of pixels
+   * anyway.
+   */
+  if (!keyboard_op &&
+      ABS (best - old_pos) >= 8 &&
+      ABS (new_pos - old_pos) < 8)
+    return old_pos;
+  else
+    /* Otherwise, return the best of the snapping positions found */
+    return best;
 }
 
 /* This function takes the position (including any frame) of the window and

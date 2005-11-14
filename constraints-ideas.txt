@@ -77,7 +77,7 @@ Short-term (I hope...) TODO list/reminders:
     X check if test_find_onscreen_edges() passes when struts are disjoint
     X change edges_overlap() to not depend on type (allow undefined type;
       just check thicknesses)
-    - have a shove_onscreen item in the menu when the titlebar is
+    X have a shove_onscreen item in the menu when the titlebar is
       offscreen too
 
   X Important edge resistance points
