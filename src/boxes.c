@@ -1128,31 +1128,163 @@ meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
 /*                                                                         */
 /***************************************************************************/
 
-/* Just make sure the given rectangle list is composed of disjoint rectangles */
-static gboolean
-struts_are_disjoint (const GSList *struts)
+static GList*
+get_rect_minus_overlap (const GList   *rect_in_list, 
+                        MetaRectangle *overlap)
 {
-  const GSList *tmp;
-  gboolean disjoint = TRUE;
+  MetaRectangle *temp;
+  MetaRectangle *rect = rect_in_list->data;
+  GList *ret = NULL;
 
-  tmp = struts;
-  while (tmp && disjoint)
+  if (BOX_LEFT (*rect) < BOX_LEFT (*overlap))
     {
-      const GSList *compare;
+      temp = g_new (MetaRectangle, 1);
+      *temp = *rect;
+      temp->width = BOX_LEFT (*overlap) - BOX_LEFT (*rect);
+      ret = g_list_prepend (ret, temp);
+    }
+  if (BOX_RIGHT (*rect) > BOX_RIGHT (*overlap))
+    {
+      temp = g_new (MetaRectangle, 1);
+      *temp = *rect;
+      temp->x = BOX_RIGHT (*overlap);
+      temp->width = BOX_RIGHT (*rect) - BOX_RIGHT (*overlap);
+      ret = g_list_prepend (ret, temp);
+    }
+  if (BOX_TOP (*rect) < BOX_TOP (*overlap))
+    {
+      temp = g_new (MetaRectangle, 1);
+      temp->x      = overlap->x;
+      temp->width  = overlap->width;
+      temp->y      = BOX_TOP (*rect);
+      temp->height = BOX_TOP (*overlap) - BOX_TOP (*rect);
+      ret = g_list_prepend (ret, temp);
+    }
+  if (BOX_BOTTOM (*rect) > BOX_BOTTOM (*overlap))
+    {
+      temp = g_new (MetaRectangle, 1);
+      temp->x      = overlap->x;
+      temp->width  = overlap->width;
+      temp->y      = BOX_BOTTOM (*overlap);
+      temp->height = BOX_BOTTOM (*rect) - BOX_BOTTOM (*overlap);
+      ret = g_list_prepend (ret, temp);
+    }
+
+  return ret;
+}
+
+static GList*
+replace_rect_with_list (GList *old_element, 
+                        GList *new_list)
+{
+  GList *ret;
+  g_assert (old_element != NULL);
+
+  if (!new_list)
+    {
+      /* If there is no new list, just remove the old_element */
+      ret = old_element->next;
+      g_list_remove_link (old_element, old_element);
+    }
+  else
+    {
+      /* Fix up the prev and next pointers everywhere */
+      ret = new_list;
+      if (old_element->prev)
+        {
+          old_element->prev->next = new_list;
+          new_list->prev = old_element->prev;
+        }
+      if (old_element->next)
+        {
+          GList *tmp = g_list_last (new_list);
+          old_element->next->prev = tmp;
+          tmp->next = old_element->next;
+        }
+    }
+
+  /* Free the old_element and return the appropriate "next" point */
+  g_free (old_element->data);
+  g_list_free_1 (old_element);
+  return ret;
+}
+
+/* Make a copy of the strut list, make sure that copy only contains parts
+ * of the old_struts that intersect with the rection rect, and then do some
+ * magic to make all the new struts disjoint (okay, we we break up struts
+ * that aren't disjoint in a way that the overlapping part is only included
+ * once, so it's not really magic...).
+ */
+static GList*
+get_disjoint_strut_list_in_region (const GSList        *old_struts,
+                                   const MetaRectangle *region)
+{
+  GList *struts;
+  GList *tmp;
+
+  /* First, copy the list */
+  struts = NULL;
+  while (old_struts)
+    {
+      MetaRectangle *cur = old_struts->data;
+      MetaRectangle *copy = g_new (MetaRectangle, 1);
+      *copy = *cur;
+      if (meta_rectangle_intersect (copy, region, copy))
+        struts = g_list_prepend (struts, copy);
+      else
+        g_free (copy);
+
+      old_struts = old_struts->next;
+    }
+
+  /* Now, loop over the list and check for intersections, fixing things up
+   * where they do intersect.
+   */
+  tmp = struts;
+  while (tmp)
+    {
+      GList *compare;
 
       MetaRectangle *cur = tmp->data;
+
       compare = tmp->next;
-      while (compare && disjoint)
+      while (compare)
         {
           MetaRectangle *comp = compare->data;
-          disjoint = disjoint && !meta_rectangle_overlap (cur, comp);
+          MetaRectangle overlap;
+
+          if (meta_rectangle_intersect (cur, comp, &overlap))
+            {
+              /* Get a list of rectangles for each strut that don't overlap
+               * the intersection region.
+               */
+              GList *cur_leftover  = get_rect_minus_overlap (tmp,  &overlap);
+              GList *comp_leftover = get_rect_minus_overlap (compare, &overlap);
+
+              /* Add the intersection region to cur_leftover */
+              MetaRectangle *overlap_allocated = g_new (MetaRectangle, 1);
+              *overlap_allocated = overlap;
+              cur_leftover = g_list_prepend (cur_leftover, overlap_allocated);
+
+              /* Fix up tmp, compare, and cur -- maybe struts too */
+              if (struts == tmp)
+                {
+                  struts = replace_rect_with_list (tmp, cur_leftover);
+                  tmp = struts;
+                }
+              else
+                tmp   = replace_rect_with_list (tmp,     cur_leftover);
+              compare = replace_rect_with_list (compare, comp_leftover);
+              cur = tmp->data;
+            }
+
           compare = compare->next;
         }
 
       tmp = tmp->next;
     }
 
-  return disjoint;
+  return struts;
 }
 
 /* To make things easily testable, provide a nice way of sorting edges */
@@ -1522,8 +1654,9 @@ meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
                                     const GSList        *all_struts)
 {
   GList        *ret;
+  GList        *fixed_struts;
   GList        *edge_iter; 
-  const GSList *strut_iter;
+  const GList  *strut_iter;
 
   /* The algorithm is basically as follows:
    *   Make sure the struts are disjoint
@@ -1541,24 +1674,17 @@ meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
    */
 
   /* Make sure the struts are disjoint */
-  if (!struts_are_disjoint (all_struts))
-    {
-      meta_warning ("Struts must be disjoint for %s to work!\n", __FUNCTION__);
-      return NULL;
-    }
+  fixed_struts = get_disjoint_strut_list_in_region (all_struts, basic_rect);
 
   /* Start off the list with the edges of basic_rect */
   ret = add_edges (NULL, basic_rect, TRUE);
 
-  strut_iter = all_struts;
+  strut_iter = fixed_struts;
   while (strut_iter)
     {
       MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
 
-      /* Only look at the onscreen portion of the strut, and get the new
-       * possible edges we may need to add from that.
-       */
-      meta_rectangle_intersect (strut, basic_rect, strut);
+      /* Get the new possible edges we may need to add from the strut */
       GList *new_strut_edges = add_edges (NULL, strut, FALSE);
 
       edge_iter = ret;
@@ -1597,6 +1723,9 @@ meta_rectangle_find_onscreen_edges (const MetaRectangle *basic_rect,
 
   /* Sort the list */
   ret = g_list_sort (ret, meta_rectangle_edge_cmp);
+
+  /* Free the fixed struts list */
+  meta_rectangle_free_list_and_elements (fixed_struts);
 
   return ret;
 }

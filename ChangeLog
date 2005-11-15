@@ -1,3 +1,22 @@
+2005-11-15  Elijah Newren  <newren@gmail.com>
+
+	Make meta_rectangle_find_onscreen_edges() robust against
+	overlapping struts instead of just checking and throwing an error
+	if they aren't.
+
+	* src/boxes.c:
+
+	(get_rect_minus_overlap):
+	(replace_rect_with_list):
+	(get_disjoint_strut_list_in_region):
+	new functions
+
+	(struts_are_disjoint):
+	removed function
+
+	(meta_rectangle_find_onscreen_edges):
+	use get_disjoint_strut_list_in_region() to sanitize struts
+
 2005-11-13  Elijah Newren  <newren@gmail.com>
 
 	* src/window.c (meta_window_handle_mouse_grab_op_event): don't do
