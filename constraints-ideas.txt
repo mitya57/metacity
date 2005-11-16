@@ -318,6 +318,7 @@ Bugs to fix:
     122670  - jerky/random resizing of windows via keyboard
               (drop extra events -- not really needed)
      81704  - edge magnetism/resistance/snapping/etc.
+    unfiled - keyboard snap-moving and snap-resizing snaps to hidden edges
     151842  - maximize to fill feature (gripe: patch doesn't do maximal grow)
     302456  - dragging offscreen too restrictive
     308521  - better alt-middle-drag resizing
