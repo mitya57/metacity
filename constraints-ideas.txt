@@ -1,9 +1,19 @@
+WARNING: This file is basically just a running TODO list for Elijah.
+WARNING: It is NOT meant to make sense to anyone else.  It probably
+WARNING: won't help much either, because it has remnants of old ideas
+WARNING: and thoughts which occasionally contradict stuff elsewhere in
+WARNING: this file or in the other files on this branch.
+
 Short-term (I hope...) TODO list/reminders:
 
-  - Need to update the documentation; the huge comment is out of date and
+  - Need to add my copyright info to all the modified files
+
+  - Need to verify XRandR stuff appropriately invalidates the workarea
+
+  X Need to update the documentation; the huge comment is out of date and
     misleading now
 
-  - Quicklist that I thought of:
+  X Quicklist that I thought of:
     X Titlebar onscreen func should use CLAMP(percent*width, 10, 75) for
       width and 2-3 pixels for height for checking if the titlebar is
       partially onscreen or not
@@ -15,7 +25,7 @@ Short-term (I hope...) TODO list/reminders:
     X There may be a bug with gravity an onscreen constraints--it seems
       that creating a tab then removing it and repeating this a lot made
       the window drift northwest.  Very weird.
-    - Get rid of compiling warnings for constraints.c even if they're dumb
+    X Get rid of compiling warnings for constraints.c even if they're dumb
 
   - Should we turn off fully-onscreen & on-single-xinerama constraints
     for decorationless windows?  Otherwise, most users (those that
@@ -64,11 +74,11 @@ Short-term (I hope...) TODO list/reminders:
     timeout-resistance be much larger for the screen edges, (e) it may be
     difficult determining where the screen edges are
 
-  - Various extra random ideas
+  X Various extra random ideas
     X Could make edge resistance infinite if move/resize was
       click-on-titlebar-area activated (or perhaps just if the
       grab_anchor_root_(x|y) is in the titlebar area?)
-    - Could get rid of the big comment at the beginning of
+    X Could get rid of the big comment at the beginning of
       meta_rectangle_get_minimal_spanning_set_for_region()
     X checking for obscured edges could make use of boxes.c:split_edge()
     X when timeout fires, edge-resistance for _any_ edge should be disabled
@@ -90,7 +100,7 @@ Short-term (I hope...) TODO list/reminders:
     - cache edges
     - put all this functionality into one common location
 
-  - Important documentation points
+  X Important documentation points
     - All fields of ConstraintsInfo struct
     - Inner vs Outer window
     - meta_window_move_resize_internal() and other changes

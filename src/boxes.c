@@ -576,9 +576,13 @@ meta_rectangle_get_minimal_spanning_set_for_region (
    * by default and only partial struts increase the size of the spanning
    * set generated).  With one partial strut, n will be 2 or 3.  With 2
    * partial struts, n will probably be 4 or 5.  So, n probably isn't large
-   * enough to make this worth bothering.  If it ever does show up on
-   * profiles (most likely because people start using large numbers of
-   * partial struts), possible optimizations include:
+   * enough to make this worth bothering.  Further, it is only called from
+   * workspace.c:ensure_work_areas_validated (at least as of the time of
+   * writing this comment), which in turn should only be called if the
+   * strut list changes or the screen or xinerama size changes.  If it ever
+   * does show up on profiles (most likely because people start using
+   * ridiculously huge numbers of partial struts), possible optimizations
+   * include:
    *
    * (1) rewrite merge_spanning_rects_in_region() to be O(n) or O(nlogn).
    *     I'm not totally sure it's possible, but with a couple copies of
@@ -594,22 +598,9 @@ meta_rectangle_get_minimal_spanning_set_for_region (
    *     it might be possible to modify this function to make that
    *     possible, and I spent just a little while thinking about it, but n
    *     wasn't large enough to convince me to care yet.
-   * (4) just don't call this function that much.  Currently, it's called
-   *     from a few places in constraints.c, and thus is called multiple
-   *     times for every meta_window_constrain() call, which itself is
-   *     called an awful lot.  However, the answer we provide is always the
-   *     same unless the screen size, number of xineramas, or list of
-   *     struts has changed.  I'm not aware of any case where screen size
-   *     or number of xineramas changes without logging out.  struts change
-   *     very rarely.  So we should be able to just save the appropriate
-   *     info in the MetaWorkspace (or maybe MetaScreen), update it when
-   *     the struts change, and then just use those precomputed values
-   *     instead of calling this function so much.
-   *
-   * In terms of work, 1-3 would be hard (and I'm not entirely certain that
-   * they would work) and 4 would be relatively easy.  4 would also provide
-   * the greatest benefit.  Therefore, do 4 first.  Don't even think about
-   * 1-3 or other micro-optimizations until you've done that one.
+   * (4) Some of the stuff Rob mentioned at http://mail.gnome.org/archives\
+   *     /metacity-devel-list/2005-November/msg00028.html.  (Sorry for the
+   *     URL splitting.)
    */
 
   GList         *ret;
@@ -1088,7 +1079,7 @@ meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
    * rewrite the equation by multiplying both sides by (rx-x1)*(x2-x1):
    *   (ry-y1)(x2-x1) = (y2-y1)(rx-x1)
    * This is a valid requirement even when x1==x2 (when x1==x2, this latter
-   * equation will basically just mean that rx must also be equal to x1 and
+   * equation will basically just mean that rx must be equal to both x1 and
    * x2)
    *
    * The other requirement that we have is that the line from (rx,ry) to

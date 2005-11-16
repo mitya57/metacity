@@ -28,202 +28,66 @@
 #include <stdlib.h>
 #include <math.h>
 
-/* Stupid disallowing of nested C comments makes a #if 0 mandatory... */
-#if 0
-/* This is a huge comment with a brief overview of how to hack on it as
- * quickly as possible, followed by much more in depth details of how it
- * works, why it works that way, the ideas behind it, and comparisons to
- * the previous way of doing things.
- *
- * BRIEF OVERVIEW OF HOW TO HACK ON THIS FILE
- *
- * This can basically be explained by showing how to add a new
- * constraint, the steps of which are:
- *   1) Add a new entry in the ConstraintPriority enum; higher values
- *      have higher priority
- *   2) Write a new function following the format of the example below,
- *      "constrain_whatever".
- *   3) Add your function to the loop in meta_window_constrain() in both
- *      places.
- * 
- * An example constraint function, constrain_whatever:
- *
- * /* constrain_whatever does the following:
- *  *   Quits (returning true) if priority is higher than PRIORITY_WHATEVER
- *  *   If check_only is TRUE
- *  *     Returns whether the constraint is satisfied or not
- *  *   otherwise
- *  *     Enforces the constraint
- *  * Note that the value of PRIORITY_WHATEVER is centralized with the
- *  * priorities of other constraints in the definition of ConstraintInfo
- *  * for easier maintenance and shuffling of priorities.
- *  */
- * static gboolean
- * constrain_whatever (MetaWindow         *window,
- *                     ConstraintInfo     *info,
- *                     ConstraintPriority  priority,
- *                     gboolean            check_only)
- * {
- *   if (priority > PRIORITY_WHATEVER)
- *     return TRUE;
- *
- *   /* Determine whether constraint applies; note that if the constraint
- *    * cannot possibly be satisfied, constraint_applies should be set to
- *    * false.  If we don't do this, all constraints with a lesser priority
- *    * will be dropped along with this one, and we'd rather apply as many as
- *    * possible.
- *    */
- *   if (!constraint_applies)
- *     return TRUE;
- *
- *   /* Determine whether constraint is already satisfied; if we're only
- *    * checking the status of whether the constraint is satisfied, we end
- *    * here.
- *    */
- *   if (check_only || constraint_already_satisfied)
- *     return constraint_already_satisfied;
- *
- *   /* Enforce constraints */
- *   return TRUE;  /* Note that we exited early if check_only is FALSE; also,
- *                  * we know we can return TRUE here because we exited early
- *                  * if the constraint could not be satisfied. */
- * }
- *
- * THE NASTY DETAILS (cue ominous music)
- *
- * There are a couple basic ideas behind how this code works and why
- * it works that way:
- *
- *   1) Rely heavily on "workarea" (though we complicate it's meaning 
- *      with overloading, unfortunately)
- *   2) Clipping a window or shoving a window to a work_area are easy
- *      operations for people to understand and maintain
- *   3) A uni-dimensional view of constraints doesn't work
- *   4) Robustness can be added via constraint priorities
- *
- * In just a little more detail:
- *
- *   1) Relying on "workarea"
- *
- *      The previous code had two workareas, work_area_xinerama (remember,
- *      in a xinerama setup "monitor" == xinerama and "all monitors" ==
- *      screen), and work_area_screen.  These were mostly used for
- *      maximization constraints and determining "outermost position
- *      limits" (partially onscreen constraints).  In this code they are
- *      used more heavily.  They are an important part of the
- *      clip-to-workarea and shove-into-workarea methods that are part of
- *      (2).  Also, I want to use them to help force fully-onscreen
- *      constraints (clamp to screensize -- bug 143145, make appear
- *      onscreen -- bug 143145 & 156699, avoid struts when placing new
- *      windows -- bug 156699 & bug 122196, don't let app resize itself off
- *      the screen -- bug 136307; see also http://xrl.us/FullyOnscreenRants
- *      which had a number of d-d-l emails from Feb 2005 about this)
- *
- *      Two little wrinkles: (a) fully-onscreen should not be enforced in
- *      all cases (e.g. the user should be able to manually move a window
- *      offscreen, and once offscreen the fully-onscreen constraints should
- *      no longer apply until manually moved back onscreen.  Application
- *      specified placement may override as well (haven't decided, but it
- *      would mean setting window->require_fully_onscreen to FALSE in
- *      place.c somewhere).  Also, minimum size hints might be bigger than
- *      screen size).  Thus, we use a method of "growing" the workarea so
- *      that the extended region provides the constraint.  (b) docks can
- *      remove otherwise valid space from the workarea.  This doesn't pose
- *      much problem for docks that either span the width or the height of
- *      the screen.  It does cause problems when they only span part of the
- *      width or height ("partial struts"), because then the workarea (the
- *      area used by e.g. maximized windows) leaves out some available
- *      holes that smaller windows could use.  So we have an auxiliary
- *      workarea that takes these into account using a combination of
- *      get_outermost_onscreen_constraints() from the old code plus
- *      possible workarea expansion as noted in (a).  Things will probably
- *      be kind of hosed for docks that appear in some small rectangle in
- *      the middle of the screen; I don't know if I even want to worry
- *      about that special case, though.
- *
- *   2 & 3) Clip-to-workarea and shove-into-workarea are easier methods
- *
- *      The previous code tried to reform the constraints into terms of a
- *      single variable.  This made the code rather difficult to
- *      understand. ("This is a rather complicated fix for an obscure bug
- *      that happened when resizing a window and encountering a constraint
- *      such as the top edge of the screen.")  It also failed, even on the
- *      very example for which it used as justification for the complexity
- *      (bug 312104 -- when keyboard resizing the top of the window,
- *      Metacity extends the bottom once the titlebar hits the top panel),
- *      though the reason why it failed is somewhat mysterious as it should
- *      have worked.  Further, it didn't really reform the constraints in
- *      terms of a single variable -- there was both an x_move_delta and an
- *      x_resize_delta, and the existence of both caused bug 109553
- *      (gravity with simultaneous move and resize doesn't work)
- *
- *      We can reuse the example used to justify the old method in order to
- *      elucidate the problem that the old method attempted to fix, and in
- *      so doing motivate our new method: Windows are described by un upper
- *      left coordinate, a height, and a width.  If a user is resizing the
- *      window from the top, then they are both changing the position of
- *      the top of the window and the height of the window simultaneously.
- *      Now, if they move the window above the top of the screen and we
- *      have a titlebar-must-be-onscreen constraint, then the resize should
- *      be stopped at the screen edge.  However, the straightforward
- *      approach to trying to do this, setting upper position to 0, fails
- *      because without the window height also being decreased, the actual
- *      result is that the window grows from the bottom.  The old solution
- *      was to reformulate the resize in terms of a single variable,
- *      constrain that variable, and then do the adjustments to position
- *      and height after the constraint.  What would be much simpler,
- *      though, is just clipping the window to the appropriate workarea.
- *
- *      We can't always just clip, though.  If the user moves the window
- *      without resizing it so that it is offscreen, then clipping is
- *      nasty.  We instead need to shove the window onscreen.  The old
- *      method knew about this too and thus had separate constraints for
- *      moving and resizing, which we also obviously need.
- *
- *      There is a little wrinkle, though.  If an application does the
- *      resize instead of the user, the window should be shoved onscreen
- *      instead of clipped (see bug 136307 if you don't understand why).
- *      Also, we need to apply gravity constraints (user resizes specify
- *      both position and size implicitly, whereas app resizes only specify
- *      the size and the app can want the resize to be done relative to a
- *      different corner or side than the top left corner).  The old code
- *      did not account for differences between user and application
- *      actions like this, but we need to do so to fix outstanding bugs.
- *
- *      A small summary of how clipping-to-workarea and
- *      shoving-onto-workarea nicely solve the constrain-multiple-variables
- *      problem conceptually:
- *        user resize:        clip-to-workarea
- *        user move:          shove-into-(expanded)-workarea (see (1))
- *        user move & resize: who lied about what's happening or who's doing it?
- *        app  resize:        clamp size, shove-into-workarea
- *        app  move:          shove-into-workarea
- *        app  move & resize: clamp size, shove-into-workarea
- *
- *   4) Constraint priorities
- *
- *      In the old code, if each and every constraint could not be
- *      simultaneously satisfied, then it would result in some
- *      difficult-to-predict set of constraints being violated.  This was
- *      because constraints were applied in order, with the possibility for
- *      each making changes that violated previous constraints, with no
- *      checking done at the end.  There may be cases where it failed even
- *      when all constraints could be satisfied (because the constraints
- *      were highly segmented).
- *
- *      I suggest fixing that by adding priorities to all the constraints.
- *      Then, in a loop, apply all the constraints, check them all, if
- *      they're not all satisfied, increase the priority and repeat.  That
- *      way we make sure the most important constraints are satisfied.
- *      Also, note that if any one given constraint is impossible to apply
- *      (e.g. if minimum size hints specify a larger screen than the real
- *      workarea making fully-onscreen impossible) then we treat the
- *      constraint as being satisfied.  This sounds counter-intuitive, but
- *      the idea is that we want to satisfy as many constraints as possible
- *      and treating it as a violation means that all constraints with a
- *      lesser priority also get dropped along with the impossible one if
- *      we don't do this.
+/* Stupid disallowing of nested C comments makes a #if 0 and the use of C++
+ * looking comments mandatory.  Of course, if C weren't so stupid it'd just
+ * allow C++ style comments...
  */
+#if 0
+ // This is the short and sweet version of how to hack on this file; see
+ // doc/how-constraints-works.txt for the gory details.  The basics of
+ // understanding this file can be shown by the steps needed to add a new
+ // constraint, which are:
+ //   1) Add a new entry in the ConstraintPriority enum; higher values
+ //      have higher priority
+ //   2) Write a new function following the format of the example below,
+ //      "constrain_whatever".
+ //   3) Add your function to the all_constraints and all_constraint_names
+ //      arrays (the latter of which is for debugging purposes)
+ // 
+ // An example constraint function, constrain_whatever:
+ //
+ // /* constrain_whatever does the following:
+ //  *   Quits (returning true) if priority is higher than PRIORITY_WHATEVER
+ //  *   If check_only is TRUE
+ //  *     Returns whether the constraint is satisfied or not
+ //  *   otherwise
+ //  *     Enforces the constraint
+ //  * Note that the value of PRIORITY_WHATEVER is centralized with the
+ //  * priorities of other constraints in the definition of ConstrainPriority
+ //  * for easier maintenance and shuffling of priorities.
+ //  */
+ // static gboolean
+ // constrain_whatever (MetaWindow         *window,
+ //                     ConstraintInfo     *info,
+ //                     ConstraintPriority  priority,
+ //                     gboolean            check_only)
+ // {
+ //   if (priority > PRIORITY_WHATEVER)
+ //     return TRUE;
+ //
+ //   /* Determine whether constraint applies; note that if the constraint
+ //    * cannot possibly be satisfied, constraint_applies should be set to
+ //    * false.  If we don't do this, all constraints with a lesser priority
+ //    * will be dropped along with this one, and we'd rather apply as many as
+ //    * possible.
+ //    */
+ //   if (!constraint_applies)
+ //     return TRUE;
+ //
+ //   /* Determine whether constraint is already satisfied; if we're only
+ //    * checking the status of whether the constraint is satisfied, we end
+ //    * here.
+ //    */
+ //   if (check_only || constraint_already_satisfied)
+ //     return constraint_already_satisfied;
+ //
+ //   /* Enforce constraints */
+ //   return TRUE;  /* Note that we exited early if check_only is FALSE; also,
+ //                  * we know we can return TRUE here because we exited early
+ //                  * if the constraint could not be satisfied; not that the
+ //                  * return value is heeded in this case...
+ //                  */
+ // }
 #endif
 
 typedef enum
@@ -255,8 +119,10 @@ typedef struct
   ActionType           action_type;
   gboolean             is_user_action;
 
-  /* See setup_constraint_info for explanation of the differences and
-   * similarity between resize_gravity and fixed_directions
+  /* I know that these two things probably look similar at first, but they
+   * have much different uses.  See doc/how-constraints-works.txt for for
+   * explanation of the differences and similarity between resize_gravity
+   * and fixed_directions
    */
   int                  resize_gravity;
   FixedDirections      fixed_directions;
@@ -412,9 +278,8 @@ meta_window_constrain (MetaWindow          *window,
 
   /* WARNING: orig and new specify positions and sizes of the inner window,
    * not the outer.  This is a common gotcha since half the constraints
-   * deal with inner window position/size and half deal with outer.  Take a
-   * look at extend_by_frame() and unextend_by_frame() for some simple
-   * helper functions to help deal with the differences.
+   * deal with inner window position/size and half deal with outer.  See
+   * doc/how-constraints-works.txt for more information.
    */
   meta_topic (META_DEBUG_GEOMETRY,
               "Constraining %s in move from %d,%d %dx%d to %d,%d %dx%d\n",
@@ -497,74 +362,6 @@ setup_constraint_info (ConstraintInfo      *info,
 
   info->resize_gravity = resize_gravity;
 
-  /* Note that although resize_gravity and fixed_directions look similar,
-   * they are used for different purposes and I believe it helps code
-   * clarity to keep them separate in those sections where each is used.
-   *
-   *   - resize_gravity is only for resize operations and is used for
-   *     constraints unrelated to keeping a window within a certain region
-   *   - fixed_directions is for both move and resize operations and is
-   *     specifically for keeping a window within a specified region.
-   *
-   * Examples of where each are used:
-   *
-   *   - If a window is simultaneously moved and resized to the
-   *     southeast corner with SouthEastGravity, but it turns out that
-   *     the window was sized to something smaller than the minimum
-   *     size hint, then the size_hints constraint should resize the
-   *     window using the resize_gravity to ensure that the southeast
-   *     corner doesn't move.
-   *   - If an application resizes itself so that it grows downward only
-   *     (which I note could be using any of three different gravities,
-   *     most likely NorthWest), and happens to put the southeast part of
-   *     the window under a partial strut, then the window needs to be
-   *     forced back on screen.  (Yes, shoved onscreen and not clipped; see
-   *     bug 136307).  It may be the case that moving the window to the
-   *     left results in less movement of the window than moving the window
-   *     up, which, in the absence of fixed directions would cause us to
-   *     chose moving to the left.  But since the user knows that only the
-   *     height of the window is changing, they would find moving to the
-   *     left weird (especially if this were a dialog that had been
-   *     centered on its parent).  It'd be better to shove the window
-   *     upwards so we make sure to keep the left and right sides fixed in
-   *     this case.  Note that moving the window upwards (or even if we
-   *     were to go left) is totally against the gravity in this case; but
-   *     that's okay because gravity typically assumes there's more than
-   *     enough onscreen space for the resize and we only override the
-   *     gravity when that assumption is wrong.
-   *
-   * Note that fixed directions might (though I haven't thought it
-   * completely through) give an impossible to fulfill constraint; if they
-   * do, then we could temporarily throw them out and retry the constraint
-   * again.
-   *
-   * Now, some nasty details:
-   *
-   *   This should be fixed directions (as opposed to fixed sides), because
-   *   I'm only interested in shoving/clipping in x versus y.  The nitty
-   *   gritty of what gets fixed:
-   *   User move:
-   *     in x direction - y direction fixed
-   *     in y direction - x direction fixed
-   *     in both dirs.  - neither direction fixed
-   *   User resize: (note that for clipping, only 1 side ever changed)
-   *     in x direction - y direction fixed (technically other x side fixed too)
-   *     in y direction - x direction fixed (technically other y side fixed too)
-   *     in both dirs.  - neither direction fixed
-   *   App move:
-   *     in x direction - y direction fixed
-   *     in y direction - x direction fixed
-   *     in both dirs.  - neither direction fixed
-   *   App resize
-   *     in x direction - y direction fixed
-   *     in y direction - x direction fixed
-   *     in 2 parallel directions (center side gravity) - other dir. fixed
-   *     in 2 orthogonal directions (corner gravity) - neither dir. fixed
-   *     in 3 or 4 directions (a center-like gravity) - neither dir. fixed
-   *   Move & resize
-   *     Treat like resize case though this will usually mean all four sides
-   *     change and result in neither direction being fixed
-   */
   info->fixed_directions = 0;
   /* If x directions don't change but either y direction does */
   if ( orig->x == new->x && orig->x + orig->width  == new->x + new->width   &&
@@ -710,18 +507,19 @@ update_onscreen_requirements (MetaWindow     *window,
       window->type == META_WINDOW_DOCK)
     return;
 
-  /* FIXME: Naturally, I only want these flags to become *false* due to
-   * user interactions (which is allowed since certain constraints are
-   * ignored for user interactions regardless of the setting of these
-   * flags).  However, do I want these flags to become *true* due to
-   * just an application interaction?  It's possible that users may
-   * find that strange since two application interactions that resize
-   * in opposite ways don't end up cancelling--but it may also be
-   * strange for the user to have an application resize the window so
-   * that it's onscreen, the user forgets about it, and then later the
-   * app is able to resize itself off the screen.  Anyway, for now,
-   * I'm think the latter is the more problematic case but this may
-   * need to be revisited.
+  /* USABILITY NOTE: Naturally, I only want the require_fully_onscreen and
+   * require_on_single_xinerama flags to *become false* due to user
+   * interactions (which is allowed since certain constraints are ignored
+   * for user interactions regardless of the setting of these flags).
+   * However, whether to make these flags *become true* due to just an
+   * application interaction is a little trickier.  It's possible that
+   * users may find not doing that strange since two application
+   * interactions that resize in opposite ways don't necessarily end up
+   * cancelling--but it may also be strange for the user to have an
+   * application resize the window so that it's onscreen, the user forgets
+   * about it, and then later the app is able to resize itself off the
+   * screen.  Anyway, for now, I'm think the latter is the more problematic
+   * case but this may need to be revisited.
    */
 
   /* The require onscreen/on-single-xinerama stuff is relative to the
@@ -779,9 +577,6 @@ unextend_by_frame (MetaRectangle           *rect,
   rect->height -= fgeom->top_height + fgeom->bottom_height;
 }
 
-/* We pack the results into MetaRectangle structs just for convienience; we
- * don't actually use the position of those rects.
- */
 static inline void
 get_size_limits (const MetaWindow        *window,
                  const MetaFrameGeometry *fgeom,
@@ -789,6 +584,9 @@ get_size_limits (const MetaWindow        *window,
                  MetaRectangle *min_size,
                  MetaRectangle *max_size)
 {
+  /* We pack the results into MetaRectangle structs just for convienience; we
+   * don't actually use the position of those rects.
+   */
   min_size->width  = window->size_hints.min_width;
   min_size->height = window->size_hints.min_height;
   max_size->width  = window->size_hints.max_width;
@@ -1264,10 +1062,6 @@ constrain_partially_onscreen (MetaWindow         *window,
   vert_amount  = CLAMP (vert_amount,  10, 75);
   horiz_amount = info->current.width - horiz_amount;
   vert_amount  = info->current.height - vert_amount;
-
-  /* FIXME!!!! I need to change amounts for user resize so that user
-   * doesn't move the window further offscreen than it already is.
-   */
 
   /* Extend the region, have a helper function handle the constraint,
    * then return the region to its original size.

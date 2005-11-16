@@ -1,5 +1,20 @@
 2005-11-15  Elijah Newren  <newren@gmail.com>
 
+	Update, fix, and extend all the documentation on constraints.
+
+	* src/constraints-ideas.txt: Update
+
+	* doc/how-constraints-works.txt: New file
+
+	* src/boxes.c: Update documentation (I've done the main
+	optimization now)
+
+	* src/constraints.c: Rip lots of the documentation out and stick
+	it in doc/how-constraints-works.txt while simultaneously removing
+	the old and incorrect stuff and extending other parts
+
+2005-11-15  Elijah Newren  <newren@gmail.com>
+
 	Make meta_rectangle_find_onscreen_edges() robust against
 	overlapping struts instead of just checking and throwing an error
 	if they aren't.
