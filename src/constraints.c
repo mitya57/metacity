@@ -383,8 +383,11 @@ setup_constraint_info (ConstraintInfo      *info,
   info->entire_xinerama = xinerama_info->rect;
 
   MetaWorkspace *cur_workspace = window->screen->active_workspace;
-  info->usable_screen_region   = cur_workspace->screen_region;
-  info->usable_xinerama_region = cur_workspace->xinerama_region[xinerama_info->number];
+  info->usable_screen_region   = 
+    meta_workspace_get_onscreen_region (cur_workspace);
+  info->usable_xinerama_region = 
+    meta_workspace_get_onxinerama_region (cur_workspace, 
+                                          xinerama_info->number);
 
   /* Log all this information for debugging */
   meta_topic (META_DEBUG_GEOMETRY,

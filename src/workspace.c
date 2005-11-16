@@ -766,6 +766,23 @@ meta_workspace_get_work_area_all_xineramas (MetaWorkspace *workspace,
   *area = workspace->work_area_screen;
 }
 
+GList*
+meta_workspace_get_onscreen_region (MetaWorkspace *workspace)
+{
+  ensure_work_areas_validated (workspace);
+
+  return workspace->screen_region;
+}
+
+GList*
+meta_workspace_get_onxinerama_region (MetaWorkspace *workspace,
+                                      int            which_xinerama)
+{
+  ensure_work_areas_validated (workspace);
+
+  return workspace->xinerama_region[which_xinerama];
+}
+
 #ifdef WITH_VERBOSE_MODE
 static char *
 meta_motion_direction_to_string (MetaMotionDirection direction)

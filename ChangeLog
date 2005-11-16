@@ -1,3 +1,13 @@
+2005-11-16  Elijah Newren  <newren@gmail.com>
+
+	* src/constraints.c (setup_constraint_info):
+	* src/workspace.[ch]: (meta_workspace_get_onscreen_region,
+	  meta_workspace_get_onxinerama_region):
+	Don't access workspace->screen_region and
+	workspace->xinerama_region directly but rather do it through new
+	accessor functions in workspace.c that can ensure the workarea is
+	validated.
+
 2005-11-15  Elijah Newren  <newren@gmail.com>
 
 	* README: Update -- I NEED TESTERS NOW!!!  :-)
