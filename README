@@ -1,25 +1,11 @@
-This is the 'constraints-experiments' branch of metacity. It is intended to
-try out some new ideas for implementing constraints.c.  If you expect it to
-compile, let alone work, I will laugh in your face.
-
-To actually use this branch of metacity, you need to finish my
-implementation and then fix all the bugs.  I'll update this file when it's
-at least buildable.
-
-UPDATE: As of 2005-10-05, it does build now.  It even runs--just not
-anywhere close to correctly.  This is because it isn't complete and it
-isn't anywhere close to being debugged (I haven't debugged or tested
-anything yet, other than to verify that it doesn't crash on start).  I
-probably won't break the build again, but no guarantees at this point.
-
-UPDATE: As of 2005-10-17, not only does it build, but it can kind of be
-used.  Kind of.  I wouldn't suggest widespread deployment as there are
-still significant regressions, but I'm going to see if it's usable enough
-for me (since I'm more able to avoid the regression bugs that exist than a
-normal user would be able to) to use in my daily work.  Some things are
-actually nicer now with this version than the old one, and I'm killing most
-small bugs relatively quickly.  One or two of the bugs are going to be a
-major pain to fix, though...
+This is the 'constraints-experiments' branch of metacity.  It was
+intended to try out some new ideas for implementing constraints.c but
+turned out to also include edge resistance.  It should be working just
+fine now, please feel free to test it.  I have used it for about a
+month or so for my personal work.  Email me any problems you find
+directly; no need to fill up bugzilla until I've had a few more users
+verify that there aren't any obvious problems that will just be
+duplicated by everyone.
 
 Old README file:
 
