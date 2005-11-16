@@ -321,6 +321,9 @@ Bugs to fix:
     151842  - maximize to fill feature (gripe: patch doesn't do maximal grow)
     302456  - dragging offscreen too restrictive
     308521  - better alt-middle-drag resizing
+    319351  - don't instantly snap on mouse-move-snapping, remove
+              braindeadedness of having order of releasing shift and
+              releasing button press matter so much
 
 Some ideas:
   - move_rectangle_into_region & clip_rectangle_into_region in
