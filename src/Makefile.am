@@ -27,6 +27,8 @@ metacity_SOURCES= 				\
 	display.h				\
 	draw-workspace.c			\
 	draw-workspace.h			\
+	edge-resistance.c			\
+	edge-resistance.h			\
 	effects.c				\
 	effects.h				\
 	errors.c				\

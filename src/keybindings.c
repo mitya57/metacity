@@ -25,6 +25,7 @@
 #include "keybindings.h"
 #include "workspace.h"
 #include "errors.h"
+#include "edge-resistance.h"
 #include "ui.h"
 #include "frame.h"
 #include "place.h"
@@ -1800,6 +1801,7 @@ process_keyboard_move_grab (MetaDisplay *display,
                                                 old_y,
                                                 &x,
                                                 &y,
+                                                NULL,
                                                 smart_snap,
                                                 TRUE);
           meta_window_move (window, TRUE, x, y);
@@ -2176,6 +2178,7 @@ process_keyboard_resize_grab (MetaDisplay *display,
                                                   &width,
                                                   &height,
                                                   gravity,
+                                                  NULL,
                                                   smart_snap,
                                                   TRUE);
 

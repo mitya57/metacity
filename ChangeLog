@@ -1,5 +1,29 @@
 2005-11-15  Elijah Newren  <newren@gmail.com>
 
+	* src/Makefile.am:
+	* src/display.[ch]: (macro WINDOW_EDGES_RELEVANT, struct
+	  ResistanceDataForAnEdge, struct MetaEdgeResistanceData,
+	  find_index_of_edge_near_position, points_on_same_side,
+	  find_nearest_position, movement_towards_edge,
+	  edge_resistance_timeout, apply_edge_resistance,
+	  apply_edge_snapping, meta_display_apply_edge_resistance,
+	  cleanup_edges, stupid_sort_requiring_extra_pointer_dereference,
+	  cache_edges, initialize_grab_edge_resistance_data,
+	  compute_resistance_and_snapping_edges):
+	* src/keybindings.c (process_keyboard_move_grab,
+	  process_keyboard_resize_grab):
+	* src/window.[ch]: (meta_window_edge_resistance_for_move,
+	  meta_window_edge_resistance_for_resize, update_move,
+	  update_resize):
+	* src/edge-resistance.[ch]: (<EVERYTHING>):
+
+	Split out edge resistance functions and structures from
+	display.[ch] and window.[ch] and stick them into their own file,
+	edge-resistance.[ch].  Some functions get renamed slightly due to
+	becoming static or not-static-anymore (unstatic?).
+
+2005-11-15  Elijah Newren  <newren@gmail.com>
+
 	* constraints-ideas.txt: Add another bug I fixed a little while
 	ago
 
