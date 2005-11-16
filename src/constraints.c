@@ -940,22 +940,12 @@ do_screen_and_xinerama_relative_constraints (
 
   /* Enforce constraint */
 
-  /* Clamp rectangle size for user move+resize, app move+resize, and
-   * app resize; FIXME FIXME FIXME: Is this really right?!?  Why not
-   * clamp for user resize if clamping for user move+resize?!?  Just
-   * because it'll be clipped below anyway?  Also, why doesn't the
-   * comment match the code?!??
-   *
-   * QUIT WRITING SUCH STINKING BUGGY CODE AND COMMENTS!!!!!
-   */
-  if (info->action_type == ACTION_MOVE_AND_RESIZE ||
-      (info->is_user_action && info->action_type == ACTION_RESIZE))
-    {
-      meta_rectangle_clamp_to_fit_into_region (region_spanning_rectangles,
-                                               info->fixed_directions,
-                                               &info->current,
-                                               &min_size);
-    }
+  /* Clamp rectangle size for resize or move+resize actions */
+  if (info->action_type != ACTION_MOVE)
+    meta_rectangle_clamp_to_fit_into_region (region_spanning_rectangles,
+                                             info->fixed_directions,
+                                             &info->current,
+                                             &min_size);
 
   if (info->is_user_action && info->action_type == ACTION_RESIZE)
     /* For user resize, clip to the relevant region */

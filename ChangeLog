@@ -1,5 +1,10 @@
 2005-11-15  Elijah Newren  <newren@gmail.com>
 
+	* src/constraints.c (do_screen_and_xinerama_relative_constraints):
+	finally fix the long outstanding FIXME about when to clamp
+
+2005-11-15  Elijah Newren  <newren@gmail.com>
+
 	Update, fix, and extend all the documentation on constraints.
 
 	* src/constraints-ideas.txt: Update

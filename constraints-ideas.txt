@@ -127,7 +127,7 @@ Short-term (I hope...) TODO list/reminders:
       before shoving window entirely onscreen (and amount of titlebar
       obscured before it's considered offscreen?)
 
-  - Need to clean out lots of FIXMEs in the code.
+  X Need to clean out lots of FIXMEs in the code.
 
   X Need to do the titlebar offscreen checking, partial maximization, etc.
 
