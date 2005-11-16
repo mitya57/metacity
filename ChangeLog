@@ -1,5 +1,14 @@
 2005-11-16  Elijah Newren  <newren@gmail.com>
 
+	* src/boxes.c (get_disjoint_strut_list_in_region): handle the case
+	where one strut completely overlaps the other.  Patch from Ray
+	Strode.
+
+	* src/testboxes.c (get_strut_list, test_find_onscreen_edges):
+	add a test case that would segfault without the above fix
+
+2005-11-16  Elijah Newren  <newren@gmail.com>
+
 	* src/constraints.c (setup_constraint_info):
 	* src/workspace.[ch]: (meta_workspace_get_onscreen_region,
 	  meta_workspace_get_onxinerama_region):

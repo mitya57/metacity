@@ -1266,6 +1266,10 @@ get_disjoint_strut_list_in_region (const GSList        *old_struts,
               else
                 tmp   = replace_rect_with_list (tmp,     cur_leftover);
               compare = replace_rect_with_list (compare, comp_leftover);
+
+              if (compare == NULL)
+                break;
+
               cur = tmp->data;
             }
 

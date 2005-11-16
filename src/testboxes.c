@@ -230,7 +230,7 @@ get_strut_list (int which)
 
   struts = NULL;
 
-  g_assert (which >=0 && which <= 5);
+  g_assert (which >=0 && which <= 6);
   switch (which)
     {
     case 0:
@@ -258,6 +258,10 @@ get_strut_list (int which)
       struts = g_slist_prepend (struts, new_meta_rect ( 800,    0, 1600,   20));
       struts = g_slist_prepend (struts, new_meta_rect (   0,    0,  800, 1200));
       struts = g_slist_prepend (struts, new_meta_rect ( 800,   10,  800, 1200));
+      break;
+    case 6:
+      struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   40));
+      struts = g_slist_prepend (struts, new_meta_rect (   0,    0, 1600,   20));
       break;
     }
 
@@ -1104,6 +1108,19 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (5);
   tmp = NULL;
+  verify_edge_lists_are_equal (edges, tmp);
+  meta_rectangle_free_list_and_elements (tmp);
+  meta_rectangle_free_list_and_elements (edges);
+
+  /*************************************************/  
+  /* Make sure test region 6 has the correct edges */
+  /*************************************************/  
+  edges = get_screen_edges (6);
+  tmp = NULL;
+  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200, 1600,  0, bottom));
+  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   40, 1600,  0, top));
+  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   40, 0,  1160, right));
+  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   40, 0,  1160, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
