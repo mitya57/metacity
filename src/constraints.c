@@ -21,6 +21,7 @@
  * 02111-1307, USA.
  */
 
+#include <config.h>
 #include "constraints.h"
 #include "workspace.h"
 #include "place.h"
@@ -28,10 +29,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-/* Stupid disallowing of nested C comments makes a #if 0 and the use of C++
- * looking comments mandatory.  Of course, if C weren't so stupid it'd just
- * allow C++ style comments...
- */
 #if 0
  // This is the short and sweet version of how to hack on this file; see
  // doc/how-constraints-works.txt for the gory details.  The basics of
@@ -92,16 +89,16 @@
 
 typedef enum
 {
-  PRIORITY_MINIMUM=0, // Dummy value used for loop start = min(all priorities)
-  PRIORITY_ASPECT_RATIO=0,
-  PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA=0,
-  PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA=1,
-  PRIORITY_SIZE_HINTS_INCREMENTS=1,
-  PRIORITY_MAXIMIZATION=2,
-  PRIORITY_FULLSCREEN=2,
-  PRIORITY_SIZE_HINTS_LIMITS=3,
-  PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA=4,
-  PRIORITY_MAXIMUM=4  // Dummy value used for loop end = max(all priorities)
+  PRIORITY_MINIMUM = 0, // Dummy value used for loop start = min(all priorities)
+  PRIORITY_ASPECT_RATIO = 0,
+  PRIORITY_ENTIRELY_VISIBLE_ON_SINGLE_XINERAMA = 0,
+  PRIORITY_ENTIRELY_VISIBLE_ON_WORKAREA = 1,
+  PRIORITY_SIZE_HINTS_INCREMENTS = 1,
+  PRIORITY_MAXIMIZATION = 2,
+  PRIORITY_FULLSCREEN = 2,
+  PRIORITY_SIZE_HINTS_LIMITS = 3,
+  PRIORITY_PARTIALLY_VISIBLE_ON_WORKAREA = 4,
+  PRIORITY_MAXIMUM = 4  // Dummy value used for loop end = max(all priorities)
 } ConstraintPriority;
 
 typedef enum
@@ -199,28 +196,21 @@ typedef gboolean (* ConstraintFunc) (MetaWindow         *window,
                                      ConstraintPriority  priority,
                                      gboolean            check_only);
 
-static const ConstraintFunc all_constraints[] = {
-  constrain_maximization,
-  constrain_fullscreen,
-  constrain_size_increments,
-  constrain_size_limits,
-  constrain_aspect_ratio,
-  constrain_to_single_xinerama,
-  constrain_fully_onscreen,
-  constrain_partially_onscreen,
-  NULL
-};
+typedef struct {
+  ConstraintFunc func;
+  const char* name;
+} Constraint;
 
-static const char* all_constraint_names[] = {
-  "constrain_maximization",
-  "constrain_fullscreen",
-  "constrain_size_increments",
-  "constrain_size_limits",
-  "constrain_aspect_ratio",
-  "constrain_to_single_xinerama",
-  "constrain_fully_onscreen",
-  "constrain_partially_onscreen",
-  NULL
+static const Constraint all_constraints[] = {
+  {constrain_maximization,       "constrain_maximization"},
+  {constrain_fullscreen,         "constrain_fullscreen"},
+  {constrain_size_increments,    "constrain_size_increments"},
+  {constrain_size_limits,        "constrain_size_limits"},
+  {constrain_aspect_ratio,       "constrain_aspect_ratio"},
+  {constrain_to_single_xinerama, "constrain_to_single_xinerama"},
+  {constrain_fully_onscreen,     "constrain_fully_onscreen"},
+  {constrain_partially_onscreen, "constrain_partially_onscreen"},
+  {NULL,                         NULL}
 };
 
 static gboolean
@@ -230,11 +220,11 @@ do_all_constraints (MetaWindow         *window,
                     gboolean            check_only)
 {
   const ConstraintFunc  *constraint;
-  const char           **constraint_name;
+  const char            *constraint_name;
   gboolean               satisfied;
 
-  constraint = &all_constraints[0];
-  constraint_name = &all_constraint_names[0];
+  constraint = &all_constraints[0].func;
+  constraint_name = all_constraints[0].name;
 
   satisfied = TRUE;
   while (*constraint)
@@ -249,14 +239,14 @@ do_all_constraints (MetaWindow         *window,
                       "info->current is %d,%d +%d,%d after %s\n",
                       info->current.x, info->current.y, 
                       info->current.width, info->current.height,
-                      *constraint_name);
+                      constraint_name);
         }
       else if (!satisfied)
         {
           /* Log which constraint was not satisfied */
           meta_topic (META_DEBUG_GEOMETRY,
                       "constraint %s not satisfied.\n",
-                      *constraint_name);
+                      constraint_name);
           return FALSE;
         }
       ++constraint;
@@ -485,14 +475,30 @@ place_window_if_needed(MetaWindow     *window,
                    .083 * info->work_area_xinerama.height;
         }
 
-      if (window->maximize_horizontally_after_placement)
-        meta_window_maximize_internal (window, TRUE, FALSE, &info->current);
-      if (window->maximize_vertically_after_placement);
-        meta_window_maximize_internal (window, FALSE, TRUE, &info->current);
-
       /* maximization may have changed frame geometry */
       if (window->frame && !window->fullscreen)
         meta_frame_calc_geometry (window->frame, info->fgeom);
+
+      if (window->maximize_horizontally_after_placement &&
+          window->maximize_vertically_after_placement)
+        meta_window_maximize_internal (window,   
+                                       META_MAXIMIZE_HORIZONTAL |
+                                       META_MAXIMIZE_VERTICAL,
+                                       &info->current);
+      else if (window->maximize_horizontally_after_placement)
+        {
+          info->current.x = info->work_area_xinerama.x
+            + info->fgeom->left_width;
+          info->current.width = info->work_area_xinerama.width
+            - info->fgeom->left_width - info->fgeom->right_width;
+        }
+      else if (window->maximize_vertically_after_placement);
+        {
+          info->current.y = info->work_area_xinerama.y
+            + info->fgeom->top_height;
+          info->current.height = info->work_area_xinerama.height
+            - info->fgeom->top_height - info->fgeom->bottom_height;
+        }
 
       window->maximize_horizontally_after_placement = FALSE;
       window->maximize_vertically_after_placement = FALSE;
@@ -539,7 +545,7 @@ update_onscreen_requirements (MetaWindow     *window,
                                         &info->current);
   if (old ^ window->require_fully_onscreen)
     meta_topic (META_DEBUG_GEOMETRY,
-                "require_fully_onscreen for %s toggled to %s\n"
+                "require_fully_onscreen for %s toggled to %s\n",
                 window->desc,
                 window->require_fully_onscreen ? "TRUE" : "FALSE");
 
@@ -909,7 +915,7 @@ do_screen_and_xinerama_relative_constraints (
   char spanning_region[1 + 28 * g_list_length (region_spanning_rectangles)];
   (void) spanning_region;  /* Avoid stupid & incorrect compiler warnings... */
   meta_topic (META_DEBUG_GEOMETRY,
-              "screen/xinerama constraint; region_spanning_rectangles: %s\n"
+              "screen/xinerama constraint; region_spanning_rectangles: %s\n",
               meta_rectangle_region_to_string (region_spanning_rectangles, ", ", 
                                                spanning_region));
 
@@ -976,12 +982,14 @@ constrain_to_single_xinerama (MetaWindow         *window,
 
   /* Exit early if we know the constraint won't apply--note that this constraint
    * is only meant for normal windows (e.g. we don't want docks to be shoved 
-   * "onscreen" by their own strut).
+   * "onscreen" by their own strut) and we can't apply it to frameless windows
+   * or else users will be unable to move windows such as XMMS across xineramas.
    */
   if (window->type == META_WINDOW_DESKTOP   ||
       window->type == META_WINDOW_DOCK      ||
       window->screen->n_xinerama_infos == 1 ||
       !window->require_on_single_xinerama   ||
+      !window->frame                        ||
       info->is_user_action)
     return TRUE;
 

@@ -586,13 +586,15 @@ find_first_fit (MetaWindow *window,
 
   for (i = 0; i < n_xineramas; i++)
     {
-      char xinerama_location_string[25];
+#ifdef WITH_VERBOSE_MODE
+      char xinerama_location_string[RECT_LENGTH];
       meta_rectangle_to_string (&window->screen->xinerama_infos[xineramas_list[i]].rect,
                                 xinerama_location_string);
       meta_topic (META_DEBUG_XINERAMA,
 		  "Natural xinerama %d is %s\n",
 		  i,
 		  xinerama_location_string);
+#endif
     }
 
   /* try each xinerama in the natural ordering in turn */

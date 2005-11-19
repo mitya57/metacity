@@ -401,11 +401,6 @@ meta_window_new_with_attrs (MetaDisplay       *display,
 
   window->has_shape = has_shape;
   
-  /* The x & y correspond to the outer window (i.e. including frame), while
-   * width and height refer to the inner window (i.e. ignoring the frame).
-   * Stupid, stupid, stupid X.  See documentation for XWindowAttributes,
-   * XGetWindowAttributes, XMoveWindow, and XResizeWindow.
-   */
   window->rect.x = attrs->x;
   window->rect.y = attrs->y;
   window->rect.width = attrs->width;
@@ -784,8 +779,10 @@ meta_window_apply_session_info (MetaWindow *window,
                   info->maximized, window->desc);
       
       if (window->has_maximize_func && info->maximized)
-	{
-	  meta_window_maximize (window, TRUE, TRUE);
+        {
+          meta_window_maximize (window, 
+                                META_MAXIMIZE_HORIZONTAL |
+                                META_MAXIMIZE_VERTICAL);
 
           if (info->saved_rect_set)
             {
@@ -979,7 +976,8 @@ meta_window_free (MetaWindow  *window)
     window->display->focus_window = NULL;
 
   if (window->maximized_horizontally || window->maximized_vertically)
-    meta_window_unmaximize (window, TRUE, TRUE);
+    meta_window_unmaximize (window,
+                            META_MAXIMIZE_HORIZONTAL | META_MAXIMIZE_VERTICAL);
   
   meta_window_unqueue_calc_showing (window);
   meta_window_unqueue_move_resize (window);
@@ -2025,11 +2023,14 @@ meta_window_save_rect (MetaWindow *window)
 }
 
 void
-meta_window_maximize_internal (MetaWindow    *window,
-                               gboolean       maximize_horizontally,
-                               gboolean       maximize_vertically,
-                               MetaRectangle *saved_rect)
+meta_window_maximize_internal (MetaWindow        *window,
+                               MetaMaximizeFlags  directions,
+                               MetaRectangle     *saved_rect)
 {
+  /* At least one of the two directions ought to be set */
+  gboolean maximize_horizontally, maximize_vertically;
+  maximize_horizontally = directions & META_MAXIMIZE_HORIZONTAL;
+  maximize_vertically   = directions & META_MAXIMIZE_VERTICAL;
   g_assert (maximize_horizontally || maximize_vertically);
 
   meta_topic (META_DEBUG_WINDOW_OPS,
@@ -2054,10 +2055,13 @@ meta_window_maximize_internal (MetaWindow    *window,
 }
 
 void
-meta_window_maximize (MetaWindow  *window,
-                      gboolean     maximize_horizontally,
-                      gboolean     maximize_vertically)
+meta_window_maximize (MetaWindow        *window,
+                      MetaMaximizeFlags  directions)
 {
+  /* At least one of the two directions ought to be set */
+  gboolean maximize_horizontally, maximize_vertically;
+  maximize_horizontally = directions & META_MAXIMIZE_HORIZONTAL;
+  maximize_vertically   = directions & META_MAXIMIZE_VERTICAL;
   g_assert (maximize_horizontally || maximize_vertically);
 
   /* Only do something if the window isn't already maximized in the
@@ -2083,8 +2087,7 @@ meta_window_maximize (MetaWindow  *window,
 	}
 
       meta_window_maximize_internal (window, 
-                                     maximize_horizontally,
-                                     maximize_vertically,
+                                     directions,
                                      NULL);
 
       /* move_resize with new maximization constraints
@@ -2094,10 +2097,15 @@ meta_window_maximize (MetaWindow  *window,
 }
 
 void
-meta_window_unmaximize (MetaWindow  *window,
-                        gboolean     unmaximize_horizontally,
-                        gboolean     unmaximize_vertically)
+meta_window_unmaximize (MetaWindow        *window,
+                        MetaMaximizeFlags  directions)
 {
+  /* At least one of the two directions ought to be set */
+  gboolean unmaximize_horizontally, unmaximize_vertically;
+  unmaximize_horizontally = directions & META_MAXIMIZE_HORIZONTAL;
+  unmaximize_vertically   = directions & META_MAXIMIZE_VERTICAL;
+  g_assert (unmaximize_horizontally || unmaximize_vertically);
+
   /* Only do something if the window isn't already maximized in the
    * given direction(s).
    */
@@ -2531,47 +2539,40 @@ meta_window_move_resize_internal (MetaWindow  *window,
                                   int          w,
                                   int          h)
 {
-  /* meta_window_move_resize_internal absolutely sucks as far as what it
-   * accepts for the new position of the window.  w & h are always the
-   * area of the inner or client window (i.e. excluding the frame).
-   * root_x_nw and root_y_nw can be any of:
-   *
-   *   (1) Bogus; should just be ignored.
-   *   (2) Something kind of strange that needs to be fixed up with
-   *       adjust_for_gravity().  I'm not sure I quite understand it
-   *       despite my reading of all relevant functions multiple times plus
-   *       lots of X manual page reading.  Anyway, I think the basic idea
-   *       is that it somehow specifies the inner position of the window in
-   *       such a way that the relevant part of the frame for the given
-   *       gravity will remain fixed.  Kinda confusing, but it was stuff
-   *       written by someone else and it all seems to all work, though, so
-   *       I'm just not going to touch this code if I can help it.
-   *   (3) Desired positon of the NW corner of the inner window
-   *   (4) Some unnatural nasty mixture of the above that is obscene and
-   *       broken and we don't even attempt to fix up; but it's #ifdef'd
-   *       out so we don't worry about it.  It needs to be fixed (not this
-   *       function) before it really is used, though.
-   *
-   * Other than case (1) which occurs whenever the operation is a
-   * resize-only operation (in which case window->rect.x and window->rect.y
-   * combined with meta_rectangle_resize_with_gravity() provides the real
-   * position), here are the cases and what they yield:
+  /* meta_window_move_resize_internal gets called with very different
+   * meanings for root_x_nw and root_y_nw.  w & h are always the area of
+   * the inner or client window (i.e. excluding the frame) and the
+   * resize_gravity is always the gravity associated with the resize or
+   * move_resize request (the gravity is ignored for move-only operations).
+   * But the location is different because of how this function gets
+   * called; note that in all cases what we want to find out is the upper
+   * left corner of the position of the inner window:
    *
    *   Case | Called from (flags; resize_gravity)
    *   -----+-----------------------------------------------
-   *    2   | New window (ConfigureRequest; gravity)
-   *    2   | Session restore (GravityAdjust; gravity)
-   *    3   | meta_window_resize (UserAction || 0; NorthWest)
-   *    3   | meta_window_move (UserAction || 0; NorthWest)
-   *    3   | meta_window_move_resize (UserAction || 0; NorthWest)
+   *    1   | A resize only ConfigureRequest
+   *    1   | meta_window_resize
+   *    1   | meta_window_resize_with_gravity
+   *    2   | New window
+   *    2   | Session restore
+   *    2   | A not-resize-only ConfigureRequest
+   *    3   | meta_window_move
+   *    3   | meta_window_move_resize
    *    4   | various functions via handle_net_moveresize_window() in display.c
-   *    2   | ConfigureRequest (ConfigureRequest; gravity)
    *
-   * Other than the (4) case, this is all cleaned up via use of
-   * meta_rectangle_resize_with_gravity() to turn type (1) cases into type
-   * (3) and the use of adjust_for_gravity() to turn all (2) cases into
-   * (3).  This makes it so that all position and size fields correspond to
-   * the desired inner (or "client") window position.
+   * For each of the cases, root_x_nw and root_y_nw must be treated as follows:
+   *
+   *   (1) They should be entirely ignored; instead the previous position
+   *       and size of the window should be resized according to the given
+   *       gravity in order to determine the new position of the window.
+   *   (2) Needs to be fixed up by adjust_for_gravity() as these
+   *       coordinates are relative to some corner or side of the outer
+   *       window (except for the case of StaticGravity) and we want to
+   *       know the location of the upper left corner of the inner window.
+   *   (3) These values are already the desired positon of the NW corner
+   *       of the inner window
+   *   (4) The place that calls this function this way must be fixed; it is
+   *       wrong.
    */
   XWindowChanges values;
   unsigned int mask;
@@ -3382,15 +3383,9 @@ meta_window_begin_wireframe (MetaWindow *window)
   int display_width, display_height;
 
   window->display->grab_wireframe_rect = window->rect;
-
-  /* FIXME: Uh, why not use meta_window_get_position() to be like all the
-   * other code in Metacity?
-   */
-  if (window->frame)
-    {
-      window->display->grab_wireframe_rect.x += window->frame->rect.x;
-      window->display->grab_wireframe_rect.y += window->frame->rect.y;
-    }
+  meta_window_get_position (window, 
+                            &window->display->grab_wireframe_rect.x,
+                            &window->display->grab_wireframe_rect.y);
 
   meta_window_get_xor_rect (window, &window->display->grab_wireframe_rect,
                             &new_xor);
@@ -4283,9 +4278,9 @@ meta_window_client_message (MetaWindow *window,
                  (action == _NET_WM_STATE_TOGGLE && 
                   !window->maximized_horizontally));
           if (max && window->has_maximize_func)
-            meta_window_maximize (window, TRUE, FALSE);
+            meta_window_maximize (window, META_MAXIMIZE_HORIZONTAL);
           else
-            meta_window_unmaximize (window, TRUE, FALSE);
+            meta_window_unmaximize (window, META_MAXIMIZE_HORIZONTAL);
         }
 
       if (first == display->atom_net_wm_state_maximized_vert ||
@@ -4297,9 +4292,9 @@ meta_window_client_message (MetaWindow *window,
                  (action == _NET_WM_STATE_TOGGLE && 
                   !window->maximized_vertically));
           if (max && window->has_maximize_func)
-            meta_window_maximize (window, FALSE, TRUE);
+            meta_window_maximize (window, META_MAXIMIZE_VERTICAL);
           else
-            meta_window_unmaximize (window, FALSE, TRUE);
+            meta_window_unmaximize (window, META_MAXIMIZE_VERTICAL);
         }
 
       if (first == display->atom_net_wm_state_modal ||
@@ -6069,11 +6064,15 @@ menu_callback (MetaWindowMenu *menu,
           break;
 
         case META_MENU_OP_UNMAXIMIZE:
-          meta_window_unmaximize (window, TRUE, TRUE);
+          meta_window_unmaximize (window,
+                                  META_MAXIMIZE_HORIZONTAL |
+                                  META_MAXIMIZE_VERTICAL);
           break;
       
         case META_MENU_OP_MAXIMIZE:
-          meta_window_maximize (window, TRUE, TRUE);
+          meta_window_maximize (window,
+                                META_MAXIMIZE_HORIZONTAL |
+                                META_MAXIMIZE_VERTICAL);
           break;
 
         case META_MENU_OP_UNSHADE:
@@ -6493,7 +6492,6 @@ update_move_timeout (gpointer data)
                window->display->grab_latest_motion_x,
                window->display->grab_latest_motion_y);
 
-  /* Return value is ignored, but whatever... */
   return FALSE;
 }
 
@@ -6566,7 +6564,9 @@ update_move (MetaWindow  *window,
       window->display->grab_anchor_root_x = x;
       window->display->grab_anchor_root_y = y;
 
-      meta_window_unmaximize (window, TRUE, TRUE);
+      meta_window_unmaximize (window,
+                              META_MAXIMIZE_HORIZONTAL |
+                              META_MAXIMIZE_VERTICAL);
 
       return;
     }
@@ -6605,7 +6605,9 @@ update_move (MetaWindow  *window,
                       window->saved_rect.y += window->frame->child_y;
                     }
 
-                  meta_window_unmaximize (window, TRUE, TRUE);
+                  meta_window_unmaximize (window,
+                                          META_MAXIMIZE_HORIZONTAL |
+                                          META_MAXIMIZE_VERTICAL);
                 }
 
               window->display->grab_initial_window_pos = work_area;
@@ -6613,7 +6615,9 @@ update_move (MetaWindow  *window,
               window->display->grab_anchor_root_y = y;
               window->shaken_loose = FALSE;
               
-              meta_window_maximize (window, TRUE, TRUE);
+              meta_window_maximize (window,
+                                    META_MAXIMIZE_HORIZONTAL |
+                                    META_MAXIMIZE_VERTICAL);
 
               return;
             }
@@ -7078,28 +7082,6 @@ meta_window_handle_mouse_grab_op_event (MetaWindow *window,
         }
       break;
 
-#if 0
-    case EnterNotify:
-    case LeaveNotify:
-      if (meta_grab_op_is_moving (window->display->grab_op))
-        {
-          if (event->xcrossing.root == window->screen->xroot)
-            update_move (window,
-                         event->xcrossing.state & ShiftMask,
-                         event->xcrossing.x_root,
-                         event->xcrossing.y_root);
-        }
-      else if (meta_grab_op_is_resizing (window->display->grab_op))
-        {
-          if (event->xcrossing.root == window->screen->xroot)
-            update_resize (window,
-                           event->xcrossing.state & ShiftMask,
-                           event->xcrossing.x_root,
-                           event->xcrossing.y_root,
-                           FALSE);
-        }
-      break;
-#endif
     default:
       break;
     }

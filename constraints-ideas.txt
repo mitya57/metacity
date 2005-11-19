@@ -8,7 +8,7 @@ Short-term (I hope...) TODO list/reminders:
 
   - Need to add my copyright info to all the modified files
 
-  - Need to verify XRandR stuff appropriately invalidates the workarea
+  X Need to verify XRandR stuff appropriately invalidates the workarea
 
   X Need to update the documentation; the huge comment is out of date and
     misleading now
@@ -27,13 +27,15 @@ Short-term (I hope...) TODO list/reminders:
       the window drift northwest.  Very weird.
     X Get rid of compiling warnings for constraints.c even if they're dumb
 
-  - Should we turn off fully-onscreen & on-single-xinerama constraints
+  X Should we turn off fully-onscreen & on-single-xinerama constraints
     for decorationless windows?  Otherwise, most users (those that
     don't know about alt-drag to move or alt+f7 to keyboard move)
     won't be able to move xmms off their current xinerama onscreen
     space.  This might mean that users lose their window (dragging the
     top of the window too far offscreen), but that might be a required
     trade-off for having a stupid-app.
+    [Update: I decided to do so only for the on-single-xinerama
+    constraints]
 
   - Brokenness left in aspect-ratio resizing:
     X gtk+ seems to be doing nit-picky fighting with us over which way to
@@ -109,7 +111,7 @@ Short-term (I hope...) TODO list/reminders:
     - spanning rects
     - boxes.[ch] & testboxes.c
 
-  - Questions for UI experts:
+  X Questions for UI experts:
     - should I have left edges lining up to left edges of other
       windows result in resistance as well, or just left edges lining
       up against right edges as I currently do?
@@ -325,6 +327,7 @@ Bugs to fix:
     319351  - don't instantly snap on mouse-move-snapping, remove
               braindeadedness of having order of releasing shift and
               releasing button press matter so much
+    304857  - wireframe moving off the top of the screen is misleading
 
 Some ideas:
   - move_rectangle_into_region & clip_rectangle_into_region in

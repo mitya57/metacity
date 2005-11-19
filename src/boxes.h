@@ -62,11 +62,15 @@ struct _MetaEdge
 };
 
 /* Output functions -- note that the output buffer had better be big enough:
- *   rect_to_string:   1 + 24
- *   region_to_string: 1 + (26+strlen(separator_string))*g_list_length (region)
- *   edge_to_string:   1 + 24 + 10
- *   edge_list_to_...: 1 + (36+strlen(sep..._string))*g_list_length (edge_list)
+ *   rect_to_string:   RECT_LENGTH
+ *   region_to_string: (RECT_LENGTH+strlen(separator_string)) *
+ *                     g_list_length (region)
+ *   edge_to_string:   EDGE_LENGTH
+ *   edge_list_to_...: (EDGE_LENGTH+strlen(separator_string)) * 
+ *                     g_list_length (edge_list)
  */
+#define RECT_LENGTH 27
+#define EDGE_LENGTH 37
 char* meta_rectangle_to_string        (const MetaRectangle *rect,
                                        char                *output);
 char* meta_rectangle_region_to_string (GList               *region,

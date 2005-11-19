@@ -1,5 +1,104 @@
 2005-11-18  Elijah Newren  <newren@gmail.com>
 
+	Do the cleanups requested by Havoc in his review.
+
+	* constraints-ideas.txt: Update for the recent changes
+
+	* src/boxes.[ch]:
+
+	(<general>):
+	Fixup copyright information for meta_rectangle_(equal|intersect),
+	remove PRINT_DEBUG #define
+
+	(meta_rectangle_to_string):
+	(meta_rectangle_region_to_string):
+	(meta_rectangle_edge_to_string):
+	(meta_rectangle_edge_list_to_string):
+	remove hardcoded length of strings and use new (RECT|EDGE)_LENGTH
+	#defines, s/snprintf/g_snprintf/
+
+	(merge_spanning_rects_in_region):
+	(meta_rectangle_get_minimal_spanning_set_for_region):
+	remove lots of overly verbose debugging spew that was #ifdef'd out
+	anyway
+
+	(meta_rectangle_find_linepoint_closest_to_point):
+	fix up argument list and equations to follow coding style
+
+	* src/constraints.c:
+
+	(<general>):
+	put #include <config.h> back in here, remove unneeded comment
+
+	(enum ConstraintPriority):
+	spaces around '='
+
+	(ConstraintFunc array all_constraints):
+	(char* array all_constraint_names arrays):
+	(struct Constraint):
+	(Constraint array all_constraints):
+	(do_all_constraints):
+	get rid of the old two-array thing and just have the constraint
+	function and names in one array tracking both fields
+
+	(place_window_if_needed):
+	make the single-direction maximization be a "hidden feature" only;
+	don't auto-maximize in just a single direction
+
+	(update_onscreen_requirements):
+	(do_screen_and_xinerama_relative_constraints):
+	add some commas that the compiler strangely never complained about
+	missing before
+
+	(constrain_to_single_xinerama):
+	Don't apply this constraint for decorationless windows
+
+	* src/place.c (find_first_fit): put an #ifdef WITH_VERBOSE_MODE
+	around figuring out and logging the rectangle position
+
+	* src/testboxes.c:
+
+	(test_merge_regions):
+	(test_regions_okay):
+	(test_find_onscreen_edges):
+	(test_find_nonintersected_xinerama_edges):
+	remove hardcoded length of strings and use new (RECT|EDGE)_LENGTH
+	#defines from boxes.[ch]
+
+	* src/window.c:
+
+	(meta_window_new_with_attrs):
+	remove an unneeded comment
+
+	(meta_window_move_resize_internal):
+	rewrite the freakin' huge comment for clarity
+
+	(meta_window_begin_wireframe):
+	remove the comment explaining an easy fix and just fix it
+
+	(update_move_timeout):
+	remove an erroneous (copy & pasted) comment
+
+	(meta_window_handle_mouse_grab_op_event):
+	remove #ifdef'd out code
+
+	* src/window.h (struct MetaWindow): simplify comment about
+	window->rect
+
+	* src/core.c (meta_core_maximize, meta_core_toggle_maximize,
+	  meta_core_unmaximize):
+	* src/keybindings.c (handle_maximize_vert, handle_maximize_horiz,
+	  handle_toggle_maximize, handle_maximize, handle_unmaximize):
+	* src/place.c (place_window_if_needed):
+	* src/window.[ch] (meta_window_apply_session_info, meta_window_free,
+	  meta_window_maximize_internal, meta_window_maximize,
+	  meta_window_unmaximize, meta_window_client_message,
+	  menu_callback, update_move, enum MetaMaximizeFlags):
+	change meta_window_(un)maximize(_internal) to use flags instead of
+	boolean args
+
+2005-11-18  Elijah Newren  <newren@gmail.com>
+
 	Fix the breakage all these constraints_experiments changes caused
 	to reduced resources mode.  Also fixes #304857 (wireframe can move
 	off the top of the screen despite the fact that the window won't

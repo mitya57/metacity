@@ -373,8 +373,8 @@ test_merge_regions ()
   printf ("Merging stats:\n");
   printf ("  Length of initial list: %d\n", g_list_length (region));
 #ifdef PRINT_DEBUG
-  char rect1[25], rect2[25];
-  char region_list[1 + 28 * g_list_length (region)];
+  char rect1[RECT_LENGTH], rect2[RECT_LENGTH];
+  char region_list[(RECT_LENGTH + 2) * g_list_length (region)];
   meta_rectangle_region_to_string (region, ", ", region_list);
   printf ("  Initial rectangles: %s\n", region_list);
 #endif
@@ -487,7 +487,7 @@ test_merge_regions ()
             }
 
 #ifdef PRINT_DEBUG
-          char region_list[1 + 28 * g_list_length (region)];
+          char region_list[(RECT_LENGTH + 2) * g_list_length (region)];
           meta_rectangle_region_to_string (region, ", ", region_list);
           printf ("      After comparison, new list is: %s\n", region_list);
 #endif
@@ -505,7 +505,7 @@ test_merge_regions ()
   printf ("  Num rectangles merged with others           : %d\n",
           num_merged);
 #ifdef PRINT_DEBUG
-  char region_list2[1 + 28 * g_list_length (region)];
+  char region_list2[(RECT_LENGTH + 2) * g_list_length (region)];
   meta_rectangle_region_to_string (region, ", ", region_list2);
   printf ("  Final rectangles: %s\n", region_list2);
 #endif
@@ -622,8 +622,8 @@ test_regions_okay ()
   tmp = g_list_prepend (tmp, new_meta_rect (   0,   20, 1600,  505)); // 808000
 #if 0
   printf ("Got to here...\n");
-  char region_list[1 + 28 * g_list_length (region)];
-  char tmp_list[   1 + 28 * g_list_length (tmp)];
+  char region_list[(RECT_LENGTH+2) * g_list_length (region)];
+  char tmp_list[   (RECT_LENGTH+2) * g_list_length (tmp)];
   meta_rectangle_region_to_string (region, ", ", region_list);
   meta_rectangle_region_to_string (region, ", ", tmp_list);
   printf ("%s vs. %s\n", region_list, tmp_list);
@@ -1078,8 +1078,8 @@ test_find_onscreen_edges ()
   tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 0, 1180, left));
 
 #if 0
-  #define FUDGE 50
-  char big_buffer1[1 + (16+FUDGE)*38], big_buffer2[1 + 16*38];
+  #define FUDGE 50 /* number of edges */
+  char big_buffer1[(EDGE_LENGTH+2)*FUDGE], big_buffer2[(EDGE_LENGTH+2)*FUDGE];
   meta_rectangle_edge_list_to_string (edges, "\n ", big_buffer1);
   meta_rectangle_edge_list_to_string (tmp,   "\n ", big_buffer2);
   printf("Generated edge list:\n %s\nComparison edges list:\n %s\n", 
@@ -1168,7 +1168,7 @@ test_find_nonintersected_xinerama_edges ()
   tmp = g_list_prepend (tmp, new_xinerama_edge ( 800,   20, 0, 1180, left));
 #if 0
   #define FUDGE 50
-  char big_buffer1[1 + (16+FUDGE)*38], big_buffer2[1 + 16*38];
+  char big_buffer1[(EDGE_LENGTH+2)*FUDGE], big_buffer2[(EDGE_LENGTH+2)*FUDGE];
   meta_rectangle_edge_list_to_string (edges, "\n ", big_buffer1);
   meta_rectangle_edge_list_to_string (tmp,   "\n ", big_buffer2);
   printf("Generated edge list:\n %s\nComparison edges list:\n %s\n", 

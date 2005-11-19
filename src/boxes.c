@@ -2,12 +2,11 @@
 
 /* 
  * Copyright (C) 2005 Elijah Newren
- * [According to the ChangeLog, Anders, Havoc, and Rob were responsible
- * for the meta_rectangle_intersect() and meta_rectangle_equal()
- * functions that I copied from display.c]
- * Copyright (C) 2002 Anders Carlsson
+ * [meta_rectangle_intersect() is copyright the GTK+ Team according to Havoc,
+ * see gdkrectangle.c.  As far as Havoc knows, he probably wrote
+ * meta_rectangle_equal(), and I'm guessing it's (C) Red Hat.  So...]
+ * Copyright (C) 1995-2000  GTK+ Team
  * Copyright (C) 2002 Red Hat, Inc.
- * Copyright (C) 2003 Rob Adams
  * 
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -30,21 +29,16 @@
 #include <X11/Xutil.h>  /* Just for the definition of the various gravities */
 #include <stdio.h>      /* For snprintf */
 
-/* PRINT_DEBUG may be useful to define when compiling the testboxes program if
- * any issues crop up.
- */
-/* #define PRINT_DEBUG */
-
 char*
 meta_rectangle_to_string (const MetaRectangle *rect,
                           char                *output)
 {
-  /* 25 = 2 commas, space, plus, trailing \0 + 5 for each digit.
+  /* 25 chars: 2 commas, space, plus, trailing \0 + 5 for each digit.
    * Should be more than enough space.  Note that of this space, the
    * trailing \0 will be overwritten for all but the last rectangle.
    */
-  snprintf (output, 25, "%d,%d +%d,%d", 
-            rect->x, rect->y, rect->width, rect->height);
+  g_snprintf (output, RECT_LENGTH, "%d,%d +%d,%d", 
+              rect->x, rect->y, rect->width, rect->height);
 
   return output;
 }
@@ -54,12 +48,12 @@ meta_rectangle_region_to_string (GList      *region,
                                  const char *separator_string,
                                  char       *output)
 {
-  /* 27 = 2 commas, 2 square brackets, space, plus, trailing \0 + 5 for
-   * each digit.  Should be more than enough space.  Note that of this
+  /* 27 chars: 2 commas, 2 square brackets, space, plus, trailing \0 + 5
+   * for each digit.  Should be more than enough space.  Note that of this
    * space, the trailing \0 will be overwritten for all but the last
    * rectangle.
    */
-  char rect_string[27];
+  char rect_string[RECT_LENGTH];
 
   if (region == NULL)
     snprintf (output, 10, "(EMPTY)");
@@ -69,8 +63,8 @@ meta_rectangle_region_to_string (GList      *region,
   while (tmp)
     {
       MetaRectangle *rect = tmp->data;
-      snprintf (rect_string, 27, "[%d,%d +%d,%d]", 
-               rect->x, rect->y, rect->width, rect->height);
+      g_snprintf (rect_string, RECT_LENGTH, "[%d,%d +%d,%d]", 
+                  rect->x, rect->y, rect->width, rect->height);
       cur = g_stpcpy (cur, rect_string);
       tmp = tmp->next;
       if (tmp)
@@ -84,16 +78,16 @@ char*
 meta_rectangle_edge_to_string (const MetaEdge *edge,
                                char           *output)
 {
-  /* 25 = 2 commas, space, plus, trailing \0 + 5 for each digit.
+  /* 25 chars: 2 commas, space, plus, trailing \0 + 5 for each digit.
    * Should be more than enough space.  Note that of this space, the
    * trailing \0 will be overwritten for all but the last rectangle.
    *
    * Plus 2 for parenthesis, 4 for 2 more numbers, 2 more commas, and
    * 2 more spaces, for a total of 10 more.
    */
-  snprintf (output, 35, "[%d,%d +%d,%d], %2d, %2d", 
-            edge->rect.x, edge->rect.y, edge->rect.width, edge->rect.height,
-            edge->side_type, edge->edge_type);
+  g_snprintf (output, EDGE_LENGTH, "[%d,%d +%d,%d], %2d, %2d", 
+              edge->rect.x, edge->rect.y, edge->rect.width, edge->rect.height,
+              edge->side_type, edge->edge_type);
 
   return output;
 }
@@ -103,7 +97,7 @@ meta_rectangle_edge_list_to_string (GList      *edge_list,
                                     const char *separator_string,
                                     char       *output)
 {
-  /* 27 = 2 commas, 2 square brackets, space, plus, trailing \0 + 5 for
+  /* 27 chars: 2 commas, 2 square brackets, space, plus, trailing \0 + 5 for
    * each digit.  Should be more than enough space.  Note that of this
    * space, the trailing \0 will be overwritten for all but the last
    * rectangle.
@@ -111,7 +105,7 @@ meta_rectangle_edge_list_to_string (GList      *edge_list,
    * Plus 2 for parenthesis, 4 for 2 more numbers, 2 more commas, and
    * 2 more spaces, for a total of 10 more.
    */
-  char rect_string[27 + 10];
+  char rect_string[EDGE_LENGTH];
 
   if (edge_list == NULL)
     snprintf (output, 10, "(EMPTY)");
@@ -122,9 +116,9 @@ meta_rectangle_edge_list_to_string (GList      *edge_list,
     {
       MetaEdge      *edge = tmp->data;
       MetaRectangle *rect = &edge->rect;
-      snprintf (rect_string, 37, "([%d,%d +%d,%d], %2d, %2d)", 
-                rect->x, rect->y, rect->width, rect->height,
-                edge->side_type, edge->edge_type);
+      g_snprintf (rect_string, EDGE_LENGTH, "([%d,%d +%d,%d], %2d, %2d)", 
+                  rect->x, rect->y, rect->width, rect->height,
+                  edge->side_type, edge->edge_type);
       cur = g_stpcpy (cur, rect_string);
       tmp = tmp->next;
       if (tmp)
@@ -356,10 +350,6 @@ merge_spanning_rects_in_region (GList *region)
    */
 
   GList* compare;
-#ifdef PRINT_DEBUG
-  int num_contains, num_merged, num_part_contains, num_adjacent;
-  num_contains = num_merged = num_part_contains = num_adjacent = 0;
-#endif
   compare = region;
 
   if (region == NULL)
@@ -368,16 +358,6 @@ merge_spanning_rects_in_region (GList *region)
                     "pathological STRUT list or there's a bug somewhere!\n");
       return NULL;
     }
-
-#ifdef PRINT_DEBUG
-  char spanning_region[1 + 28 * g_list_length (region)];
-  char rect1_string[25];
-  char rect2_string[25];
-  printf ("Merging stats:\n");
-  printf ("  Length of initial list: %d\n", g_list_length (region));
-  printf ("  Initial rectangles: %s\n",
-          meta_rectangle_region_to_string (region, ", ", spanning_region));
-#endif
 
   while (compare && compare->next)
     {
@@ -393,29 +373,15 @@ merge_spanning_rects_in_region (GList *region)
 
           g_assert (b->width > 0 && b->height > 0);
 
-#ifdef PRINT_DEBUG
-          printf ("    -- Comparing %s to %s --\n",
-                  meta_rectangle_to_string (a, rect1_string),
-                  meta_rectangle_to_string (b, rect2_string));
-#endif
-
           /* If a contains b, just remove b */
           if (meta_rectangle_contains_rect (a, b))
             {
               delete_me = other;
-#ifdef PRINT_DEBUG
-              num_contains++;
-              num_merged++;
-#endif
             }
           /* If b contains a, just remove a */
           else if (meta_rectangle_contains_rect (a, b))
             {
               delete_me = compare;
-#ifdef PRINT_DEBUG
-              num_contains++;
-              num_merged++;
-#endif
             }
           /* If a and b might be mergeable horizontally */
           else if (a->y == b->y && a->height == b->height)
@@ -427,10 +393,6 @@ merge_spanning_rects_in_region (GList *region)
                   a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
                   a->x = new_x;
                   delete_me = other;
-#ifdef PRINT_DEBUG
-                  num_part_contains++;
-                  num_merged++;
-#endif
                 }
               /* If a and b are adjacent */
               else if (a->x + a->width == b->x || a->x == b->x + b->width)
@@ -439,10 +401,6 @@ merge_spanning_rects_in_region (GList *region)
                   a->width = MAX (a->x + a->width, b->x + b->width) - new_x;
                   a->x = new_x;
                   delete_me = other;
-#ifdef PRINT_DEBUG
-                  num_adjacent++;
-                  num_merged++;
-#endif
                 }
             }
           /* If a and b might be mergeable vertically */
@@ -455,10 +413,6 @@ merge_spanning_rects_in_region (GList *region)
                   a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
                   a->y = new_y;
                   delete_me = other;
-#ifdef PRINT_DEBUG
-                  num_part_contains++;
-                  num_merged++;
-#endif
                 }
               /* If a and b are adjacent */
               else if (a->y + a->height == b->y || a->y == b->y + b->height)
@@ -467,10 +421,6 @@ merge_spanning_rects_in_region (GList *region)
                   a->height = MAX (a->y + a->height, b->y + b->height) - new_y;
                   a->y = new_y;
                   delete_me = other;
-#ifdef PRINT_DEBUG
-                  num_adjacent++;
-                  num_merged++;
-#endif
                 }
             }
 
@@ -479,12 +429,6 @@ merge_spanning_rects_in_region (GList *region)
           /* Delete any rectangle in the list that is no longer wanted */
           if (delete_me != NULL)
             {
-#ifdef PRINT_DEBUG
-              MetaRectangle *bla = delete_me->data;
-              printf ("    Deleting rect %s\n",
-                      meta_rectangle_to_string (bla, rect1_string));
-#endif
-
               /* Deleting the rect we compare others to is a little tricker */
               if (compare == delete_me)
                 {
@@ -498,35 +442,10 @@ merge_spanning_rects_in_region (GList *region)
               region = g_list_delete_link (region, delete_me);
             }
 
-#ifdef PRINT_DEBUG
-          char new_list[1 + 28 * g_list_length (region)];
-          printf ("    After comparison, new list is: %s\n",
-                  meta_rectangle_region_to_string (region, ", ", new_list));
-#endif
         }
 
       compare = compare->next;
     }
-
-#ifdef PRINT_DEBUG
-  /* Note that I believe it will be the case that num_part_contains and
-   * num_adjacent will alwyas be 0 while num_contains will be equal to
-   * num_merged.  If so, this might be useful information to use to come up
-   * with some kind of optimization for this funcation, given that there
-   * exists someone who really wants to do that.
-   */
-  char final_list[1 + 28 * g_list_length (region)];
-  printf ("  Num rectangles contained in others          : %d\n", 
-          num_contains);
-  printf ("  Num rectangles partially contained in others: %d\n", 
-          num_part_contains);
-  printf ("  Num rectangles adjacent to others           : %d\n", 
-          num_adjacent);
-  printf ("  Num rectangles merged with others           : %d\n",
-          num_merged);
-  printf ("  Final rectangles: %s\n",
-          meta_rectangle_region_to_string (region, ", ", final_list));
-#endif
 
   return region;
 }
@@ -622,39 +541,21 @@ meta_rectangle_get_minimal_spanning_set_for_region (
   temp_rect = g_new (MetaRectangle, 1);
   *temp_rect = *basic_rect;
   ret = g_list_prepend (NULL, temp_rect);
-#ifdef PRINT_DEBUG
-  char rect_string[25];
-  printf("Initialized spanning set with %s.\n", 
-         meta_rectangle_to_string (basic_rect, rect_string));
-#endif
 
   strut_iter = all_struts;
   while (strut_iter)
     {
       GList *rect_iter; 
       MetaRectangle *strut = (MetaRectangle*) strut_iter->data;
-#ifdef PRINT_DEBUG
-      printf("Dealing with strut %s.\n", 
-             meta_rectangle_to_string (strut, rect_string));
-#endif
+
       tmp_list = ret;
       ret = NULL;
       rect_iter = tmp_list;
       while (rect_iter)
         {
           MetaRectangle *rect = (MetaRectangle*) rect_iter->data;
-#ifdef PRINT_DEBUG
-          printf("  Looking if we need to chop up %s.\n",
-                 meta_rectangle_to_string (rect, rect_string));
-#endif
           if (!meta_rectangle_overlap (rect, strut))
-            {
             ret = g_list_prepend (ret, rect);
-#ifdef PRINT_DEBUG
-            printf("    No chopping of %s.\n",
-                   meta_rectangle_to_string (rect, rect_string));
-#endif
-            }
           else
             {
               /* If there is area in rect left of strut */
@@ -664,10 +565,6 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   *temp_rect = *rect;
                   temp_rect->width = strut->x - rect->x;
                   ret = g_list_prepend (ret, temp_rect);
-#ifdef PRINT_DEBUG
-                  printf("    Added %s.\n",
-                         meta_rectangle_to_string (temp_rect, rect_string));
-#endif
                 }
               /* If there is area in rect right of strut */
               if (rect->x + rect->width > strut->x + strut->width)
@@ -679,10 +576,6 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->width = rect->x + rect->width - new_x;
                   temp_rect->x = new_x;
                   ret = g_list_prepend (ret, temp_rect);
-#ifdef PRINT_DEBUG
-                  printf("    Added %s.\n",
-                         meta_rectangle_to_string (temp_rect, rect_string));
-#endif
                 }
               /* If there is area in rect above strut */
               if (rect->y < strut->y)
@@ -691,10 +584,6 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   *temp_rect = *rect;
                   temp_rect->height = strut->y - rect->y;
                   ret = g_list_prepend (ret, temp_rect);
-#ifdef PRINT_DEBUG
-                  printf("    Added %s.\n",
-                         meta_rectangle_to_string (temp_rect, rect_string));
-#endif
                 }
               /* If there is area in rect below strut */
               if (rect->y + rect->height > strut->y + strut->height)
@@ -706,10 +595,6 @@ meta_rectangle_get_minimal_spanning_set_for_region (
                   temp_rect->height = rect->y + rect->height - new_y;
                   temp_rect->y = new_y;
                   ret = g_list_prepend (ret, temp_rect);
-#ifdef PRINT_DEBUG
-                  printf("    Added %s.\n",
-                         meta_rectangle_to_string (temp_rect, rect_string));
-#endif
                 }
               g_free (rect);
             }
@@ -1063,10 +948,14 @@ meta_rectangle_shove_into_region (const GList         *spanning_rects,
 }
 
 void
-meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
-                                                double x2,    double y2,
-                                                double px,    double py,
-                                                double *valx, double *valy)
+meta_rectangle_find_linepoint_closest_to_point (double x1,
+                                                double y1,
+                                                double x2,
+                                                double y2,
+                                                double px,
+                                                double py,
+                                                double *valx,
+                                                double *valy)
 {
   /* I'll use the shorthand rx, ry for the return values, valx & valy.
    * Now, we need (rx,ry) to be on the line between (x1,y1) and (x2,y2).
@@ -1107,10 +996,12 @@ meta_rectangle_find_linepoint_closest_to_point (double x1,    double y1,
   double diffx, diffy, den;
   diffx = x2 - x1;
   diffy = y2 - y1;
-  den = diffx*diffx + diffy*diffy;
+  den = diffx * diffx + diffy * diffy;
 
-  *valx = (py*diffx*diffy + px*diffx*diffx + y2*x1*diffy - y1*x2*diffy) / den;
-  *valy = (px*diffx*diffy + py*diffy*diffy + x2*y1*diffx - x1*y2*diffx) / den;
+  *valx = (py * diffx * diffy + px * diffx * diffx +
+           y2 * x1 * diffy - y1 * x2 * diffy) / den;
+  *valy = (px * diffx * diffy + py * diffy * diffy +
+           x2 * y1 * diffx - x1 * y2 * diffx) / den;
 }
 
 /***************************************************************************/

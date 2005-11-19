@@ -51,6 +51,12 @@ typedef enum
   META_WINDOW_SPLASHSCREEN
 } MetaWindowType;
 
+typedef enum
+{
+  META_MAXIMIZE_HORIZONTAL = 1 << 0,
+  META_MAXIMIZE_VERTICAL   = 1 << 1
+} MetaMaximizeFlags;
+
 struct _MetaStruts
 {
   /* struts */
@@ -293,13 +299,9 @@ struct _MetaWindow
   /* The size we set the window to last (i.e. what we believe
    * to be its actual size on the server). The x, y are
    * the actual server-side x,y so are relative to the frame
-   * or the root window as appropriate.
-   *
-   * In a format that I (Elijah) understand: The x & y are trying to
-   * provide the position of the upper-left corner of the client
-   * (i.e. inner) window, but may do so relative to where the upper
-   * left of the frame is if there is one.  The width and height are
-   * always of the client (i.e. inner) window.
+   * (meaning that they just hold the frame width and height) 
+   * or the root window (meaning they specify the location
+   * of the top left of the inner window) as appropriate.
    */
   MetaRectangle rect;
 
@@ -366,16 +368,13 @@ void        meta_window_calc_showing       (MetaWindow  *window);
 void        meta_window_queue_calc_showing (MetaWindow  *window);
 void        meta_window_minimize           (MetaWindow  *window);
 void        meta_window_unminimize         (MetaWindow  *window);
-void        meta_window_maximize           (MetaWindow  *window,
-                                            gboolean     maximize_horizontally,
-                                            gboolean     maximize_vertically);
-void        meta_window_maximize_internal  (MetaWindow    *window,
-                                            gboolean       maximize_horizontally,
-                                            gboolean       maximize_vertically,
-                                            MetaRectangle *saved_rect);
-void        meta_window_unmaximize         (MetaWindow  *window,
-                                            gboolean     unmaximize_horizontally,
-                                            gboolean     unmaximize_vertically);
+void        meta_window_maximize           (MetaWindow        *window,
+                                            MetaMaximizeFlags  directions);
+void        meta_window_maximize_internal  (MetaWindow        *window,
+                                            MetaMaximizeFlags  directions,
+                                            MetaRectangle     *saved_rect);
+void        meta_window_unmaximize         (MetaWindow        *window,
+                                            MetaMaximizeFlags  directions);
 void        meta_window_make_above         (MetaWindow  *window);
 void        meta_window_unmake_above       (MetaWindow  *window);
 void        meta_window_shade              (MetaWindow  *window);
