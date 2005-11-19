@@ -1,3 +1,41 @@
+2005-11-18  Elijah Newren  <newren@gmail.com>
+
+	Fix the breakage all these constraints_experiments changes caused
+	to reduced resources mode.  Also fixes #304857 (wireframe can move
+	off the top of the screen despite the fact that the window won't
+	be allowed to)
+
+	* src/edge-resistance.c:
+
+	(apply_edge_resistance):
+	if two edges are at the same location then the keyboard buildup
+	ought to count towards both (otherwise the user can't move past
+	that edge with the keyboard), be careful to not clear
+	keyboard_buildup from edges that don't even align
+
+	(meta_window_edge_resistance_for_move):
+	(meta_window_edge_resistance_for_resize):
+	need to use meta_window_get_xor_rect() instead of
+	meta_window_get_outer_rect() for wireframe mode
+
+	* src/keybindings.c:
+
+	(process_keyboard_move_grab):
+	(process_keyboard_resize_grab):
+	apply edge resistance for wireframe moving/resizing too since it
+	was there in the old code I replaced
+
+	* src/window.c:
+
+	(update_move):
+	(update_resize):
+	ignore operation if no movement was specified (happens for
+	keyboard operations due to pointer warp), old position must be
+	obtained differently for wireframe mode
+
+	(warp_grab_pointer):
+	grab_anchor_window_pos must be set differently in wireframe mode
+
 2005-11-16  Elijah Newren  <newren@gmail.com>
 
 	* src/window.c (meta_window_show_menu): special case DOCK and

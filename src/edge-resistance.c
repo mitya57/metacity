@@ -329,6 +329,8 @@ apply_edge_resistance (MetaWindow                *window,
                        gboolean                   keyboard_op)
 {
   int i, begin, end;
+  gboolean okay_to_clear_keyboard_buildup = FALSE;
+  int      keyboard_buildup_edge = G_MAXINT;
   gboolean increasing = new_pos > old_pos;
   int      increment = increasing ? 1 : -1;
 
@@ -415,7 +417,7 @@ apply_edge_resistance (MetaWindow                *window,
         }
 
       /* Rest is easier to read if we split on keyboard vs. mouse op */
-      if (keyboard_op)
+      if (keyboard_op && edges_align)
         {
           /* KEYBOARD ENERGY BUILDUP RESISTANCE: If the user has is moving
            * fast enough or has already built up enough "energy", then let
@@ -423,27 +425,35 @@ apply_edge_resistance (MetaWindow                *window,
            * user was previously stopped at this edge, add movement amount
            * to the built up energy.
            */
+          if (okay_to_clear_keyboard_buildup &&
+              compare != keyboard_buildup_edge)
+            {
+              okay_to_clear_keyboard_buildup = FALSE;
+              resistance_data->keyboard_buildup = 0;
+            }
           int threshold = EDGE_RESISTANCE_THRESHOLD
                          - resistance_data->keyboard_buildup;
-          if (edges_align &&
-              ABS (compare - new_pos) < threshold)
+          if (ABS (compare - new_pos) < threshold)
             {
               if (resistance_data->keyboard_buildup != 0)
                 resistance_data->keyboard_buildup += ABS (new_pos - compare);
               else
-                resistance_data->keyboard_buildup = 1; /* Can't be 0 or stuck forever */
+                resistance_data->keyboard_buildup = 1; /* 0 causes stuckage */
               return compare;
             }
           else
             {
-              /* Let the user past the edge; remove any built up energy
-               * from this edge (note that there better not be any left
-               * over from previous edges either...)
+              /* It may be the case that there are two windows with edges
+               * at the same location.  If so, the buildup ought to count
+               * towards both edges.  So we just not that it's okay to
+               * clear the buildup once we find an edge at a different
+               * location.
                */
-              resistance_data->keyboard_buildup = 0;
+              okay_to_clear_keyboard_buildup = TRUE;
+              keyboard_buildup_edge = compare;
             }
         }
-      else
+      else if (!keyboard_op && edges_align)
         {
           /* PIXEL DISTANCE MOUSE RESISTANCE: If the edge matters and the
            * user hasn't moved at least EDGE_RESISTANCE_THRESHOLD pixels
@@ -454,14 +464,19 @@ apply_edge_resistance (MetaWindow                *window,
            * and mouse position is an absolute quantity rather than a
            * relative quantity)
            */
-          if (edges_align &&
-              ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
+          if (ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
             return compare;
         }
 
       /* Go to the next edge in the range */
       i += increment;
     }
+
+  /* If we didn't run into any new edges in keyboard buildup but had moved
+   * far enough to get past the last one, clear the buildup
+   */
+  if (okay_to_clear_keyboard_buildup && new_pos != keyboard_buildup_edge)
+    resistance_data->keyboard_buildup = 0;
 
   return new_pos;
 }
@@ -1079,7 +1094,17 @@ meta_window_edge_resistance_for_move (MetaWindow  *window,
 {
   MetaRectangle old_outer, proposed_outer, new_outer;
 
-  meta_window_get_outer_rect (window, &old_outer);
+  if (window == window->display->grab_window &&
+      window->display->grab_wireframe_active)
+    {
+      meta_window_get_xor_rect (window,
+                                &window->display->grab_wireframe_rect,
+                                &old_outer);
+    }
+  else
+    {
+      meta_window_get_outer_rect (window, &old_outer);
+    }
   proposed_outer = old_outer;
   proposed_outer.x += (*new_x - old_x);
   proposed_outer.y += (*new_y - old_y);
@@ -1155,7 +1180,17 @@ meta_window_edge_resistance_for_resize (MetaWindow  *window,
   MetaRectangle old_outer, new_outer;
   int new_outer_width, new_outer_height;
 
-  meta_window_get_outer_rect (window, &old_outer);
+  if (window == window->display->grab_window &&
+      window->display->grab_wireframe_active)
+    {
+      meta_window_get_xor_rect (window,
+                                &window->display->grab_wireframe_rect,
+                                &old_outer);
+    }
+  else
+    {
+      meta_window_get_outer_rect (window, &old_outer);
+    }
   new_outer_width  = old_outer.width  + (*new_width  - old_width);
   new_outer_height = old_outer.height + (*new_height - old_height);
   meta_rectangle_resize_with_gravity (&old_outer, 

@@ -6505,7 +6505,7 @@ update_move (MetaWindow  *window,
 {
   int dx, dy;
   int new_x, new_y;
-  int old_x, old_y;
+  MetaRectangle old;
   int shake_threshold;
   
   window->display->grab_latest_motion_x = x;
@@ -6524,7 +6524,14 @@ update_move (MetaWindow  *window,
                 window->display->grab_anchor_window_pos.x,
                 window->display->grab_anchor_window_pos.y,
                 dx, dy);
-  
+
+  /* Don't bother doing anything if no move has been specified.  (This
+   * happens often, even in keyboard moving, due to the warping of the
+   * pointer.
+   */
+  if (dx == 0 && dy == 0)
+    return;
+
   /* shake loose (unmaximize) maximized window if dragged beyond the threshold
    * in the Y direction. You can't pull a window loose via X motion.
    */
@@ -6613,18 +6620,24 @@ update_move (MetaWindow  *window,
         }
     }
 
-  meta_window_get_position (window, &old_x, &old_y);
+  if (window->display->grab_wireframe_active)
+    old = window->display->grab_wireframe_rect;
+  else
+    {
+      old = window->rect;
+      meta_window_get_position (window, &old.x, &old.y);
+    }
 
   /* Don't allow movement in the maximized directions */
   if (window->maximized_horizontally)
-    new_x = old_x;
+    new_x = old.x;
   if (window->maximized_vertically)
-    new_y = old_y;
+    new_y = old.y;
 
   /* Do any edge resistance/snapping */
   meta_window_edge_resistance_for_move (window, 
-                                        old_x,
-                                        old_y,
+                                        old.x,
+                                        old.y,
                                         &new_x,
                                         &new_y,
                                         update_move_timeout,
@@ -6674,6 +6687,13 @@ update_resize (MetaWindow *window,
   new_w = window->display->grab_anchor_window_pos.width;
   new_h = window->display->grab_anchor_window_pos.height;
 
+  /* Don't bother doing anything if no move has been specified.  (This
+   * happens often, even in keyboard resizing, due to the warping of the
+   * pointer.
+   */
+  if (dx == 0 && dy == 0)
+    return;
+  
   /* FIXME this is only used in wireframe mode */
   new_x = window->display->grab_anchor_window_pos.x;
   new_y = window->display->grab_anchor_window_pos.y;
@@ -6799,7 +6819,10 @@ update_resize (MetaWindow *window,
       window->display->grab_resize_timeout_id = 0;
     }
   
-  old = window->rect;
+  if (window->display->grab_wireframe_active)
+    old = window->display->grab_wireframe_rect;
+  else
+    old = window->rect;  /* Don't actually care about x,y */
 
   /* One sided resizing ought to actually be one-sided, despite the fact that
    * aspect ratio windows don't interact nicely with the above stuff.  So,
@@ -6825,6 +6848,17 @@ update_resize (MetaWindow *window,
   gravity = meta_resize_gravity_from_grab_op (window->display->grab_op);
   g_assert (gravity >= 0);
   
+  /* Do any edge resistance/snapping */
+  meta_window_edge_resistance_for_resize (window,
+                                          old.width,
+                                          old.height,
+                                          &new_w,
+                                          &new_h,
+                                          gravity,
+                                          update_resize_timeout,
+                                          snap,
+                                          FALSE);
+
   if (window->display->grab_wireframe_active)
     {
       if ((new_x + new_w <= new_x) || (new_y + new_h <= new_y))
@@ -6841,17 +6875,6 @@ update_resize (MetaWindow *window,
     }
   else
     {
-      /* Do any edge resistance/snapping */
-      meta_window_edge_resistance_for_resize (window,
-                                              old.width,
-                                              old.height,
-                                              &new_w,
-                                              &new_h,
-                                              gravity,
-                                              update_resize_timeout,
-                                              snap,
-                                              FALSE);
-
       /* We don't need to update unless the specified width and height
        * are actually different from what we had before.
        */
@@ -7509,10 +7532,16 @@ warp_grab_pointer (MetaWindow          *window,
   window->display->grab_anchor_root_y = *y;
   window->display->grab_latest_motion_x = *x;
   window->display->grab_latest_motion_y = *y;
-  window->display->grab_anchor_window_pos = window->rect;
-  meta_window_get_position (window,
-                            &window->display->grab_anchor_window_pos.x,
-                            &window->display->grab_anchor_window_pos.y);
+  if (window->display->grab_wireframe_active)
+    window->display->grab_anchor_window_pos = 
+      window->display->grab_wireframe_rect;
+  else
+    {
+      window->display->grab_anchor_window_pos = window->rect;
+      meta_window_get_position (window,
+                                &window->display->grab_anchor_window_pos.x,
+                                &window->display->grab_anchor_window_pos.y);
+    }
   
   XWarpPointer (window->display->xdisplay,
                 None,

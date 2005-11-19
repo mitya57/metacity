@@ -1783,9 +1783,28 @@ process_keyboard_move_grab (MetaDisplay *display,
 
   if (handled)
     {
+      MetaRectangle old_rect;
       meta_topic (META_DEBUG_KEYBINDINGS,
                   "Computed new window location %d,%d due to keypress\n",
                   x, y);
+
+      if (display->grab_wireframe_active)
+        old_rect = display->grab_wireframe_rect;
+      else
+        {
+          old_rect = window->rect;
+          meta_window_get_position (window, &old_rect.x, &old_rect.y);
+        }
+
+      meta_window_edge_resistance_for_move (window, 
+                                            old_rect.x,
+                                            old_rect.y,
+                                            &x,
+                                            &y,
+                                            NULL,
+                                            smart_snap,
+                                            TRUE);
+
       if (display->grab_wireframe_active)
         {
           meta_window_update_wireframe (window, x, y,
@@ -1794,16 +1813,6 @@ process_keyboard_move_grab (MetaDisplay *display,
         }
       else
         {
-          int old_x, old_y;
-          meta_window_get_position (window, &old_x, &old_y);
-          meta_window_edge_resistance_for_move (window, 
-                                                old_x,
-                                                old_y,
-                                                &x,
-                                                &y,
-                                                NULL,
-                                                smart_snap,
-                                                TRUE);
           meta_window_move (window, TRUE, x, y);
         }
       
@@ -2150,11 +2159,28 @@ process_keyboard_resize_grab (MetaDisplay *display,
   
   if (handled)
     {
+      MetaRectangle old_rect;
       meta_topic (META_DEBUG_KEYBINDINGS,
                   "Computed new window size due to keypress: "
                   "%dx%d, gravity %s\n",
                   width, height, meta_gravity_to_string (gravity));
       
+      if (display->grab_wireframe_active)
+        old_rect = display->grab_wireframe_rect;
+      else
+        old_rect = window->rect;  /* Don't actually care about x,y */
+
+      /* Do any edge resistance/snapping */
+      meta_window_edge_resistance_for_resize (window,
+                                              old_rect.width,
+                                              old_rect.height,
+                                              &width,
+                                              &height,
+                                              gravity,
+                                              NULL,
+                                              smart_snap,
+                                              TRUE);
+
       if (display->grab_wireframe_active)
         {
           MetaRectangle new_position;
@@ -2171,17 +2197,6 @@ process_keyboard_resize_grab (MetaDisplay *display,
         }
       else
         {
-          /* Do any edge resistance/snapping */
-          meta_window_edge_resistance_for_resize (window,
-                                                  window->rect.width,
-                                                  window->rect.height,
-                                                  &width,
-                                                  &height,
-                                                  gravity,
-                                                  NULL,
-                                                  smart_snap,
-                                                  TRUE);
-
           /* We don't need to update unless the specified width and height
            * are actually different from what we had before.
            */
