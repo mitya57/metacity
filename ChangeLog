@@ -1,5 +1,14 @@
 2005-11-18  Elijah Newren  <newren@gmail.com>
 
+	Uh, I was pretty sure I had tested the last patch.  I must have
+	forgotten the last part I added--the ConstraintFunc consolidation.
+	How embarrassing.
+
+	* src/constraints.c (do_all_constraints): fix up pointer
+	arithmetic and make it actually work
+
+2005-11-18  Elijah Newren  <newren@gmail.com>
+
 	Do the cleanups requested by Havoc in his review.
 
 	* constraints-ideas.txt: Update for the recent changes

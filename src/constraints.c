@@ -219,18 +219,15 @@ do_all_constraints (MetaWindow         *window,
                     ConstraintPriority  priority,
                     gboolean            check_only)
 {
-  const ConstraintFunc  *constraint;
-  const char            *constraint_name;
-  gboolean               satisfied;
+  const Constraint *constraint;
+  gboolean          satisfied;
 
-  constraint = &all_constraints[0].func;
-  constraint_name = all_constraints[0].name;
-
+  constraint = &all_constraints[0];
   satisfied = TRUE;
-  while (*constraint)
+  while (constraint->func != NULL)
     {
       satisfied = satisfied &&
-                  (*constraint) (window, info, priority, check_only);
+                  (*constraint->func) (window, info, priority, check_only);
 
       if (!check_only)
         {
@@ -239,18 +236,17 @@ do_all_constraints (MetaWindow         *window,
                       "info->current is %d,%d +%d,%d after %s\n",
                       info->current.x, info->current.y, 
                       info->current.width, info->current.height,
-                      constraint_name);
+                      constraint->name);
         }
       else if (!satisfied)
         {
           /* Log which constraint was not satisfied */
           meta_topic (META_DEBUG_GEOMETRY,
                       "constraint %s not satisfied.\n",
-                      constraint_name);
+                      constraint->name);
           return FALSE;
         }
       ++constraint;
-      ++constraint_name;
     }
 
   return TRUE;
