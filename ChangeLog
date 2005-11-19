@@ -1,5 +1,22 @@
 2005-11-18  Elijah Newren  <newren@gmail.com>
 
+	* src/edge-resistance.c (apply_edge_resistance):
+	Define all the various constants used at the beginning of the
+	function for easier tweaking, modify the xinerama ones a bit,
+	reorder the function slightly to try to make it easier to read
+
+	* src/boxes.h (MetaEdgeType):
+	* src/boxes.c (add_edges):
+	* src/edge-resistance.c (apply_edge_resistance):
+	* src/testboxes.c (new_onscreen_edge):
+	rename META_EDGE_ONSCREEN to META_EDGE_SCREEN
+
+	* src/testboxes.c (new_onscreen_edge):
+	* src/testboxes.c (test_find_onscreen_edges):
+	rename new_onscreen_edge() to new_screen_edge()
+
+2005-11-18  Elijah Newren  <newren@gmail.com>
+
 	Uh, I was pretty sure I had tested the last patch.  I must have
 	forgotten the last part I added--the ConstraintFunc consolidation.
 	How embarrassing.

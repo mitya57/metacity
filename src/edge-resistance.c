@@ -334,8 +334,15 @@ apply_edge_resistance (MetaWindow                *window,
   gboolean increasing = new_pos > old_pos;
   int      increment = increasing ? 1 : -1;
 
-  /* ridiculously huge for testing */
-  const int EDGE_RESISTANCE_THRESHOLD = 16;
+  const int PIXEL_DISTANCE_THRESHOLD_WINDOW   = 16;
+  const int PIXEL_DISTANCE_THRESHOLD_XINERAMA = 32;
+  const int PIXEL_DISTANCE_THRESHOLD_SCREEN   = 32;
+  const int TIMEOUT_RESISTANCE_LENGTH_MS_WINDOW   =   0;
+  const int TIMEOUT_RESISTANCE_LENGTH_MS_XINERAMA = 100;
+  const int TIMEOUT_RESISTANCE_LENGTH_MS_SCREEN   = 750;
+  const int KEYBOARD_BUILDUP_THRESHOLD_WINDOW   = 16;
+  const int KEYBOARD_BUILDUP_THRESHOLD_XINERAMA = 24;
+  const int KEYBOARD_BUILDUP_THRESHOLD_SCREEN   = 32;
 
   /* Quit if no movement was specified */
   if (old_pos == new_pos)
@@ -374,50 +381,16 @@ apply_edge_resistance (MetaWindow                *window,
         meta_rectangle_vert_overlap (&edge->rect, new_rect) :
         meta_rectangle_horiz_overlap (&edge->rect, new_rect);
 
-      /* INFINITE RESISTANCE for screen edges under certain cases; If the
-       * edge is relevant and we're moving towards it and it's a screen
-       * edge and infinite resistance has been requested for this
-       * particular grab op then don't allow movement past it.
-       */
-      if (edges_align && !keyboard_op &&
-          movement_towards_edge (edge->side_type, increment) &&
-          edge->edge_type == META_EDGE_ONSCREEN &&
-          !resistance_data->allow_past_screen_edge)
+      /* Nothing to do unless the edges align */
+      if (!edges_align)
         {
-          return compare;
-        }
-
-      /* TIMEOUT RESISTANCE for screen/xinerama edges: If the edge is
-       * relevant and we're moving towards it and it's a screen/xinerama
-       * edge, then we may want to have some kind of time delay before the
-       * user can move past this edge.
-       */
-      if (edges_align && !keyboard_op &&
-          movement_towards_edge (edge->side_type, increment) &&
-          ((window->require_fully_onscreen &&
-            edge->edge_type == META_EDGE_ONSCREEN) ||
-           (window->require_on_single_xinerama &&
-            edge->edge_type == META_EDGE_XINERAMA)))
-        {
-          if (!resistance_data->timeout_setup
-              /* FIXME?: || compare != resistance_data->edge_pos */ )
-            {
-              resistance_data->timeout_id = 
-                g_timeout_add (750,
-                               edge_resistance_timeout,
-                               resistance_data);
-              resistance_data->timeout_setup = TRUE;
-              resistance_data->timeout_edge_pos = compare;
-              resistance_data->timeout_over = FALSE;
-              resistance_data->timeout_func = timeout_func;
-              resistance_data->window = window;
-            }
-          if (!resistance_data->timeout_over)
-            return compare;
+          /* Go to the next edge in the range */
+          i += increment;
+          continue;
         }
 
       /* Rest is easier to read if we split on keyboard vs. mouse op */
-      if (keyboard_op && edges_align)
+      if (keyboard_op)
         {
           /* KEYBOARD ENERGY BUILDUP RESISTANCE: If the user has is moving
            * fast enough or has already built up enough "energy", then let
@@ -425,14 +398,37 @@ apply_edge_resistance (MetaWindow                *window,
            * user was previously stopped at this edge, add movement amount
            * to the built up energy.
            */
+
+          /* First, determine the amount of the resistance */
+          int resistance = 0;
+          switch (edge->edge_type)
+            {
+            case META_EDGE_WINDOW:
+              resistance = KEYBOARD_BUILDUP_THRESHOLD_WINDOW;
+              break;
+            case META_EDGE_XINERAMA:
+              resistance = KEYBOARD_BUILDUP_THRESHOLD_XINERAMA;
+              break;
+            case META_EDGE_SCREEN:
+              resistance = KEYBOARD_BUILDUP_THRESHOLD_SCREEN;
+              break;
+            }
+
+          /* Clear any previous buildup if we've run into an edge at a
+           * different location than what we were building up on before.
+           * See below for more details where these get set.
+           */
           if (okay_to_clear_keyboard_buildup &&
               compare != keyboard_buildup_edge)
             {
               okay_to_clear_keyboard_buildup = FALSE;
               resistance_data->keyboard_buildup = 0;
             }
-          int threshold = EDGE_RESISTANCE_THRESHOLD
-                         - resistance_data->keyboard_buildup;
+
+          /* Determine the threshold */
+          int threshold = resistance - resistance_data->keyboard_buildup;
+
+          /* See if threshold hasn't been met yet or not */
           if (ABS (compare - new_pos) < threshold)
             {
               if (resistance_data->keyboard_buildup != 0)
@@ -453,18 +449,86 @@ apply_edge_resistance (MetaWindow                *window,
               keyboard_buildup_edge = compare;
             }
         }
-      else if (!keyboard_op && edges_align)
+      else /* mouse op */
         {
-          /* PIXEL DISTANCE MOUSE RESISTANCE: If the edge matters and the
-           * user hasn't moved at least EDGE_RESISTANCE_THRESHOLD pixels
-           * past this edge, stop movement at this edge.  (Note that this
-           * is different from keyboard resistance precisely because
-           * keyboard move ops are relative to previous positions, whereas
-           * mouse move ops are relative to differences in mouse position
-           * and mouse position is an absolute quantity rather than a
-           * relative quantity)
+          /* INFINITE RESISTANCE for screen edges under certain cases; If
+           * the edge is relevant and we're moving towards it and it's a
+           * screen edge and infinite resistance has been requested for
+           * this particular grab op then don't allow movement past it.
            */
-          if (ABS (compare - new_pos) < EDGE_RESISTANCE_THRESHOLD)
+          if (edge->edge_type == META_EDGE_SCREEN &&
+              !resistance_data->allow_past_screen_edge &&
+              movement_towards_edge (edge->side_type, increment))
+            {
+              return compare;
+            }
+
+          /* TIMEOUT RESISTANCE: If the edge is relevant and we're moving
+           * towards it, then we may want to have some kind of time delay
+           * before the user can move past this edge.
+           */
+          if (movement_towards_edge (edge->side_type, increment))
+            {
+              /* First, determine the length of time for the resistance */
+              int timeout_length_ms = 0;
+              switch (edge->edge_type)
+                {
+                case META_EDGE_WINDOW:
+                  timeout_length_ms = TIMEOUT_RESISTANCE_LENGTH_MS_WINDOW;
+                  break;
+                case META_EDGE_XINERAMA:
+                  if (window->require_on_single_xinerama)
+                    timeout_length_ms = TIMEOUT_RESISTANCE_LENGTH_MS_XINERAMA;
+                  break;
+                case META_EDGE_SCREEN:
+                  if (window->require_fully_onscreen)
+                    timeout_length_ms = TIMEOUT_RESISTANCE_LENGTH_MS_SCREEN;
+                  break;
+                }
+
+              if (!resistance_data->timeout_setup &&
+                  timeout_length_ms != 0)
+                {
+                  resistance_data->timeout_id = 
+                    g_timeout_add (timeout_length_ms,
+                                   edge_resistance_timeout,
+                                   resistance_data);
+                  resistance_data->timeout_setup = TRUE;
+                  resistance_data->timeout_edge_pos = compare;
+                  resistance_data->timeout_over = FALSE;
+                  resistance_data->timeout_func = timeout_func;
+                  resistance_data->window = window;
+                }
+              if (!resistance_data->timeout_over &&
+                  timeout_length_ms != 0)
+                return compare;
+            }
+
+          /* PIXEL DISTANCE MOUSE RESISTANCE: If the edge matters and the
+           * user hasn't moved at least threshold pixels past this edge,
+           * stop movement at this edge.  (Note that this is different from
+           * keyboard resistance precisely because keyboard move ops are
+           * relative to previous positions, whereas mouse move ops are
+           * relative to differences in mouse position and mouse position
+           * is an absolute quantity rather than a relative quantity)
+           */
+
+          /* First, determine the threshold */
+          int threshold = 0;
+          switch (edge->edge_type)
+            {
+            case META_EDGE_WINDOW:
+              threshold = PIXEL_DISTANCE_THRESHOLD_WINDOW;
+              break;
+            case META_EDGE_XINERAMA:
+              threshold = PIXEL_DISTANCE_THRESHOLD_XINERAMA;
+              break;
+            case META_EDGE_SCREEN:
+              threshold = PIXEL_DISTANCE_THRESHOLD_SCREEN;
+              break;
+            }
+
+          if (ABS (compare - new_pos) < threshold)
             return compare;
         }
 

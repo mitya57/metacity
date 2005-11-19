@@ -57,7 +57,7 @@ new_meta_rect (int x, int y, int width, int height)
 }
 
 static MetaEdge*
-new_onscreen_edge (int x, int y, int width, int height, int side_type)
+new_screen_edge (int x, int y, int width, int height, int side_type)
 {
   MetaEdge* temporary;
   temporary = g_new (MetaEdge, 1);
@@ -66,7 +66,7 @@ new_onscreen_edge (int x, int y, int width, int height, int side_type)
   temporary->rect.width  = width;
   temporary->rect.height = height;
   temporary->side_type = side_type;
-  temporary->edge_type = META_EDGE_ONSCREEN;
+  temporary->edge_type = META_EDGE_SCREEN;
 
   return temporary;
 }
@@ -1011,10 +1011,10 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (0);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200, 1600, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,    0, 1600, 0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,    0, 0, 1200, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,    0, 0, 1200, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0, 1200, 1600, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,    0, 1600, 0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,    0, 0, 1200, right));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,    0, 0, 1200, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
@@ -1024,12 +1024,12 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (1);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200,  400, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 400, 1160, 1200, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 1600, 0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   20, 0, 1140, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 400, 1160, 0,   40, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 0, 1180, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0, 1200,  400, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 400, 1160, 1200, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 1600, 0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,   20, 0, 1140, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 400, 1160, 0,   40, right));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 0, 1180, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
@@ -1039,18 +1039,18 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (2);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1200, 1200,  400, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 450, 1200,  350, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200,  300, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 300, 1150,  150, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800, 1100,  400, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 1600, 0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   20, 0, 1180, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800, 1100, 0,  100, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 300, 1150, 0,   50, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1200, 1100, 0,  100, left));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 450, 1150, 0,   50, left));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 0, 1180, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (1200, 1200,  400, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 450, 1200,  350, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0, 1200,  300, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 300, 1150,  150, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800, 1100,  400, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 1600, 0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,   20, 0, 1180, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800, 1100, 0,  100, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 300, 1150, 0,   50, right));
+  tmp = g_list_prepend (tmp, new_screen_edge (1200, 1100, 0,  100, left));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 450, 1150, 0,   50, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 0, 1180, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
@@ -1060,22 +1060,22 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (3);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1200, 1200,  400, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 380, 1200,  420, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200,  300, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 300, 1150,   80, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800, 1100,  400, 0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 700,  525, 200,  0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 700,  675, 200,  0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 1600, 0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   20, 0, 1180, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800, 1100, 0,  100, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 700,  525, 0,  150, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 300, 1150, 0,   50, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1200, 1100, 0,  100, left));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 900,  525, 0,  150, left));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 380, 1150, 0,   50, left));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   20, 0, 1180, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (1200, 1200,  400, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 380, 1200,  420, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0, 1200,  300, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 300, 1150,   80, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800, 1100,  400, 0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 700,  525, 200,  0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 700,  675, 200,  0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 1600, 0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,   20, 0, 1180, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800, 1100, 0,  100, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 700,  525, 0,  150, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 300, 1150, 0,   50, right));
+  tmp = g_list_prepend (tmp, new_screen_edge (1200, 1100, 0,  100, left));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 900,  525, 0,  150, left));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 380, 1150, 0,   50, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   20, 0, 1180, left));
 
 #if 0
   #define FUDGE 50 /* number of edges */
@@ -1095,10 +1095,10 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (4);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800, 1200, 800,  0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800,   20, 800,  0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   20, 0, 1180, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge ( 800,   20, 0, 1180, left));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800, 1200, 800,  0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800,   20, 800,  0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,   20, 0, 1180, right));
+  tmp = g_list_prepend (tmp, new_screen_edge ( 800,   20, 0, 1180, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);
@@ -1117,10 +1117,10 @@ test_find_onscreen_edges ()
   /*************************************************/  
   edges = get_screen_edges (6);
   tmp = NULL;
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0, 1200, 1600,  0, bottom));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   40, 1600,  0, top));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (1600,   40, 0,  1160, right));
-  tmp = g_list_prepend (tmp, new_onscreen_edge (   0,   40, 0,  1160, left));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0, 1200, 1600,  0, bottom));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   40, 1600,  0, top));
+  tmp = g_list_prepend (tmp, new_screen_edge (1600,   40, 0,  1160, right));
+  tmp = g_list_prepend (tmp, new_screen_edge (   0,   40, 0,  1160, left));
   verify_edge_lists_are_equal (edges, tmp);
   meta_rectangle_free_list_and_elements (tmp);
   meta_rectangle_free_list_and_elements (edges);

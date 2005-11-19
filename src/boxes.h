@@ -50,7 +50,7 @@ typedef enum
 {
   META_EDGE_WINDOW,
   META_EDGE_XINERAMA,
-  META_EDGE_ONSCREEN
+  META_EDGE_SCREEN
 } MetaEdgeType;
 
 typedef struct _MetaEdge MetaEdge;
