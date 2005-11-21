@@ -1,11 +1,7 @@
-This is the 'constraints-experiments' branch of metacity.  It was
-intended to try out some new ideas for implementing constraints.c but
-turned out to also include edge resistance.  It should be working just
-fine now, please feel free to test it.  I have used it for about a
-month or so for my personal work.  Email me any problems you find
-directly; no need to fill up bugzilla until I've had a few more users
-verify that there aren't any obvious problems that will just be
-duplicated by everyone.
+This was the 'constraints-experiments' branch of metacity.  It is
+dead; please DO NOT commit anything here.  It was intended to try out
+some new ideas for implementing constraints.c, but has now all been
+merged to HEAD.  Use it instead.
 
 Old README file:
 
