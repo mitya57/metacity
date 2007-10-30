@@ -83,7 +83,7 @@ typedef struct _MetaCompWindow {
   XserverRegion border_clip;
 } MetaCompWindow;
 
-#define OPAQUE 0x77777777
+#define OPAQUE 0xffffffff
 
 #define WINDOW_SOLID 0
 #define WINDOW_TRANS 1
@@ -186,7 +186,7 @@ sum_gaussian (conv          *map,
   }
 
   fy_end = height + centre - y;
-  if (fy > g_size) {
+  if (fy_end > g_size) {
     fy_end = g_size;
   }
   g_line = g_line + fy_start * g_size + fx_start;
@@ -321,7 +321,6 @@ make_shadow (MetaDisplay *display,
     xlimit = (swidth + 1) / 2;
   }
 
-  g_print ("%dx%d (%d)\n", xlimit, ylimit, msize);
   for (y = 0; y < ylimit; y++) {
     for (x = 0; x < xlimit; x++) {
       
@@ -349,7 +348,6 @@ make_shadow (MetaDisplay *display,
         d = sum_gaussian (info->gaussian_map, opacity, centre, 
                           y - centre, width, height);
       }
-
       memset (&data[y * swidth + msize], d, x_diff);
       memset (&data[(sheight - y - 1) * swidth + msize], d, x_diff);
     }
@@ -860,9 +858,7 @@ paint_all (MetaScreen   *screen,
         XRenderComposite (xdisplay, PictOpSrc, cw->picture, 
                           None, info->root_buffer, 0, 0, 0, 0,
                           x, y, wid, hei);
-
     }
-
     if (!cw->border_clip) {
       cw->border_clip = XFixesCreateRegion (xdisplay, 0, 0);
       XFixesCopyRegion (xdisplay, cw->border_clip, region);
