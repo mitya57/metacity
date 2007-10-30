@@ -535,7 +535,12 @@ meta_screen_new (MetaDisplay *display,
   screen->wm_sn_selection_window = new_wm_sn_owner;
   screen->wm_sn_atom = wm_sn_atom;
   screen->wm_sn_timestamp = manager_timestamp;
-  
+
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+  screen->wm_cm_selection_window = meta_create_offscreen_window (xdisplay, 
+                                                                 xroot, 
+                                                                 NoEventMask);
+#endif
   screen->work_area_idle = 0;
 
   screen->active_workspace = NULL;
@@ -2686,3 +2691,27 @@ meta_screen_apply_startup_properties (MetaScreen *screen,
   return FALSE;
 }
 
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+void
+meta_screen_set_cm_selection (MetaScreen *screen)
+{
+  char selection[32];
+  Atom a;
+
+  g_snprintf (selection, sizeof(selection), "_NET_WM_CM_S%d", screen->number);
+  a = XInternAtom (screen->display->xdisplay, selection, FALSE);
+  XSetSelectionOwner (screen->display->xdisplay, a, 
+                      screen->wm_cm_selection_window, CurrentTime);
+}
+
+void
+meta_screen_unset_cm_selection (MetaScreen *screen)
+{
+  char selection[32];
+  Atom a;
+
+  g_snprintf (selection, sizeof(selection), "_NET_WM_CM_S%d", screen->number);
+  a = XInternAtom (screen->display->xdisplay, selection, FALSE);
+  XSetSelectionOwner (screen->display->xdisplay, a, None, CurrentTime);
+}
+#endif /* HAVE_COMPOSITE_EXTENSIONS */

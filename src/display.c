@@ -65,6 +65,11 @@
 #ifdef HAVE_XCURSOR
 #include <X11/Xcursor/Xcursor.h>
 #endif
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#include <X11/extensions/Xcomposite.h>
+#include <X11/extensions/Xdamage.h>
+#include <X11/extensions/Xfixes.h>
+#endif
 #include <string.h>
 
 #define GRAB_OP_IS_WINDOW_SWITCH(g)                     \
@@ -337,6 +342,9 @@ meta_display_open (void)
     "_NET_WM_USER_TIME_WINDOW",
     "_NET_WM_ACTION_ABOVE",
     "_NET_WM_ACTION_BELOW"
+    "_XROOTPMAP_ID",
+    "_XSETROOT_ID",
+    "PIXMAP",
   };
   Atom atoms[G_N_ELEMENTS(atom_names)];
   
@@ -498,6 +506,9 @@ meta_display_open (void)
   display->atom_net_wm_user_time_window = atoms[94];
   display->atom_net_wm_action_above = atoms[95];
   display->atom_net_wm_action_below = atoms[96];
+  display->atom_x_root_pixmap = atoms[97];
+  display->atom_x_set_root = atoms[98];
+  display->atom_pixmap = atoms[99];
 
   display->prop_hooks = NULL;
   meta_display_init_window_prop_hooks (display);
@@ -647,6 +658,69 @@ meta_display_open (void)
   meta_verbose ("Not compiled with Render support\n");
 #endif /* !HAVE_RENDER */
 
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+  {
+    display->have_composite = FALSE;
+
+    display->composite_error_base = 0;
+    display->composite_event_base = 0;
+
+    if (!XCompositeQueryExtension (display->xdisplay,
+                                   &display->composite_event_base,
+                                   &display->composite_error_base))
+      {
+        display->composite_error_base = 0;
+        display->composite_event_base = 0;
+      } 
+    else
+      display->have_composite = TRUE;
+
+    meta_verbose ("Attempted to init Composite, found error base %d event base %d\n",
+                  display->composite_error_base, 
+                  display->composite_event_base);
+
+    display->have_damage = FALSE;
+
+    display->damage_error_base = 0;
+    display->damage_event_base = 0;
+
+    if (!XDamageQueryExtension (display->xdisplay,
+                                &display->damage_event_base,
+                                &display->damage_error_base))
+      {
+        display->damage_error_base = 0;
+        display->damage_event_base = 0;
+      } 
+    else
+      display->have_damage = TRUE;
+
+    meta_verbose ("Attempted to init Damage, found error base %d event base %d\n",
+                  display->damage_error_base, 
+                  display->damage_event_base);
+
+    display->have_xfixes = FALSE;
+
+    display->xfixes_error_base = 0;
+    display->xfixes_event_base = 0;
+
+    if (!XFixesQueryExtension (display->xdisplay,
+                               &display->xfixes_event_base,
+                               &display->xfixes_error_base))
+      {
+        display->xfixes_error_base = 0;
+        display->xfixes_event_base = 0;
+      } 
+    else
+      display->have_xfixes = TRUE;
+
+    meta_verbose ("Attempted to init XFixes, found error base %d event base %d\n",
+                  display->xfixes_error_base, 
+                  display->xfixes_event_base);
+  }
+#else /* HAVE_COMPOSITE_EXTENSIONS */
+  meta_verbose ("Not compiled with Composite support\n");
+#endif /* !HAVE_COMPOSITE_EXTENSIONS */
+      
 #ifdef HAVE_XCURSOR
   {
     XcursorSetTheme (display->xdisplay, meta_prefs_get_cursor_theme ());
