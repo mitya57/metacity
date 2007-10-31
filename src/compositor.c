@@ -64,6 +64,8 @@ typedef struct _MetaCompWindow {
   int mode;
 
   gboolean damaged;
+  gboolean shaped;
+
   Damage damage;
   Picture picture;
   Picture alpha_pict;
@@ -94,6 +96,8 @@ typedef struct _MetaCompWindow {
 #define SHADOW_OFFSET_Y -15
 #define SHADOW_OPACITY 0.75
  
+#define TRANS_OPACITY 0.75
+
 /* Gaussian stuff for creating the shadows */
 static double
 gaussian (double r,
@@ -1386,12 +1390,6 @@ meta_compositor_manage_screen (MetaCompositor *compositor,
   /* FIXME: Use correct composite mode */
   XCompositeRedirectSubwindows (display->xdisplay, screen->xroot,
                                 CompositeRedirectManual);
-  XSelectInput (display->xdisplay, screen->xroot,
-                SubstructureNotifyMask |
-                ExposureMask |
-                StructureNotifyMask |
-                PropertyChangeMask);
-
   XSync (display->xdisplay, FALSE);
 
   if (gdk_error_trap_pop ()) {
