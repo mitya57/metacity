@@ -29,9 +29,6 @@
 #include "spring-model.h"
 
 #ifdef HAVE_COMPOSITE_EXTENSIONS
-#include "cm/deform.h"
-/* FIXME: Needs namespacing. */
-void get_patch_points (Model *model, CmPoint points[4][4]);
 #endif
 
 typedef void (* MetaAnimationFinishedFunc) (gpointer data);
