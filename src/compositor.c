@@ -994,6 +994,66 @@ repair_win (MetaCompWindow *cw)
 }
 
 static void
+free_win (MetaCompWindow *cw,
+          gboolean        destroy)
+{
+  MetaDisplay *display = cw->screen->display;
+
+#ifdef HAVE_NAME_WINDOW_PIXMAP
+  if (cw->pixmap) {
+    XFreePixmap (display->xdisplay, cw->pixmap);
+    cw->pixmap = None;
+  }
+#endif
+
+  if (cw->picture) {
+    XRenderFreePicture (display->xdisplay, cw->picture);
+    cw->picture = None;
+  }
+
+  if (cw->shadow) {
+    XRenderFreePicture (display->xdisplay, cw->shadow);
+    cw->shadow = None;
+  }
+
+  if (cw->alpha_pict) {
+    XRenderFreePicture (display->xdisplay, cw->alpha_pict);
+    cw->alpha_pict = None;
+  }
+
+  if (cw->shadow_pict) {
+    XRenderFreePicture (display->xdisplay, cw->shadow_pict);
+    cw->shadow_pict = None;
+  }
+
+  if (cw->border_size) {
+    XFixesDestroyRegion (display->xdisplay, cw->border_size);
+    cw->border_size = None;
+  }
+
+  if (cw->border_clip) {
+    XFixesDestroyRegion (display->xdisplay, cw->border_clip);
+    cw->border_clip = None;
+  }
+
+  if (cw->extents) {
+    XFixesDestroyRegion (display->xdisplay, cw->extents);
+    cw->extents = None;
+  }
+
+  if (destroy) { 
+    if (cw->damage != None) {
+      /* If we've got here, then the window has already been destroyed
+         so this will cause a BadWindow */
+/*       XDamageDestroy (display->xdisplay, cw->damage); */
+      cw->damage = None;
+    }
+  
+    g_free (cw);
+  }
+}
+  
+static void
 map_win (MetaDisplay *display,
          MetaScreen  *screen,
          Window       id)
@@ -1022,38 +1082,13 @@ unmap_win (MetaDisplay *display,
 
   cw->attrs.map_state = IsUnmapped;
   cw->damaged = FALSE;
-  
+
   if (cw->extents != None) {
-    add_damage (display, screen, cw->extents); /* Destroys region */
+    add_damage (display, screen, cw->extents);
     cw->extents = None;
   }
 
-#ifdef HAVE_NAME_WINDOW_PIXMAP
-  if (cw->pixmap) {
-    XFreePixmap (display->xdisplay, cw->pixmap);
-    cw->pixmap = None;
-  }
-#endif
-  
-  if (cw->picture) {
-    XRenderFreePicture (display->xdisplay, cw->picture);
-    cw->picture = None;
-  }
-
-  if (cw->border_size) {
-    XFixesDestroyRegion (display->xdisplay, cw->border_size);
-    cw->border_size = None;
-  }
-
-  if (cw->shadow) {
-    XRenderFreePicture (display->xdisplay, cw->shadow);
-    cw->shadow = None;
-  }
-  if (cw->border_clip) {
-    XFixesDestroyRegion (display->xdisplay, cw->border_clip);
-    cw->border_clip = None;
-  }
-
+  free_win (cw, FALSE);
   info->clip_changed = TRUE;
 }
 
@@ -1092,7 +1127,6 @@ determine_mode (MetaDisplay    *display,
 
   if (cw->extents) {
     XserverRegion damage;
-    g_print ("Extents exist\n");
     damage = XFixesCreateRegion (display->xdisplay, NULL, 0);
     XFixesCopyRegion (display->xdisplay, damage, cw->extents);
 
@@ -1160,53 +1194,6 @@ add_win (MetaScreen  *screen,
 }
 
 static void
-free_win (MetaCompWindow *cw,
-          gboolean        destroy)
-{
-  MetaDisplay *display = cw->screen->display;
-
-#ifdef HAVE_NAME_WINDOW_PIXMAP
-  if (cw->pixmap) {
-    XFreePixmap (display->xdisplay, cw->pixmap);
-    cw->pixmap = None;
-  }
-#endif
-
-  if (cw->picture) {
-    XRenderFreePicture (display->xdisplay, cw->picture);
-    cw->picture = None;
-  }
-  
-  if (cw->alpha_pict) {
-    XRenderFreePicture (display->xdisplay, cw->alpha_pict);
-    cw->alpha_pict = None;
-  }
-
-  if (cw->shadow_pict) {
-    XRenderFreePicture (display->xdisplay, cw->shadow_pict);
-    cw->shadow_pict = None;
-  }
-
-  if (cw->border_size) {
-    XFixesDestroyRegion (display->xdisplay, cw->border_size);
-    cw->border_size = None;
-  }
-  
-  if (cw->extents) {
-    XFixesDestroyRegion (display->xdisplay, cw->extents);
-    cw->extents = None;
-  }
-  
-  if (cw->damage != None) {
-    /* FIXME: This leaks, but its causing a crash */
-    /*     XDamageDestroy (display->xdisplay, cw->damage); */
-    cw->damage = None;
-  }
-  
-  g_free (cw);
-}
-  
-static void
 destroy_win (MetaDisplay *display,
              Window       xwindow,
              gboolean     gone)
@@ -1214,13 +1201,16 @@ destroy_win (MetaDisplay *display,
   MetaCompWindow *cw;
 
   cw = find_window_in_display (display, xwindow);
+  
   if (cw) {
     MetaScreen *screen;
     MetaCompScreen *info;
 
     screen = cw->screen;
-    if (!gone) {
-      unmap_win (display, screen, xwindow);
+
+    if (cw->extents != None) {
+      add_damage (display, screen, cw->extents);
+      cw->extents = None;
     }
     
     info = screen->compositor_data;
@@ -1519,6 +1509,7 @@ void
 meta_compositor_free_window (MetaCompositor *compositor,
                              MetaWindow     *window)
 {
+  destroy_win (compositor->display, window->xwindow, FALSE);
 }
    
 static void
@@ -1588,7 +1579,7 @@ process_expose (MetaCompositor *compositor,
                                                event->window);
   MetaScreen *screen = NULL;
   XRectangle rect[1];
-  
+
   if (cw != NULL) {
     screen = cw->screen;
   } else {
@@ -1645,7 +1636,7 @@ process_reparent (MetaCompositor *compositor,
   if (screen != NULL) {
     add_win (screen, event->window);
   } else {
-    destroy_win (compositor->display, event->window, FALSE);
+    destroy_win (compositor->display, event->window, FALSE); 
   }
 }
 
@@ -1656,7 +1647,7 @@ process_create (MetaCompositor     *compositor,
   MetaScreen *screen;
   /* We are only interested in top level windows, others will
      be caught by normal metacity functions */
-  
+
   screen = meta_display_screen_for_root (compositor->display, event->parent);
   if (screen != NULL) {
     if (!find_window_in_display (compositor->display, event->window)) {
@@ -1669,7 +1660,17 @@ static void
 process_destroy (MetaCompositor      *compositor,
                  XDestroyWindowEvent *event)
 {
-  destroy_win (compositor->display, event->window, TRUE);
+  MetaScreen *screen;
+
+#if 0
+  screen = meta_display_screen_for_root (compositor->display, event->event);
+  if (screen == NULL) {
+    g_print ("Ignoring non root window 0x%lx\n", event->window);
+    return;
+  }
+#endif
+  
+  destroy_win (compositor->display, event->window, FALSE);
 }
 
 static void
@@ -1678,11 +1679,9 @@ process_damage (MetaCompositor     *compositor,
 {
   MetaCompWindow *cw = find_window_in_display (compositor->display,
                                                event->drawable);
-  
   if (cw == NULL) {
     return;
   }
-
   repair_win (cw);
 }
   
@@ -1697,6 +1696,7 @@ meta_compositor_process_event (MetaCompositor *compositor,
                                XEvent         *event,
                                MetaWindow     *window)
 {
+  meta_error_trap_push (compositor->display);
   switch (event->type) {
   case CirculateNotify:
     process_circulate_notify (compositor, (XCirculateEvent *) event);
@@ -1741,6 +1741,9 @@ meta_compositor_process_event (MetaCompositor *compositor,
     break;
   }
 
+  meta_error_trap_pop (compositor->display);
   repair_display (compositor->display);
+
+  return;
 }
 

@@ -827,6 +827,7 @@ meta_screen_manage_all_windows (MetaScreen *screen)
 void
 meta_screen_composite_all_windows (MetaScreen *screen)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   GList *windows, *list;
 
   if (!screen->display->compositor)
@@ -840,6 +841,14 @@ meta_screen_composite_all_windows (MetaScreen *screen)
     {
       WindowInfo *info = list->data;
 
+      if (info->xwindow == screen->no_focus_window ||
+          info->xwindow == screen->flash_window ||
+          info->xwindow == screen->wm_sn_selection_window ||
+          info->xwindow == screen->wm_cm_selection_window) {
+        g_print ("Not managing our own windows\n");
+        continue;
+      }
+
       meta_compositor_add_window (screen->display->compositor,
 				  info->xwindow, &info->attrs);
     }
@@ -848,6 +857,7 @@ meta_screen_composite_all_windows (MetaScreen *screen)
 
   g_list_foreach (windows, (GFunc)g_free, NULL);
   g_list_free (windows);
+#endif
 }
 
 MetaScreen*
