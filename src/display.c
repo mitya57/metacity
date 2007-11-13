@@ -344,7 +344,7 @@ meta_display_open (void)
     "_NET_WM_ACTION_BELOW"
     "_XROOTPMAP_ID",
     "_XSETROOT_ID",
-    "PIXMAP",
+    "ESETROOT_PMAP_ID"
   };
   Atom atoms[G_N_ELEMENTS(atom_names)];
   
@@ -508,7 +508,7 @@ meta_display_open (void)
   display->atom_net_wm_action_below = atoms[96];
   display->atom_x_root_pixmap = atoms[97];
   display->atom_x_set_root = atoms[98];
-  display->atom_pixmap = atoms[99];
+  display->atom_e_set_root = atoms[99];
 
   display->prop_hooks = NULL;
   meta_display_init_window_prop_hooks (display);

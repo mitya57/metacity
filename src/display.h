@@ -186,7 +186,7 @@ struct _MetaDisplay
   Atom atom_net_wm_user_time_window;
   Atom atom_x_root_pixmap;
   Atom atom_x_set_root;
-  Atom atom_pixmap;
+  Atom atom_e_set_root;
 
   /* This is the actual window from focus events,
    * not the one we last set

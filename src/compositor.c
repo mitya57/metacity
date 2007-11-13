@@ -516,14 +516,17 @@ root_tile (MetaScreen *screen)
   XRenderPictureAttributes pa;
   XRenderPictFormat *format;
   int p;
-  Atom background_atoms[2];
+  Atom background_atoms[3];
+  Atom pixmap_atom;
 
   pixmap = None;
 
-#if 0
   background_atoms[0] = display->atom_x_root_pixmap;
   background_atoms[1] = display->atom_x_set_root;
-  for (p = 0; p < 2; p++) {
+  background_atoms[2] = display->atom_e_set_root;
+
+  pixmap_atom = XInternAtom (display->xdisplay, "PIXMAP", False);
+  for (p = 0; p < 3; p++) {
     Atom actual_type;
     int actual_format;
     gulong nitems, bytes_after;
@@ -533,17 +536,19 @@ root_tile (MetaScreen *screen)
                             background_atoms[p],
                             0, 4, FALSE, AnyPropertyType,
                             &actual_type, &actual_format, 
-                            &nitems, &bytes_after, &prop) == Success &&
-        actual_type == display->atom_pixmap &&
-        actual_format == 32 &&
-        nitems == 1) {
-      memcpy (&pixmap, prop, 4);
-      XFree (prop);
-      fill = FALSE;
-      break;
-    }
+                            &nitems, &bytes_after, &prop) == Success)
+      {
+        if (actual_type == pixmap_atom &&
+            actual_format == 32 &&
+            nitems == 1) 
+          {
+            memcpy (&pixmap, prop, 4);
+            XFree (prop);
+            fill = FALSE;
+            break;
+          }
+      } 
   }
-#endif
   
   if (!pixmap) {
     pixmap = XCreatePixmap (display->xdisplay, screen->xroot, 1, 1, 
@@ -1629,7 +1634,6 @@ meta_compositor_unmanage_screen (MetaCompositor *compositor,
 
   g_free (info->gaussian_map);
 
-  /* FIXME: Use correct composite mode */
   XCompositeUnredirectSubwindows (display->xdisplay, screen->xroot,
                                   CompositeRedirectManual);
   meta_screen_unset_cm_selection (screen);
