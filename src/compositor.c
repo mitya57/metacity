@@ -9,6 +9,7 @@
 
 #include "display.h"
 #include "screen.h"
+#include "errors.h"
 #include "compositor.h"
 
 #include <X11/extensions/shape.h>
@@ -35,6 +36,7 @@ typedef struct _conv {
 typedef struct _MetaCompScreen {
   MetaScreen *screen;
   GList *windows;
+  GHashTable *windows_by_xid;
 
   conv *gaussian_map;
   guchar *shadow_corner;
@@ -438,21 +440,12 @@ find_window_for_screen (MetaScreen *screen,
                         Window      xwindow)
 {
   MetaCompScreen *info = screen->compositor_data;
-  GList *index;
 
   if (info == NULL) {
     return NULL;
   }
 
-  for (index = info->windows; index; index = index->next) {
-    MetaCompWindow *cw = (MetaCompWindow *) index->data;
-
-    if (cw->id == xwindow) {
-      return cw;
-    }
-  }
-
-  return NULL;
+  return g_hash_table_lookup (info->windows_by_xid, (gpointer) xwindow);
 }
 
 static MetaCompWindow *
@@ -889,7 +882,7 @@ paint_all (MetaScreen   *screen,
                           cw->shadow_width, cw->shadow_height);
       }
 
-      if ((cw->opacity != OPAQUE) && !(cw->alpha_pict)) {
+      if ((cw->opacity != (int) OPAQUE) && !(cw->alpha_pict)) {
         cw->alpha_pict = solid_picture (display, screen, FALSE,
                                         (double) cw->opacity / OPAQUE,
                                         0, 0, 0);
@@ -1118,7 +1111,7 @@ determine_mode (MetaDisplay    *display,
   
   if (format && format->type == PictTypeDirect && format->direct.alphaMask) {
     mode = WINDOW_ARGB;
-  } else if (cw->opacity != OPAQUE) {
+  } else if (cw->opacity != (int) OPAQUE) {
     mode = WINDOW_TRANS;
   } else {
     mode = WINDOW_SOLID;
@@ -1187,6 +1180,7 @@ add_win (MetaScreen  *screen,
   /* Add this to the list at the top of the stack
      before it is mapped so that map_win can find it again */
   info->windows = g_list_prepend (info->windows, cw);
+  g_hash_table_insert (info->windows_by_xid, (gpointer) xwindow, cw);
 
   if (cw->attrs.map_state == IsViewable) {
     map_win (display, screen, xwindow);
@@ -1215,6 +1209,7 @@ destroy_win (MetaDisplay *display,
     
     info = screen->compositor_data;
     info->windows = g_list_remove (info->windows, (gconstpointer) cw);
+    g_hash_table_remove (info->windows_by_xid, (gpointer) xwindow);
 
     free_win (cw, TRUE);
   }
@@ -1327,191 +1322,6 @@ resize_win (MetaCompWindow *cw,
   info->clip_changed = TRUE;
 }
 
-MetaCompositor *
-meta_compositor_new (MetaDisplay *display)
-{
-  MetaCompositor *compositor;
-
-  compositor = g_new (MetaCompositor, 1);
-  compositor->display = display;
-  compositor->enabled = TRUE;
-
-  return compositor;
-}
-
-/* Should this be removed and _destroy used instead? */
-void
-meta_compositor_unref (MetaCompositor *compositor)
-{
-  g_free (compositor);
-}
-
-void
-meta_compositor_add_window (MetaCompositor    *compositor,
-                            Window             xwindow,
-                            XWindowAttributes *attrs)
-{
-  MetaScreen *screen = meta_screen_for_x_screen (attrs->screen);
-
-  add_win (screen, xwindow);
-}
-
-void
-meta_compositor_remove_window (MetaCompositor *compositor,
-                               Window          xwindow)
-{
-}
-
-void
-meta_compositor_manage_screen (MetaCompositor *compositor,
-                               MetaScreen     *screen)
-{
-  MetaCompScreen *info;
-  MetaDisplay *display = screen->display;
-  XRenderPictureAttributes pa;
-  XRenderPictFormat *visual_format;
-
-  /* Check if the screen is already managed */
-  if (screen->compositor_data) {
-    return;
-  }
-
-  gdk_error_trap_push ();
-  /* FIXME: Use correct composite mode */
-  XCompositeRedirectSubwindows (display->xdisplay, screen->xroot,
-                                CompositeRedirectManual);
-  XSync (display->xdisplay, FALSE);
-
-  if (gdk_error_trap_pop ()) {
-    g_warning ("Another compositing manager is running on screen %i",
-               screen->number);
-    return;
-  }
-
-  info = g_new0 (MetaCompScreen, 1);
-  info->screen = screen;
-  
-  visual_format = XRenderFindVisualFormat (display->xdisplay,
-                                           DefaultVisual (display->xdisplay,
-                                                          screen->number));
-  if (!visual_format) {
-    g_warning ("Cannot find visual format on screen %i", screen->number);
-    return;
-  }
-
-  pa.subwindow_mode = IncludeInferiors;
-  info->root_picture = XRenderCreatePicture (display->xdisplay, screen->xroot,
-                                             visual_format, 
-                                             CPSubwindowMode, &pa);
-  if (info->root_picture == None) {
-    g_warning ("Cannot create root picture on screen %i", screen->number);
-    return;
-  }
-  
-  info->root_buffer = None;
-  info->black_picture = solid_picture (display, screen, TRUE, 1, 0, 0, 0);
-
-  info->root_tile = None;
-  info->all_damage = None;
-  
-  info->windows = NULL;
-  info->compositor_active = TRUE;
-  info->overlays = 0;
-  info->clip_changed = TRUE;
-
-  info->gaussian_map = make_gaussian_map (SHADOW_RADIUS);
-  presum_gaussian (info);
-
-  XClearArea (display->xdisplay, screen->xroot, 0, 0, 0, 0, TRUE);
-  meta_screen_set_cm_selection (screen);
-
-  screen->compositor_data = info;
-}
-
-void
-meta_compositor_unmanage_screen (MetaCompositor *compositor,
-                                 MetaScreen     *screen)
-{
-  MetaDisplay *display = screen->display;
-  MetaCompScreen *info;
-  GList *index;
-
-  /* This screen isn't managed */
-  if (screen->compositor_data == NULL) {
-    return;
-  }
-
-  info = screen->compositor_data;
-
-  /* Destroy the windows */
-  for (index = info->windows; index; index = index->next) {
-    MetaCompWindow *cw = (MetaCompWindow *) index->data;
-    free_win (cw, TRUE);
-  }
-  g_list_free (info->windows);
-
-  if (info->root_picture) {
-    XRenderFreePicture (display->xdisplay, info->root_picture);
-  }
-
-  if (info->black_picture) {
-    XRenderFreePicture (display->xdisplay, info->black_picture);
-  }
-
-  g_free (info->gaussian_map);
-
-  /* FIXME: Use correct composite mode */
-  XCompositeUnredirectSubwindows (display->xdisplay, screen->xroot,
-                                  CompositeRedirectManual);
-  meta_screen_unset_cm_selection (screen);
-
-  g_free (info);
-  screen->compositor_data = NULL;
-}
-
-void
-meta_compositor_set_updates (MetaCompositor *compositor,
-                             MetaWindow     *window,
-                             gboolean        updates)
-{
-}
-
-void
-meta_compositor_destroy (MetaCompositor *compositor)
-{
-  g_free (compositor);
-}
-
-void
-meta_compositor_begin_move (MetaCompositor *compositor,
-                            MetaWindow     *window,
-                            MetaRectangle  *initial,
-                            int             grab_x,
-                            int             grab_y)
-{
-}
-
-void
-meta_compositor_update_move (MetaCompositor *compositor,
-                             MetaWindow     *window,
-                             int             x,
-                             int             y)
-{
-}
-
-void
-meta_compositor_end_move (MetaCompositor *compositor,
-                          MetaWindow     *window)
-{
-}
-
-void
-meta_compositor_free_window (MetaCompositor *compositor,
-                             MetaWindow     *window)
-{
-  destroy_win (compositor->display, window->xwindow, FALSE);
-}
-   
 static void
 process_circulate_notify (MetaCompositor  *compositor,
                           XCirculateEvent *event)
@@ -1660,16 +1470,6 @@ static void
 process_destroy (MetaCompositor      *compositor,
                  XDestroyWindowEvent *event)
 {
-  MetaScreen *screen;
-
-#if 0
-  screen = meta_display_screen_for_root (compositor->display, event->event);
-  if (screen == NULL) {
-    g_print ("Ignoring non root window 0x%lx\n", event->window);
-    return;
-  }
-#endif
-  
   destroy_win (compositor->display, event->window, FALSE);
 }
 
@@ -1691,11 +1491,206 @@ process_shape (MetaCompositor *compositor,
 {
 }
 
+MetaCompositor *
+meta_compositor_new (MetaDisplay *display)
+{
+  MetaCompositor *compositor;
+
+  compositor = g_new (MetaCompositor, 1);
+  compositor->display = display;
+  compositor->enabled = TRUE;
+
+  return compositor;
+}
+
+/* Should this be removed and _destroy used instead? */
+void
+meta_compositor_unref (MetaCompositor *compositor)
+{
+  g_free (compositor);
+}
+
+void
+meta_compositor_add_window (MetaCompositor    *compositor,
+                            Window             xwindow,
+                            XWindowAttributes *attrs)
+{
+  MetaScreen *screen = meta_screen_for_x_screen (attrs->screen);
+
+  add_win (screen, xwindow);
+}
+
+void
+meta_compositor_remove_window (MetaCompositor *compositor,
+                               Window          xwindow)
+{
+}
+
+void
+meta_compositor_manage_screen (MetaCompositor *compositor,
+                               MetaScreen     *screen)
+{
+  MetaCompScreen *info;
+  MetaDisplay *display = screen->display;
+  XRenderPictureAttributes pa;
+  XRenderPictFormat *visual_format;
+
+  /* Check if the screen is already managed */
+  if (screen->compositor_data) {
+    return;
+  }
+
+  gdk_error_trap_push ();
+  /* FIXME: Use correct composite mode */
+  XCompositeRedirectSubwindows (display->xdisplay, screen->xroot,
+                                CompositeRedirectManual);
+  XSync (display->xdisplay, FALSE);
+
+  if (gdk_error_trap_pop ()) {
+    g_warning ("Another compositing manager is running on screen %i",
+               screen->number);
+    return;
+  }
+
+  info = g_new0 (MetaCompScreen, 1);
+  info->screen = screen;
+  
+  visual_format = XRenderFindVisualFormat (display->xdisplay,
+                                           DefaultVisual (display->xdisplay,
+                                                          screen->number));
+  if (!visual_format) {
+    g_warning ("Cannot find visual format on screen %i", screen->number);
+    return;
+  }
+
+  pa.subwindow_mode = IncludeInferiors;
+  info->root_picture = XRenderCreatePicture (display->xdisplay, screen->xroot,
+                                             visual_format, 
+                                             CPSubwindowMode, &pa);
+  if (info->root_picture == None) {
+    g_warning ("Cannot create root picture on screen %i", screen->number);
+    return;
+  }
+  
+  info->root_buffer = None;
+  info->black_picture = solid_picture (display, screen, TRUE, 1, 0, 0, 0);
+
+  info->root_tile = None;
+  info->all_damage = None;
+  
+  info->windows = NULL;
+  info->windows_by_xid = g_hash_table_new (g_direct_hash, g_direct_equal);
+
+  info->compositor_active = TRUE;
+  info->overlays = 0;
+  info->clip_changed = TRUE;
+
+  info->gaussian_map = make_gaussian_map (SHADOW_RADIUS);
+  presum_gaussian (info);
+
+  XClearArea (display->xdisplay, screen->xroot, 0, 0, 0, 0, TRUE);
+
+  g_print ("Setting selection\n");
+  meta_screen_set_cm_selection (screen);
+
+  screen->compositor_data = info;
+}
+
+void
+meta_compositor_unmanage_screen (MetaCompositor *compositor,
+                                 MetaScreen     *screen)
+{
+  MetaDisplay *display = screen->display;
+  MetaCompScreen *info;
+  GList *index;
+
+  /* This screen isn't managed */
+  if (screen->compositor_data == NULL) {
+    return;
+  }
+
+  info = screen->compositor_data;
+
+  /* Destroy the windows */
+  for (index = info->windows; index; index = index->next) {
+    MetaCompWindow *cw = (MetaCompWindow *) index->data;
+    free_win (cw, TRUE);
+  }
+  g_list_free (info->windows);
+  g_hash_table_destroy (info->windows_by_xid);
+
+  if (info->root_picture) {
+    XRenderFreePicture (display->xdisplay, info->root_picture);
+  }
+
+  if (info->black_picture) {
+    XRenderFreePicture (display->xdisplay, info->black_picture);
+  }
+
+  g_free (info->gaussian_map);
+
+  /* FIXME: Use correct composite mode */
+  XCompositeUnredirectSubwindows (display->xdisplay, screen->xroot,
+                                  CompositeRedirectManual);
+  meta_screen_unset_cm_selection (screen);
+
+  g_free (info);
+  screen->compositor_data = NULL;
+}
+
+void
+meta_compositor_set_updates (MetaCompositor *compositor,
+                             MetaWindow     *window,
+                             gboolean        updates)
+{
+}
+
+void
+meta_compositor_destroy (MetaCompositor *compositor)
+{
+  g_free (compositor);
+}
+
+void
+meta_compositor_begin_move (MetaCompositor *compositor,
+                            MetaWindow     *window,
+                            MetaRectangle  *initial,
+                            int             grab_x,
+                            int             grab_y)
+{
+}
+
+void
+meta_compositor_update_move (MetaCompositor *compositor,
+                             MetaWindow     *window,
+                             int             x,
+                             int             y)
+{
+}
+
+void
+meta_compositor_end_move (MetaCompositor *compositor,
+                          MetaWindow     *window)
+{
+}
+
+void
+meta_compositor_free_window (MetaCompositor *compositor,
+                             MetaWindow     *window)
+{
+  destroy_win (compositor->display, window->xwindow, FALSE);
+}
+   
 void
 meta_compositor_process_event (MetaCompositor *compositor,
                                XEvent         *event,
                                MetaWindow     *window)
 {
+  /*
+   * This trap is so that none of the compositor functions cause
+   * X errors. This is really a hack, but I'm afraid I don't understand
+   * enough about Metacity/X to know how else you are supposed to do it
+   */
   meta_error_trap_push (compositor->display);
   switch (event->type) {
   case CirculateNotify:
@@ -1736,14 +1731,14 @@ meta_compositor_process_event (MetaCompositor *compositor,
     } else if (event->type == compositor->display->shape_event_base + ShapeNotify) {
       process_shape (compositor, (XShapeEvent *) event);
     } else {
+      meta_error_trap_pop (compositor->display, FALSE);
       return;
     }
     break;
   }
 
-  meta_error_trap_pop (compositor->display);
+  meta_error_trap_pop (compositor->display, FALSE);
   repair_display (compositor->display);
 
   return;
 }
-

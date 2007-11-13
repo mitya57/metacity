@@ -2709,6 +2709,7 @@ meta_screen_set_cm_selection (MetaScreen *screen)
   Atom a;
 
   g_snprintf (selection, sizeof(selection), "_NET_WM_CM_S%d", screen->number);
+  g_print ("Setting selection: %s\n", selection);
   a = XInternAtom (screen->display->xdisplay, selection, FALSE);
   XSetSelectionOwner (screen->display->xdisplay, a, 
                       screen->wm_cm_selection_window, CurrentTime);
