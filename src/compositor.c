@@ -93,10 +93,10 @@ typedef struct _MetaCompWindow {
 #define WINDOW_TRANS 1
 #define WINDOW_ARGB 2
 
-#define SHADOW_RADIUS 12.0
-#define SHADOW_OFFSET_X -15
-#define SHADOW_OFFSET_Y -15
-#define SHADOW_OPACITY 0.75
+#define SHADOW_RADIUS 6.0
+#define SHADOW_OFFSET_X (SHADOW_RADIUS * -3 / 2)
+#define SHADOW_OFFSET_Y (SHADOW_RADIUS * -5 / 4)
+#define SHADOW_OPACITY 0.66
  
 #define TRANS_OPACITY 0.75
 
@@ -651,14 +651,10 @@ win_extents (MetaCompWindow *cw)
 
   /*
     We apply a shadow to the window if:
-    - There is no overlay (ie unredirected windows)
-    - It's a window with a frame and the user asked for shadows under regular
-    windows,
-    - it's an override redirect window that is not shaped, not an argb and
-    the user asked for shadows on so called "popup" windows.
+    * the window is ARGB and override redirected.
   */
 
-  if (cw->mode != WINDOW_ARGB) {
+  if (! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) {
     XRectangle sr;
 
     cw->shadow_dx = SHADOW_OFFSET_X;
