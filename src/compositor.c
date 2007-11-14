@@ -65,7 +65,6 @@ typedef struct _MetaCompWindow {
 #endif
 
   int mode;
-  int oldmode;
 
   gboolean damaged;
   gboolean shaped;
@@ -854,10 +853,10 @@ paint_all (MetaScreen   *screen,
 #endif
         
         XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, region);
-        XFixesSubtractRegion (xdisplay, region, region, cw->border_size);
         XRenderComposite (xdisplay, PictOpSrc, cw->picture, 
                           None, info->root_buffer, 0, 0, 0, 0,
                           x, y, wid, hei);
+        XFixesSubtractRegion (xdisplay, region, region, cw->border_size);
     }
     if (!cw->border_clip) {
       cw->border_clip = XFixesCreateRegion (xdisplay, 0, 0);
@@ -872,11 +871,23 @@ paint_all (MetaScreen   *screen,
    * Painting from bottom to top, translucent windows and shadows are painted
    */
   for (index = g_list_last (info->windows); index; index = index->prev) {
+    XserverRegion shadow_clip;
+
     cw = (MetaCompWindow *) index->data;
+    shadow_clip = None;
+
     if (cw->picture) {
+#if 0
       XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 
                                   0, 0, cw->border_clip);
+#endif
       if (cw->shadow) {
+        shadow_clip = XFixesCreateRegion (xdisplay, NULL, 0);
+        XFixesSubtractRegion (xdisplay, shadow_clip, cw->border_clip,
+                              cw->border_size);
+        XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, 
+                                    shadow_clip);
+
         XRenderComposite (xdisplay, PictOpOver, info->black_picture,
                           cw->shadow, info->root_buffer,
                           0, 0, 0, 0,
@@ -890,6 +901,12 @@ paint_all (MetaScreen   *screen,
                                         (double) cw->opacity / OPAQUE,
                                         0, 0, 0);
       }
+      
+      XFixesIntersectRegion (xdisplay, cw->border_clip, cw->border_clip, 
+                             cw->border_size);
+      XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0,
+                                  cw->border_clip);
+
       if (cw->mode == WINDOW_TRANS || cw->mode == WINDOW_ARGB) {
         int x, y, wid, hei;
 #ifdef HAVE_NAME_WINDOW_PIXMAP
@@ -908,9 +925,15 @@ paint_all (MetaScreen   *screen,
                           info->root_buffer, 0, 0, 0, 0,
                           x, y, wid, hei);
       } 
-      
-      XFixesDestroyRegion (xdisplay, cw->border_clip);
-      cw->border_clip = None;
+
+      if (shadow_clip) {
+        XFixesDestroyRegion (xdisplay, shadow_clip);
+      }
+
+      if (cw->border_clip) {
+        XFixesDestroyRegion (xdisplay, cw->border_clip);
+        cw->border_clip = None;
+      }
     }
 
     if (cw->border_clip) {
@@ -1700,24 +1723,6 @@ meta_compositor_begin_move (MetaCompositor *compositor,
                             int             grab_x,
                             int             grab_y)
 {
-  MetaDisplay *display = compositor->display;
-  MetaScreen *screen = window->screen;
-  MetaCompWindow *cw = find_window_for_screen (screen, window->frame->xwindow);
-  XserverRegion parts;
-
-  if (cw == NULL) {
-    g_print ("Could not find window to move\n");
-    return;
-  }
-
-  cw->opacity = 0x77777777;
-  cw->oldmode = cw->mode;
-  cw->mode = WINDOW_TRANS;
-
-  parts = win_extents (cw);
-  XDamageSubtract (display->xdisplay, cw->damage, None, None);
-  add_damage (display, screen, parts);
-  cw->damaged = TRUE;
 }
 
 void
@@ -1732,32 +1737,6 @@ void
 meta_compositor_end_move (MetaCompositor *compositor,
                           MetaWindow     *window)
 {
-  MetaDisplay *display = compositor->display;
-  MetaScreen *screen = window->screen;
-  MetaCompWindow *cw = find_window_for_screen (screen, window->frame->xwindow);
-  XserverRegion parts;
-
-  if (cw == NULL) {
-    g_print ("Could not find window to move\n");
-    return;
-  }
-
-  cw->opacity = OPAQUE;
-  cw->mode = cw->oldmode;
-
-  /*
-   * The opacity has changed, so we need to destroy the alpha picture so
-   * that the next redraw will get the correct opacity
-   */
-  if (cw->alpha_pict) {
-    XRenderFreePicture (display->xdisplay, cw->alpha_pict);
-    cw->alpha_pict = None;
-  }
-
-  parts = win_extents (cw);
-  XDamageSubtract (display->xdisplay, cw->damage, None, None);
-  add_damage (display, screen, parts);
-  cw->damaged = TRUE;
 }
 
 void
