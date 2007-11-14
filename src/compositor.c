@@ -9,6 +9,7 @@
 
 #include "display.h"
 #include "screen.h"
+#include "frame.h"
 #include "errors.h"
 #include "compositor.h"
 
@@ -64,6 +65,7 @@ typedef struct _MetaCompWindow {
 #endif
 
   int mode;
+  int oldmode;
 
   gboolean damaged;
   gboolean shaped;
@@ -1698,6 +1700,24 @@ meta_compositor_begin_move (MetaCompositor *compositor,
                             int             grab_x,
                             int             grab_y)
 {
+  MetaDisplay *display = compositor->display;
+  MetaScreen *screen = window->screen;
+  MetaCompWindow *cw = find_window_for_screen (screen, window->frame->xwindow);
+  XserverRegion parts;
+
+  if (cw == NULL) {
+    g_print ("Could not find window to move\n");
+    return;
+  }
+
+  cw->opacity = 0x77777777;
+  cw->oldmode = cw->mode;
+  cw->mode = WINDOW_TRANS;
+
+  parts = win_extents (cw);
+  XDamageSubtract (display->xdisplay, cw->damage, None, None);
+  add_damage (display, screen, parts);
+  cw->damaged = TRUE;
 }
 
 void
@@ -1712,6 +1732,32 @@ void
 meta_compositor_end_move (MetaCompositor *compositor,
                           MetaWindow     *window)
 {
+  MetaDisplay *display = compositor->display;
+  MetaScreen *screen = window->screen;
+  MetaCompWindow *cw = find_window_for_screen (screen, window->frame->xwindow);
+  XserverRegion parts;
+
+  if (cw == NULL) {
+    g_print ("Could not find window to move\n");
+    return;
+  }
+
+  cw->opacity = OPAQUE;
+  cw->mode = cw->oldmode;
+
+  /*
+   * The opacity has changed, so we need to destroy the alpha picture so
+   * that the next redraw will get the correct opacity
+   */
+  if (cw->alpha_pict) {
+    XRenderFreePicture (display->xdisplay, cw->alpha_pict);
+    cw->alpha_pict = None;
+  }
+
+  parts = win_extents (cw);
+  XDamageSubtract (display->xdisplay, cw->damage, None, None);
+  add_damage (display, screen, parts);
+  cw->damaged = TRUE;
 }
 
 void
