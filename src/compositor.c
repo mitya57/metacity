@@ -1128,6 +1128,25 @@ determine_mode (MetaDisplay    *display,
   }
 }
 
+static gboolean
+is_shaped (MetaDisplay *display,
+           Window       xwindow)
+{
+  int xws, yws, xbs, ybs;
+  unsigned wws, hws, wbs, hbs;
+  int bounding_shaped, clip_shaped;
+
+  if (META_DISPLAY_HAS_SHAPE (display))
+    {
+      XShapeQueryExtents (display->xdisplay, xwindow, &bounding_shaped,
+                          &xws, &yws, &wws, &hws, &clip_shaped,
+                          &xbs, &ybs, &wbs, &hbs);
+      return (bounding_shaped != 0);
+    }
+  
+  return FALSE;
+}
+
 static void
 add_win (MetaScreen  *screen,
          Window       xwindow)
@@ -1155,6 +1174,7 @@ add_win (MetaScreen  *screen,
 #endif
 
   cw->damaged = FALSE;
+  cw->shaped = is_shaped (display, xwindow);
 
   if (cw->attrs.class == InputOnly) {
     cw->damage = None;
@@ -1490,6 +1510,26 @@ static void
 process_shape (MetaCompositor *compositor,
                XShapeEvent    *event)
 {
+  MetaCompWindow *cw = find_window_in_display (compositor->display,
+                                               event->window);
+
+  if (cw == NULL) {
+    return;
+  }
+
+  if (event->kind == ShapeBounding) {
+    if (!event->shaped && cw->shaped) {
+      cw->shaped = FALSE;
+    }
+
+    resize_win (cw, cw->attrs.x, cw->attrs.y,
+                event->width + event->x, event->height + event->y,
+                cw->attrs.border_width, cw->attrs.override_redirect);
+
+    if (event->shaped && !cw->shaped) {
+      cw->shaped = TRUE;
+    }
+  }
 }
 
 MetaCompositor *
