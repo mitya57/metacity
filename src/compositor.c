@@ -1610,6 +1610,7 @@ process_shape (MetaCompositor *compositor,
 MetaCompositor *
 meta_compositor_new (MetaDisplay *display)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   MetaCompositor *compositor;
 
   compositor = g_new (MetaCompositor, 1);
@@ -1617,6 +1618,9 @@ meta_compositor_new (MetaDisplay *display)
   compositor->enabled = TRUE;
 
   return compositor;
+#else
+  return NULL;
+#endif
 }
 
 void
@@ -1624,21 +1628,26 @@ meta_compositor_add_window (MetaCompositor    *compositor,
                             Window             xwindow,
                             XWindowAttributes *attrs)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   MetaScreen *screen = meta_screen_for_x_screen (attrs->screen);
 
   add_win (screen, xwindow);
+#endif
 }
 
 void
 meta_compositor_remove_window (MetaCompositor *compositor,
                                Window          xwindow)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#endif
 }
 
 void
 meta_compositor_manage_screen (MetaCompositor *compositor,
                                MetaScreen     *screen)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   MetaCompScreen *info;
   MetaDisplay *display = screen->display;
   XRenderPictureAttributes pa;
@@ -1704,12 +1713,14 @@ meta_compositor_manage_screen (MetaCompositor *compositor,
   meta_screen_set_cm_selection (screen);
 
   screen->compositor_data = info;
+#endif
 }
 
 void
 meta_compositor_unmanage_screen (MetaCompositor *compositor,
                                  MetaScreen     *screen)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   MetaDisplay *display = screen->display;
   MetaCompScreen *info;
   GList *index;
@@ -1743,6 +1754,7 @@ meta_compositor_unmanage_screen (MetaCompositor *compositor,
 
   g_free (info);
   screen->compositor_data = NULL;
+#endif
 }
 
 void
@@ -1750,12 +1762,16 @@ meta_compositor_set_updates (MetaCompositor *compositor,
                              MetaWindow     *window,
                              gboolean        updates)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#endif
 }
 
 void
 meta_compositor_destroy (MetaCompositor *compositor)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   g_free (compositor);
+#endif
 }
 
 void
@@ -1765,6 +1781,8 @@ meta_compositor_begin_move (MetaCompositor *compositor,
                             int             grab_x,
                             int             grab_y)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#endif
 }
 
 void
@@ -1773,19 +1791,25 @@ meta_compositor_update_move (MetaCompositor *compositor,
                              int             x,
                              int             y)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#endif
 }
 
 void
 meta_compositor_end_move (MetaCompositor *compositor,
                           MetaWindow     *window)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+#endif
 }
 
 void
 meta_compositor_free_window (MetaCompositor *compositor,
                              MetaWindow     *window)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   destroy_win (compositor->display, window->xwindow, FALSE);
+#endif
 }
    
 void
@@ -1793,6 +1817,7 @@ meta_compositor_process_event (MetaCompositor *compositor,
                                XEvent         *event,
                                MetaWindow     *window)
 {
+#ifdef HAVE_COMPOSITE_EXTENSIONS
   /*
    * This trap is so that none of the compositor functions cause
    * X errors. This is really a hack, but I'm afraid I don't understand
@@ -1850,4 +1875,5 @@ meta_compositor_process_event (MetaCompositor *compositor,
   repair_display (compositor->display);
   
   return;
+#endif
 }
