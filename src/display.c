@@ -1013,7 +1013,7 @@ meta_display_close (MetaDisplay *display,
   meta_display_shutdown_keys (display);
 
   if (display->compositor)
-    meta_compositor_unref (display->compositor);
+    meta_compositor_destroy (display->compositor);
   
   g_free (display);
 
