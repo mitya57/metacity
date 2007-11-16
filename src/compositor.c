@@ -722,8 +722,11 @@ border_size (MetaCompWindow *cw)
   MetaDisplay *display = screen->display;
   XserverRegion border;
 
+  meta_error_trap_push (display);
   border = XFixesCreateRegionFromWindow (display->xdisplay, cw->id,
                                          WindowRegionBounding);
+  meta_error_trap_pop (display, FALSE);
+
   g_return_val_if_fail (border != None, None);
   XFixesTranslateRegion (display->xdisplay, border,
                          cw->attrs.x + cw->attrs.border_width,
@@ -757,6 +760,8 @@ get_window_picture (MetaCompWindow *cw)
 
   draw = cw->id;
 
+  meta_error_trap_push (display);
+
 #ifdef HAVE_NAME_WINDOW_PIXMAP
   if (cw->pixmap == None)
     cw->pixmap = XCompositeNameWindowPixmap (display->xdisplay, cw->id);
@@ -768,11 +773,18 @@ get_window_picture (MetaCompWindow *cw)
   format = get_window_format (cw);
   if (format) 
     {
+      Picture pict;
+
       pa.subwindow_mode = IncludeInferiors;
-      return XRenderCreatePicture (display->xdisplay, draw, 
+
+      pict = XRenderCreatePicture (display->xdisplay, draw, 
                                    format, CPSubwindowMode, &pa);
+      meta_error_trap_pop (display, FALSE);
+
+      return pict;
     }
 
+  meta_error_trap_pop (display, FALSE);
   return None;
 }
 
@@ -1026,6 +1038,7 @@ repair_win (MetaCompWindow *cw)
   MetaDisplay *display = screen->display;
   XserverRegion parts;
 
+  meta_error_trap_push (display);
   if (!cw->damaged) 
     {
       parts = win_extents (cw);
@@ -1040,6 +1053,8 @@ repair_win (MetaCompWindow *cw)
                              cw->attrs.y + cw->attrs.border_width);
     }
   
+  meta_error_trap_pop (display, FALSE);
+
   add_damage (display, screen, parts);
   cw->damaged = TRUE;
 }
@@ -1103,9 +1118,10 @@ free_win (MetaCompWindow *cw,
   if (destroy) 
     { 
       if (cw->damage != None) {
-        /* If we've got here, then the window has already been destroyed
-           so this will cause a BadWindow */
-        /*       XDamageDestroy (display->xdisplay, cw->damage); */
+        meta_error_trap_push (display);
+        XDamageDestroy (display->xdisplay, cw->damage);
+        meta_error_trap_pop (display, FALSE);
+
         cw->damage = None;
       }
       
@@ -1215,6 +1231,7 @@ is_shaped (MetaDisplay *display,
   return FALSE;
 }
 
+/* Must be called with an error trap in place */
 static void
 add_win (MetaScreen  *screen,
          Window       xwindow)
@@ -1421,6 +1438,7 @@ resize_win (MetaCompWindow *cw,
   info->clip_changed = TRUE;
 }
 
+/* event processors must all be called with an error trap in place */
 static void
 process_circulate_notify (MetaCompositor  *compositor,
                           XCirculateEvent *event)
@@ -1630,7 +1648,9 @@ meta_compositor_add_window (MetaCompositor    *compositor,
 #ifdef HAVE_COMPOSITE_EXTENSIONS
   MetaScreen *screen = meta_screen_for_x_screen (attrs->screen);
 
+  meta_error_trap_push (compositor->display);
   add_win (screen, xwindow);
+  meta_error_trap_pop (compositor->display, FALSE);
 #endif
 }
 
