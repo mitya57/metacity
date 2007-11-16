@@ -534,10 +534,9 @@ root_tile (MetaScreen *screen)
   Atom pixmap_atom;
 
   pixmap = None;
-
-  background_atoms[0] = display->atom_x_root_pixmap;
-  background_atoms[1] = display->atom_x_set_root;
-  background_atoms[2] = display->atom_e_set_root;
+  background_atoms[0] = XInternAtom (display->xdisplay, "_XROOTPMAP_ID", False);
+  background_atoms[1] = XInternAtom (display->xdisplay, "_XSETROOT_ID", False);
+  background_atoms[2] = XInternAtom (display->xdisplay, "ESETROOT_PMAP_ID", False);
 
   pixmap_atom = XInternAtom (display->xdisplay, "PIXMAP", False);
   for (p = 0; p < 3; p++) 
@@ -564,7 +563,7 @@ root_tile (MetaScreen *screen)
             }
         } 
     }
-  
+
   if (!pixmap) 
     {
       pixmap = XCreatePixmap (display->xdisplay, screen->xroot, 1, 1, 
@@ -593,8 +592,8 @@ root_tile (MetaScreen *screen)
       
       XRenderFillRectangle (display->xdisplay, PictOpSrc, picture,
                             &c, 0, 0, 1, 1);
+      XFreePixmap (display->xdisplay, pixmap); 
     }
-  XFreePixmap (display->xdisplay, pixmap);
 
   return picture;
 }
