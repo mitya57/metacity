@@ -23,11 +23,15 @@
 #define HAVE_NAME_WINDOW_PIXMAP 1
 #endif
 
+#define USE_IDLE_REPAINT 1
+
 struct _MetaCompositor 
 {
   MetaDisplay *display;
 
+#ifdef USE_IDLE_REPAINT
   guint repaint_id;
+#endif
   guint enabled : 1;
 };
 
@@ -1009,18 +1013,20 @@ static void
 repair_display (MetaDisplay *display)
 {
   GSList *screens;
-  MetaCompositor *compositor = display->compositor;
   
-  if (compositor->repaint_id > 0) 
+#ifdef USE_IDLE_REPAINT
+  if (display->compositor->repaint_id > 0) 
     {
-      g_source_remove (compositor->repaint_id);
-      compositor->repaint_id = 0;
+      g_source_remove (display->compositor->repaint_id);
+      display->compositor->repaint_id = 0;
     }
+#endif
 
   for (screens = display->screens; screens; screens = screens->next)
     repair_screen ((MetaScreen *) screens->data);
 }
 
+#ifdef USE_IDLE_REPAINT
 static gboolean
 compositor_idle_cb (gpointer data)
 {
@@ -1044,6 +1050,7 @@ add_repair (MetaDisplay *display)
                                             compositor_idle_cb, compositor,
                                             NULL);
 }
+#endif
 
 static void
 add_damage (MetaDisplay    *display,
@@ -1061,7 +1068,9 @@ add_damage (MetaDisplay    *display,
   else
     info->all_damage = damage;
 
+#ifdef USE_IDLE_REPAINT
   add_repair (display);
+#endif
 }
 
 static void
@@ -1500,7 +1509,9 @@ process_circulate_notify (MetaCompositor  *compositor,
 
   info->clip_changed = TRUE;
 
+#ifdef USE_IDLE_REPAINT
   add_repair (compositor->display);
+#endif
 }
 
 static void
@@ -1544,7 +1555,9 @@ process_property_notify (MetaCompositor *compositor,
                               0, 0, 0, 0, TRUE);
                   XRenderFreePicture (display->xdisplay, info->root_tile);
                   info->root_tile = None;
+#ifdef USE_IDLE_REPAIR
                   add_repair (display);
+#endif
 
                   return;
                 }
@@ -1670,9 +1683,11 @@ process_damage (MetaCompositor     *compositor,
     return;
 
   repair_win (cw);
-  if (event->more == FALSE) {
+
+#ifdef USE_IDLE_REPAINT
+  if (event->more == FALSE)
     add_repair (compositor->display);
-  }
+#endif
 }
   
 static void
@@ -1707,7 +1722,12 @@ meta_compositor_new (MetaDisplay *display)
 
   compositor = g_new (MetaCompositor, 1);
   compositor->display = display;
+
+#ifdef USE_IDLE_REPAINT
+  g_print ("Using idle repaint\n");
   compositor->repaint_id = 0;
+#endif
+
   compositor->enabled = TRUE;
 
   return compositor;
@@ -1971,7 +1991,9 @@ meta_compositor_process_event (MetaCompositor *compositor,
     }
   
   meta_error_trap_pop (compositor->display, FALSE);
-/*   repair_display (compositor->display); */
+#ifndef USE_IDLE_REPAINT
+  repair_display (compositor->display);
+#endif
   
   return;
 #endif
