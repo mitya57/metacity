@@ -27,6 +27,7 @@ struct _MetaCompositor
 {
   MetaDisplay *display;
 
+  guint repaint_id;
   guint enabled : 1;
 };
 
@@ -530,16 +531,15 @@ root_tile (MetaScreen *screen)
   XRenderPictureAttributes pa;
   XRenderPictFormat *format;
   int p;
-  Atom background_atoms[3];
+  Atom background_atoms[2];
   Atom pixmap_atom;
 
   pixmap = None;
   background_atoms[0] = display->atom_x_root_pixmap;
   background_atoms[1] = display->atom_x_set_root;
-  background_atoms[2] = display->atom_e_set_root;
 
   pixmap_atom = XInternAtom (display->xdisplay, "PIXMAP", False);
-  for (p = 0; p < 3; p++) 
+  for (p = 0; p < 2; p++) 
     {
       Atom actual_type;
       int actual_format;
@@ -1009,9 +1009,40 @@ static void
 repair_display (MetaDisplay *display)
 {
   GSList *screens;
+  MetaCompositor *compositor = display->compositor;
+  
+  if (compositor->repaint_id > 0) 
+    {
+      g_source_remove (compositor->repaint_id);
+      compositor->repaint_id = 0;
+    }
 
   for (screens = display->screens; screens; screens = screens->next)
     repair_screen ((MetaScreen *) screens->data);
+}
+
+static gboolean
+compositor_idle_cb (gpointer data)
+{
+  MetaCompositor *compositor = (MetaCompositor *) data;
+
+  compositor->repaint_id = 0;
+  repair_display (compositor->display);
+
+  return FALSE;
+}
+
+static void
+add_repair (MetaDisplay *display)
+{
+  MetaCompositor *compositor = display->compositor;
+
+  if (compositor->repaint_id > 0)
+    return;
+
+  compositor->repaint_id = g_idle_add_full (G_PRIORITY_HIGH_IDLE,
+                                            compositor_idle_cb, compositor,
+                                            NULL);
 }
 
 static void
@@ -1029,6 +1060,8 @@ add_damage (MetaDisplay    *display,
     } 
   else
     info->all_damage = damage;
+
+  add_repair (display);
 }
 
 static void
@@ -1466,6 +1499,8 @@ process_circulate_notify (MetaCompositor  *compositor,
   restack_win (cw, above);
 
   info->clip_changed = TRUE;
+
+  add_repair (compositor->display);
 }
 
 static void
@@ -1481,6 +1516,43 @@ process_configure_notify (MetaCompositor  *compositor,
       resize_win (cw, event->x, event->y, event->width, event->height,
                   event->border_width, event->override_redirect);
     }
+}
+
+static void
+process_property_notify (MetaCompositor *compositor,
+                         XPropertyEvent *event)
+{
+  MetaDisplay *display = compositor->display;
+  MetaScreen *screen;
+  int p;
+  Atom background_atoms[2];
+
+  background_atoms[0] = display->atom_x_root_pixmap;
+  background_atoms[1] = display->atom_x_set_root;
+
+  for (p = 0; p < 2; p++) 
+    {
+      if (event->atom == background_atoms[p])
+        {
+          screen = meta_display_screen_for_root (display, event->window);
+          if (screen)
+            {
+              MetaCompScreen *info = screen->compositor_data;
+              if (info->root_tile)
+                {
+                  XClearArea (display->xdisplay, screen->xroot,
+                              0, 0, 0, 0, TRUE);
+                  XRenderFreePicture (display->xdisplay, info->root_tile);
+                  info->root_tile = None;
+                  add_repair (display);
+
+                  return;
+                }
+            }
+        }
+    }
+
+  /* Handle transparency here... */
 }
 
 static void
@@ -1598,6 +1670,9 @@ process_damage (MetaCompositor     *compositor,
     return;
 
   repair_win (cw);
+  if (event->more == FALSE) {
+    add_repair (compositor->display);
+  }
 }
   
 static void
@@ -1632,6 +1707,7 @@ meta_compositor_new (MetaDisplay *display)
 
   compositor = g_new (MetaCompositor, 1);
   compositor->display = display;
+  compositor->repaint_id = 0;
   compositor->enabled = TRUE;
 
   return compositor;
@@ -1852,7 +1928,11 @@ meta_compositor_process_event (MetaCompositor *compositor,
     case ConfigureNotify:
       process_configure_notify (compositor, (XConfigureEvent *) event);
       break;
-      
+
+    case PropertyNotify:
+      process_property_notify (compositor, (XPropertyEvent *) event);
+      break;
+
     case Expose:
       process_expose (compositor, (XExposeEvent *) event);
       break;
@@ -1891,7 +1971,7 @@ meta_compositor_process_event (MetaCompositor *compositor,
     }
   
   meta_error_trap_pop (compositor->display, FALSE);
-  repair_display (compositor->display);
+/*   repair_display (compositor->display); */
   
   return;
 #endif
