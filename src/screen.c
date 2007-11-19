@@ -1230,6 +1230,37 @@ meta_screen_update_cursor (MetaScreen *screen)
   XFreeCursor (screen->display->xdisplay, xcursor);
 }
 
+static GdkPixbuf *
+get_window_pixbuf (MetaWindow *window)
+{
+  Pixmap pmap;
+  GdkPixbuf *pixbuf, *scaled;
+  int width, height;
+  double ratio;
+
+  pmap = meta_compositor_get_window_pixmap (window->display->compositor,
+                                            window);
+  if (pmap == None)
+    return NULL;
+
+  pixbuf = meta_ui_get_pixbuf_from_pixmap (window->display->xdisplay, 
+                                           window->screen->number, pmap);
+  if (pixbuf == NULL) 
+    return NULL;
+
+  width = gdk_pixbuf_get_width (pixbuf);
+  height = gdk_pixbuf_get_height (pixbuf);
+
+  /* Scale pixbuf to max width 100 */
+  ratio = ((double) width) / 100.0;
+
+  scaled = gdk_pixbuf_scale_simple (pixbuf, 100, 
+                                    (int)(((double)height) / ratio),
+                                    GDK_INTERP_BILINEAR);
+  g_object_unref (pixbuf);
+  return scaled;
+}
+                                         
 void
 meta_screen_ensure_tab_popup (MetaScreen      *screen,
                               MetaTabList      list_type,
@@ -1267,7 +1298,11 @@ meta_screen_ensure_tab_popup (MetaScreen      *screen,
       
       entries[i].key = (MetaTabEntryKey) window->xwindow;
       entries[i].title = window->title;
-      entries[i].icon = window->icon;
+
+      entries[i].icon = get_window_pixbuf (window);
+      if (entries[i].icon == NULL)
+        entries[i].icon = window->icon;
+
       entries[i].blank = FALSE;
       entries[i].hidden = !meta_window_showing_on_its_workspace (window);
       entries[i].demands_attention = window->wm_state_demands_attention;

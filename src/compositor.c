@@ -1108,7 +1108,8 @@ free_win (MetaCompWindow *cw,
   MetaDisplay *display = cw->screen->display;
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-  if (cw->pixmap) 
+  /* See comment in map_win */
+  if (cw->pixmap && destroy) 
     {
       XFreePixmap (display->xdisplay, cw->pixmap);
       cw->pixmap = None;
@@ -1180,6 +1181,17 @@ map_win (MetaDisplay *display,
 
   if (cw == NULL)
     return;
+
+#ifdef HAVE_NAME_WINDOW_PIXMAP
+  /* The reason we deallocate this here and not in unmap
+     is so that we will still have a valid pixmap for 
+     whenever the window is unmapped */
+  if (cw->pixmap) 
+    {
+      XFreePixmap (display->xdisplay, cw->pixmap);
+      cw->pixmap = None;
+    }
+#endif
 
   cw->attrs.map_state = IsViewable;
   cw->damaged = FALSE;
@@ -1996,5 +2008,30 @@ meta_compositor_process_event (MetaCompositor *compositor,
 #endif
   
   return;
+#endif
+}
+
+Pixmap
+meta_compositor_get_window_pixmap (MetaCompositor *compositor,
+                                   MetaWindow     *window)
+{
+#ifdef HAVE_COMPOSITE_EXTENSIONS
+  MetaCompWindow *cw;
+
+  if (window->frame)
+    {
+      cw = find_window_for_screen (window->screen, window->frame->xwindow);
+      if (cw == NULL)
+        cw = find_window_for_screen (window->screen, window->xwindow);
+    }
+
+  if (cw == NULL)
+    return None;
+
+#ifdef HAVE_NAME_WINDOW_PIXMAP
+  return cw->pixmap;
+#else
+  return None;
+#endif
 #endif
 }
