@@ -1230,6 +1230,8 @@ meta_screen_update_cursor (MetaScreen *screen)
   XFreeCursor (screen->display->xdisplay, xcursor);
 }
 
+#define MAX_PREVIEW_SIZE 150.0
+
 static GdkPixbuf *
 get_window_pixbuf (MetaWindow *window)
 {
@@ -1251,17 +1253,17 @@ get_window_pixbuf (MetaWindow *window)
   width = gdk_pixbuf_get_width (pixbuf);
   height = gdk_pixbuf_get_height (pixbuf);
 
-  /* Scale pixbuf to max width 100 */
+  /* Scale pixbuf to max dimension MAX_PREVIEW_SIZE */
   if (width > height)
     {
-      ratio = ((double) width) / 100.0;
-      width = 100;
+      ratio = ((double) width) / MAX_PREVIEW_SIZE;
+      width = (int) MAX_PREVIEW_SIZE;
       height = (int) (((double) height) / ratio);
     }
   else
     {
-      ratio = ((double) height) / 100.0;
-      height = 100;
+      ratio = ((double) height) / MAX_PREVIEW_SIZE;
+      height = (int) MAX_PREVIEW_SIZE;
       width = (int) (((double) width) / ratio);
     }
 
