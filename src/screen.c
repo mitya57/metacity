@@ -1252,10 +1252,20 @@ get_window_pixbuf (MetaWindow *window)
   height = gdk_pixbuf_get_height (pixbuf);
 
   /* Scale pixbuf to max width 100 */
-  ratio = ((double) width) / 100.0;
+  if (width > height)
+    {
+      ratio = ((double) width) / 100.0;
+      width = 100;
+      height = (int) (((double) height) / ratio);
+    }
+  else
+    {
+      ratio = ((double) height) / 100.0;
+      height = 100;
+      width = (int) (((double) width) / ratio);
+    }
 
-  scaled = gdk_pixbuf_scale_simple (pixbuf, 100, 
-                                    (int)(((double)height) / ratio),
+  scaled = gdk_pixbuf_scale_simple (pixbuf, width, height,
                                     GDK_INTERP_BILINEAR);
   g_object_unref (pixbuf);
   return scaled;
