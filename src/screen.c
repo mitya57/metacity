@@ -1245,8 +1245,7 @@ get_window_pixbuf (MetaWindow *window)
   if (pmap == None)
     return NULL;
 
-  pixbuf = meta_ui_get_pixbuf_from_pixmap (window->display->xdisplay, 
-                                           window->screen->number, pmap);
+  pixbuf = meta_ui_get_pixbuf_from_pixmap (pmap);
   if (pixbuf == NULL) 
     return NULL;
 

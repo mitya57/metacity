@@ -587,7 +587,7 @@ root_tile (MetaScreen *screen)
   if ((picture != None) && (fill)) 
     {
       XRenderColor c;
-      
+
       /* Background default to just plain ugly grey */
       c.red = 0x8080;
       c.green = 0x8080;
@@ -633,7 +633,8 @@ create_root_buffer (MetaScreen *screen)
 }
 
 static void
-paint_root (MetaScreen *screen)
+paint_root (MetaScreen *screen,
+            Picture     root_buffer)
 {
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
@@ -647,7 +648,7 @@ paint_root (MetaScreen *screen)
     }
   
   XRenderComposite (display->xdisplay, PictOpSrc,
-                    info->root_tile, None, info->root_buffer,
+                    info->root_tile, None, root_buffer,
                     0, 0, 0, 0, 0, 0,
                     screen->rect.width, screen->rect.height);
 }
@@ -671,7 +672,7 @@ win_extents (MetaCompWindow *cw)
 
   /*
     We apply a shadow to the window if:
-    * the window is ARGB and override redirected.
+    * the window is ARGB and not override redirected.
   */
 
   if (! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) 
@@ -793,8 +794,10 @@ get_window_picture (MetaCompWindow *cw)
 }
 
 static void
-paint_all (MetaScreen   *screen,
-           XserverRegion region)
+paint_windows (MetaScreen   *screen,
+               GList        *windows,
+               Picture       root_buffer,
+               XserverRegion region)
 {
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
@@ -803,15 +806,12 @@ paint_all (MetaScreen   *screen,
   int screen_width, screen_height, screen_number;
   Window xroot;
   MetaCompWindow *cw;
+  XserverRegion paint_region;
 
   screen_width = screen->rect.width;
   screen_height = screen->rect.height;
   screen_number = screen->number;
   xroot = screen->xroot;
-
-  /* Create root buffer if not done yet */
-  if (info->root_buffer == None)
-    info->root_buffer = create_root_buffer (screen);
 
   if (region == None) 
     {
@@ -820,20 +820,21 @@ paint_all (MetaScreen   *screen,
       r.y = 0;
       r.width = screen_width;
       r.height = screen_height;
-      region = XFixesCreateRegion (xdisplay, &r, 1);
+      paint_region = XFixesCreateRegion (xdisplay, &r, 1);
+    } 
+  else
+    {
+      paint_region = XFixesCreateRegion (xdisplay, NULL, 0);
+      XFixesCopyRegion (xdisplay, paint_region, region);
     }
 
-  /* Set clipping to the given region */
-  XFixesSetPictureClipRegion (xdisplay, info->root_picture, 0, 0, region);
-  
   /*
    * Painting from top to bottom, reducing the clipping area at 
    * each iteration. Only the opaque windows are painted 1st.
    */
-  for (index = info->windows; index; index = index->next) 
+  for (index = windows; index; index = index->next) 
     {
       cw = (MetaCompWindow *) index->data;
-      
       if (!cw->damaged) 
         {
           /* Not damaged */
@@ -890,50 +891,52 @@ paint_all (MetaScreen   *screen,
           hei = cw->attrs.height;
 #endif
           
-          XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 
-                                      0, 0, region);
+          XFixesSetPictureClipRegion (xdisplay, root_buffer, 
+                                      0, 0, paint_region);
           XRenderComposite (xdisplay, PictOpSrc, cw->picture, 
-                            None, info->root_buffer, 0, 0, 0, 0,
+                            None, root_buffer, 0, 0, 0, 0,
                             x, y, wid, hei);
-          XFixesSubtractRegion (xdisplay, region, region, cw->border_size);
+          XFixesSubtractRegion (xdisplay, paint_region, 
+                                paint_region, cw->border_size);
         }
       
       if (!cw->border_clip) 
         {
           cw->border_clip = XFixesCreateRegion (xdisplay, 0, 0);
-          XFixesCopyRegion (xdisplay, cw->border_clip, region);
+          XFixesCopyRegion (xdisplay, cw->border_clip, paint_region);
         }
     }
   
-  XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, region);
-  paint_root (screen);
+  XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, paint_region);
+  paint_root (screen, root_buffer);
 
   /* 
    * Painting from bottom to top, translucent windows and shadows are painted
    */
-  for (index = g_list_last (info->windows); index; index = index->prev) 
-    {
-      XserverRegion shadow_clip;
-      
+  for (index = g_list_last (windows); index; index = index->prev) 
+    { 
       cw = (MetaCompWindow *) index->data;
-      shadow_clip = None;
       
       if (cw->picture) 
         {
           if (cw->shadow) 
             {
+              XserverRegion shadow_clip;
+
               shadow_clip = XFixesCreateRegion (xdisplay, NULL, 0);
               XFixesSubtractRegion (xdisplay, shadow_clip, cw->border_clip,
                                     cw->border_size);
-              XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, 
+              XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, 
                                           shadow_clip);
               
               XRenderComposite (xdisplay, PictOpOver, info->black_picture,
-                                cw->shadow, info->root_buffer,
+                                cw->shadow, root_buffer,
                                 0, 0, 0, 0,
                                 cw->attrs.x + cw->shadow_dx,
                                 cw->attrs.y + cw->shadow_dy,
                                 cw->shadow_width, cw->shadow_height);
+              if (shadow_clip)
+                XFixesDestroyRegion (xdisplay, shadow_clip);
             }
           
           if ((cw->opacity != (int) OPAQUE) && !(cw->alpha_pict)) 
@@ -945,7 +948,7 @@ paint_all (MetaScreen   *screen,
           
           XFixesIntersectRegion (xdisplay, cw->border_clip, cw->border_clip, 
                                  cw->border_size);
-          XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0,
+          XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0,
                                       cw->border_clip);
           
           if (cw->mode == WINDOW_TRANS || cw->mode == WINDOW_ARGB) 
@@ -964,18 +967,9 @@ paint_all (MetaScreen   *screen,
 #endif
               
               XRenderComposite (xdisplay, PictOpOver, cw->picture, 
-                                cw->alpha_pict, info->root_buffer, 0, 0, 0, 0,
+                                cw->alpha_pict, root_buffer, 0, 0, 0, 0,
                                 x, y, wid, hei);
             } 
-          
-          if (shadow_clip)
-            XFixesDestroyRegion (xdisplay, shadow_clip);
-
-          if (cw->border_clip) 
-            {
-              XFixesDestroyRegion (xdisplay, cw->border_clip);
-              cw->border_clip = None;
-            }
         }
       
       if (cw->border_clip) 
@@ -984,16 +978,35 @@ paint_all (MetaScreen   *screen,
           cw->border_clip = None;
         }
     }
-  
-  if (info->root_picture != info->root_buffer) 
-    {
-      XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, None);
-      XRenderComposite (xdisplay, PictOpSrc, info->root_buffer, None,
-                        info->root_picture, 0, 0, 0, 0, 0, 0, 
-                        screen_width, screen_height);
-    }
+
+  XFixesDestroyRegion (xdisplay, paint_region);
 }
-    
+
+static void
+paint_all (MetaScreen   *screen,
+           XserverRegion region)
+{
+  MetaCompScreen *info = screen->compositor_data;
+  Display *xdisplay = screen->display->xdisplay;
+  int screen_width, screen_height;
+
+  /* Set clipping to the given region */
+  XFixesSetPictureClipRegion (xdisplay, info->root_picture, 0, 0, region);
+  
+  if (info->root_buffer == None) 
+    info->root_buffer = create_root_buffer (screen);
+      
+  paint_windows (screen, info->windows, info->root_buffer, region);
+
+  screen_width = screen->rect.width;
+  screen_height = screen->rect.height;
+
+  XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, None);
+  XRenderComposite (xdisplay, PictOpSrc, info->root_buffer, None,
+                    info->root_picture, 0, 0, 0, 0, 0, 0, 
+                    screen_width, screen_height);
+}
+
 static void
 repair_screen (MetaScreen *screen)
 {
@@ -2016,7 +2029,7 @@ meta_compositor_get_window_pixmap (MetaCompositor *compositor,
                                    MetaWindow     *window)
 {
 #ifdef HAVE_COMPOSITE_EXTENSIONS
-  MetaCompWindow *cw;
+  MetaCompWindow *cw = NULL;
 
   if (window->frame)
     {

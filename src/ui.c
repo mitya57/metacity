@@ -963,26 +963,25 @@ meta_ui_get_direction (void)
 }
 
 GdkPixbuf *
-meta_ui_get_pixbuf_from_pixmap (Display *xdisplay,
-                                int      screen_no,
-                                Pixmap   pmap)
+meta_ui_get_pixbuf_from_pixmap (Pixmap   pmap)
 {
-  GdkDisplay *display = gdk_x11_lookup_xdisplay (xdisplay);
-  GdkScreen *screen = gdk_display_get_screen (display, screen_no);
-  GdkPixbuf *pixbuf;
   GdkPixmap *gpmap;
+  GdkScreen *screen;
+  GdkPixbuf *pixbuf;
   GdkColormap *cmap;
   int width, height, depth;
 
   gpmap = gdk_pixmap_foreign_new (pmap);
-  gdk_drawable_get_size (GDK_DRAWABLE (gpmap), &width, &height);
+  screen = gdk_drawable_get_screen (gpmap);
 
+  gdk_drawable_get_size (GDK_DRAWABLE (gpmap), &width, &height);
+  
   depth = gdk_drawable_get_depth (GDK_DRAWABLE (gpmap));
   if (depth <= 24)
     cmap = gdk_screen_get_rgb_colormap (screen);
   else
     cmap = gdk_screen_get_rgba_colormap (screen);
-
+  
   pixbuf = gdk_pixbuf_get_from_drawable (NULL, gpmap, cmap, 0, 0, 0, 0,
                                          width, height);
 

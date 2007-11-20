@@ -202,9 +202,7 @@ int      meta_ui_get_drag_threshold       (MetaUI *ui);
 
 MetaUIDirection meta_ui_get_direction (void);
 
-GdkPixbuf *meta_ui_get_pixbuf_from_pixmap (Display *xdisplay,
-                                           int      screen_no,
-                                           Pixmap   pmap);
+GdkPixbuf *meta_ui_get_pixbuf_from_pixmap (Pixmap   pmap);
 
 #include "tabpopup.h"
 
