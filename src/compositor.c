@@ -673,9 +673,11 @@ win_extents (MetaCompWindow *cw)
   /*
     We apply a shadow to the window if:
     * the window is ARGB and not override redirected.
+    * the window is shaped and not override redirected.
   */
 
-  if (! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) 
+  if ((! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) ||
+      (! (cw->shaped && cw->attrs.override_redirect))) 
     {
       XRectangle sr;
       
