@@ -849,7 +849,7 @@ meta_screen_composite_all_windows (MetaScreen *screen)
         continue;
       }
 
-      meta_compositor_add_window (screen->display->compositor,
+      meta_compositor_add_window (screen->display->compositor, NULL,
 				  info->xwindow, &info->attrs);
     }
 

@@ -66,6 +66,7 @@ typedef struct _MetaCompScreen
 typedef struct _MetaCompWindow 
 {
   MetaScreen *screen;
+  MetaWindow *window; /* May be NULL if this window isn't managed by Metacity */
   Window id;
   XWindowAttributes attrs;
 
@@ -674,10 +675,12 @@ win_extents (MetaCompWindow *cw)
     We apply a shadow to the window if:
     * the window is ARGB and not override redirected.
     * the window is shaped and not override redirected.
+    * if it has a frame
   */
 
-  if ((! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) ||
-      (! (cw->shaped && cw->attrs.override_redirect))) 
+  if ((! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) &&
+      (! (cw->shaped && cw->attrs.override_redirect)) &&
+      (  (cw->window && cw->window->frame))) 
     {
       XRectangle sr;
       
@@ -1302,8 +1305,9 @@ is_shaped (MetaDisplay *display,
 
 /* Must be called with an error trap in place */
 static void
-add_win (MetaScreen  *screen,
-         Window       xwindow)
+add_win (MetaScreen *screen,
+         MetaWindow *window,
+         Window     xwindow)
 {
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
@@ -1317,6 +1321,7 @@ add_win (MetaScreen  *screen,
     }
 
   cw->screen = screen;
+  cw->window = window;
   cw->id = xwindow;
 
   if (!XGetWindowAttributes (display->xdisplay, xwindow, &cw->attrs)) 
@@ -1666,20 +1671,22 @@ process_map (MetaCompositor *compositor,
 
 static void
 process_reparent (MetaCompositor *compositor,
-                  XReparentEvent *event)
+                  XReparentEvent *event,
+                  MetaWindow     *window)
 {
   MetaScreen *screen;
 
   screen = meta_display_screen_for_root (compositor->display, event->parent);
   if (screen != NULL)
-    add_win (screen, event->window);
+    add_win (screen, window, event->window);
   else
     destroy_win (compositor->display, event->window, FALSE); 
 }
 
 static void
 process_create (MetaCompositor     *compositor,
-                XCreateWindowEvent *event)
+                XCreateWindowEvent *event,
+                MetaWindow         *window)
 {
   MetaScreen *screen;
   /* We are only interested in top level windows, others will
@@ -1690,7 +1697,7 @@ process_create (MetaCompositor     *compositor,
     return;
   
   if (!find_window_in_display (compositor->display, event->window))
-    add_win (screen, event->window);
+    add_win (screen, window, event->window);
 }
 
 static void
@@ -1765,6 +1772,7 @@ meta_compositor_new (MetaDisplay *display)
 
 void
 meta_compositor_add_window (MetaCompositor    *compositor,
+                            MetaWindow        *window,
                             Window             xwindow,
                             XWindowAttributes *attrs)
 {
@@ -1772,7 +1780,7 @@ meta_compositor_add_window (MetaCompositor    *compositor,
   MetaScreen *screen = meta_screen_for_x_screen (attrs->screen);
 
   meta_error_trap_push (compositor->display);
-  add_win (screen, xwindow);
+  add_win (screen, window, xwindow);
   meta_error_trap_pop (compositor->display, FALSE);
 #endif
 }
@@ -1993,11 +2001,11 @@ meta_compositor_process_event (MetaCompositor *compositor,
       break;
       
     case ReparentNotify:
-      process_reparent (compositor, (XReparentEvent *) event);
+      process_reparent (compositor, (XReparentEvent *) event, window);
       break;
       
     case CreateNotify:
-      process_create (compositor, (XCreateWindowEvent *) event);
+      process_create (compositor, (XCreateWindowEvent *) event, window);
       break;
       
     case DestroyNotify:

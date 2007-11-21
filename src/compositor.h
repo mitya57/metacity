@@ -33,6 +33,7 @@ void            meta_compositor_process_event (MetaCompositor    *compositor,
                                                XEvent            *xevent,
                                                MetaWindow        *window);
 void            meta_compositor_add_window    (MetaCompositor    *compositor,
+                                               MetaWindow        *window,
                                                Window             xwindow,
                                                XWindowAttributes *attrs);
 void            meta_compositor_remove_window (MetaCompositor    *compositor,
