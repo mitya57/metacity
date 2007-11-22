@@ -75,6 +75,7 @@ static void     meta_window_show          (MetaWindow     *window);
 static void     meta_window_hide          (MetaWindow     *window);
 
 static void     meta_window_save_rect         (MetaWindow    *window);
+static void     meta_window_save_user_rect    (MetaWindow    *window);
 
 static void meta_window_move_resize_internal (MetaWindow         *window,
                                               MetaMoveResizeFlags flags,
@@ -613,6 +614,33 @@ meta_window_new_with_attrs (MetaDisplay       *display,
    * based on startup notification
    */
   meta_screen_apply_startup_properties (window->screen, window);
+
+  /* Try to get a "launch timestamp" for the window.  If the window is
+   * a transient, we'd like to be able to get a last-usage timestamp
+   * from the parent window.  If the window has no parent, there isn't
+   * much we can do...except record the current time so that any children
+   * can use this time as a fallback.
+   */
+  if (!window->net_wm_user_time_set) {
+    MetaWindow *parent = NULL;
+    if (window->xtransient_for)
+      parent = meta_display_lookup_x_window (window->display,
+                                             window->xtransient_for);
+
+    // First, maybe the app was launched with startup notification using an
+    // obsolete version of the spec; use that timestamp if it exists.
+    if (window->initial_timestamp_set)
+      // NOTE: Do NOT toggle net_wm_user_time_set to true; this is just
+      // being recorded as a fallback for potential transients
+      window->net_wm_user_time = window->initial_timestamp;
+    else if (parent != NULL)
+      meta_window_set_user_time(window, parent->net_wm_user_time);
+    else
+      // NOTE: Do NOT toggle net_wm_user_time_set to true; this is just
+      // being recorded as a fallback for potential transients
+      window->net_wm_user_time =
+        meta_display_get_current_time_roundtrip (window->display);
+  }
   
   if (window->decorated)
     meta_window_ensure_frame (window);
@@ -2028,7 +2056,7 @@ meta_window_show (MetaWindow *window)
               place_on_top_on_map ? "does" : "does not");
 
   /* Now, in some rare cases we should *not* put a new window on top.
-   * These cases include certain types of windows showing for the firat
+   * These cases include certain types of windows showing for the first
    * time, and any window which would be covered because of another window
    * being set "above" ("always on top").
    *
@@ -2038,13 +2066,10 @@ meta_window_show (MetaWindow *window)
    * probably rather be a term in the "if" condition below.
    */
 
-  if ( focus_window != NULL &&
-       (
-        (window->showing_for_first_time &&
-         !place_on_top_on_map &&
-         !takes_focus_on_map) ||
-        window_would_be_covered (window))
-     ) {
+  if ( focus_window != NULL && window->showing_for_first_time &&
+      ( (!place_on_top_on_map && !takes_focus_on_map) ||
+      window_would_be_covered (window) )
+    ) {
       if (meta_window_is_ancestor_of_transient (focus_window, window))
         {
           /* This happens for error dialogs or alerts; these need to remain on
@@ -2404,6 +2429,30 @@ meta_window_save_rect (MetaWindow *window)
           if (window->frame)
             window->saved_rect.y   += window->frame->rect.y;
         }
+    }
+}
+
+static void
+meta_window_save_user_rect (MetaWindow *window)
+{
+  /* We do not save maximized or fullscreen dimensions, otherwise the
+   * window may snap back to those dimensions (Bug #461927). */
+  if (!(META_WINDOW_MAXIMIZED (window) || window->fullscreen))
+    {
+      MetaRectangle user_rect;
+
+      meta_window_get_client_root_coords (window, &user_rect);
+
+      if (!window->maximized_horizontally)
+	{
+	  window->user_rect.x     = user_rect.x;
+	  window->user_rect.width = user_rect.width;
+	}
+      if (!window->maximized_vertically)
+	{
+	  window->user_rect.y      = user_rect.y;
+	  window->user_rect.height = user_rect.height;
+	}
     }
 }
 
@@ -3482,7 +3531,7 @@ meta_window_move_resize_internal (MetaWindow          *window,
    * placement of the window.
    */
   if (is_user_action || !window->placed)
-    meta_window_get_client_root_coords (window, &window->user_rect);
+    meta_window_save_user_rect(window);
   
   if (need_move_frame || need_resize_frame ||
       need_move_client || need_resize_client)
@@ -4526,7 +4575,7 @@ meta_window_move_resize_request (MetaWindow *window,
    *
    * See also bug 426519.
    */
-  meta_window_get_client_root_coords (window, &window->user_rect);
+  meta_window_save_user_rect(window);
 }
 
 gboolean

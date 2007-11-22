@@ -1,4 +1,85 @@
-2207-10-30  iain Holmes <iain@gnome.org>
+2007-11-19  Lucas Rocha  <lucasr@gnome.org>
+
+	* src/main.c (main): try to get the session client ID from 
+	DESKTOP_AUTOSTART_ID environment variable in case the --sm-client-id 
+	is not used. Closes #498033.
+
+2007-11-17  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * configure.in: Post-release bump to 2.21.3.
+
+2007-11-17  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * NEWS: 2.21.2 release.
+
+2007-11-17  Benjamin Gramlich  <benjamin.gramlich@gmail.com>
+
+        * src/theme-parser.c (meta_theme_load): make our theme
+        search compliant to the XDG Base Directory Specification.
+        Closes #480026.
+
+2007-11-15  Thomas Thurman  <thomas@thurman.org.uk>
+
+	* src/api.[ch]: remove almost-unused files.
+	* src/colors.[ch]: move the used parts of api.[ch] in here.
+	Closes #496947.
+	
+2007-11-13  Peter Bloomfield  <pbloomfield@bellsouth.net>
+
+        * src/window.c: (meta_window_save_user_rect): new helper, saves
+	only unmaximized dimensions, and not when fullscreen.
+        (meta_window_move_resize_internal,
+	meta_window_move_resize_request): use it.  (#461927)
+
+2007-11-11  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * configure.in: Post-release bump to 2.21.2.
+
+2007-11-11  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * NEWS: 2.21.1 release.
+
+2007-11-11  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * src/window.c (meta_window_show): adjust expression which decides
+        whether new windows should not go on top, so that restacking happens
+        only the first time a window is mapped. Thanks to Olav Vitters for
+        pointing out the problem. Re-fixes #486445.
+
+2007-11-11  Alex R.M. Turner  <armtuk@gmail.com>
+
+        * src/tabpopup.c (tab_entry_new, meta_ui_tab_popup_new): Instruct the
+        GtkLabel in the tabpopup to ellipsize text that is too big.  Set the 
+        maximum window width of the tabpopup to screen_width/4, which seems a 
+        sensible size for the popup.
+
+2007-11-09  Elijah Newren  <newren gmail com>
+
+	* src/window.c (meta_window_new_with_attrs): If a window is
+	launched without any kind of launch timestamp, grab the current
+	time and stash it away.  When transients of that window are also
+	launched without a timestamp, we can use the stashed timestamp
+	from the parent.  Fixes #488468.
+
+2007-11-07  Federico Mena Quintero  <federico@novell.com>
+
+	* src/window-props.c (reload_net_wm_user_time_window): Fix typo;
+	the arguments to meta_window_reload_property_from_xwindow() were
+	reversed.  This is why the wm_user_time wasn't getting initialized
+	properly from the _NET_WM_USER_TIME_WINDOW.  Fixes part of 
+	http://bugzilla.gnome.org/show_bug.cgi?id=488468
+
+2007-11-06  Peter Bloomfield  <pbloomfield@bellsouth.net>
+
+	* src/window.c (meta_window_move_resize_internal): save
+	unmaximized part of client root coords. (#461927)
+
+2007-11-06  Peter Bloomfield  <pbloomfield@bellsouth.net>
+
+	* src/window.c (meta_window_move_resize_internal): do not save
+	client root coords while window is maximized. (#461927)
+
+2007-10-30  iain Holmes <iain@gnome.org>
 
 	* src/main.c (meta_parse_options): Add --sync option
 	(main): Check if the --sync option was passed on command line.
