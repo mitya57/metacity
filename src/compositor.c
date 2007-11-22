@@ -33,7 +33,8 @@
 #include "frame.h"
 #include "errors.h"
 #include "compositor.h"
-
+#include "xprops.h"
+#include <X11/Xatom.h>
 #include <X11/extensions/shape.h>
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xdamage.h>
@@ -50,6 +51,10 @@ struct _MetaCompositor
 {
   MetaDisplay *display;
 
+  Atom atom_x_root_pixmap;
+  Atom atom_x_set_root;
+  Atom atom_net_wm_window_opacity;
+  
 #ifdef USE_IDLE_REPAINT
   guint repaint_id;
 #endif
@@ -122,8 +127,7 @@ typedef struct _MetaCompWindow
 #define OPAQUE 0xffffffff
 
 #define WINDOW_SOLID 0
-#define WINDOW_TRANS 1
-#define WINDOW_ARGB 2
+#define WINDOW_ARGB 1
 
 #define SHADOW_RADIUS 6.0
 #define SHADOW_OFFSET_X (SHADOW_RADIUS * -3 / 2)
@@ -561,8 +565,8 @@ root_tile (MetaScreen *screen)
   Atom pixmap_atom;
 
   pixmap = None;
-  background_atoms[0] = display->atom_x_root_pixmap;
-  background_atoms[1] = display->atom_x_set_root;
+  background_atoms[0] = display->compositor->atom_x_root_pixmap;
+  background_atoms[1] = display->compositor->atom_x_set_root;
 
   pixmap_atom = XInternAtom (display->xdisplay, "PIXMAP", False);
   for (p = 0; p < 2; p++) 
@@ -717,7 +721,7 @@ win_extents (MetaCompWindow *cw)
       if (!cw->shadow) 
         {
           double opacity = SHADOW_OPACITY;
-          if (cw->mode == WINDOW_TRANS)
+          if (cw->opacity != (int) OPAQUE)
             opacity = opacity * ((double) cw->opacity) / ((double) OPAQUE);
           
           cw->shadow = shadow_picture (display, screen, opacity, cw->alpha_pict,
@@ -971,7 +975,7 @@ paint_windows (MetaScreen   *screen,
               if (shadow_clip)
                 XFixesDestroyRegion (xdisplay, shadow_clip);
             }
-          
+
           if ((cw->opacity != (int) OPAQUE) && !(cw->alpha_pict)) 
             {
               cw->alpha_pict = solid_picture (display, screen, FALSE,
@@ -983,8 +987,7 @@ paint_windows (MetaScreen   *screen,
                                  cw->border_size);
           XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0,
                                       cw->border_clip);
-          
-          if (cw->mode == WINDOW_TRANS || cw->mode == WINDOW_ARGB) 
+          if (cw->mode == WINDOW_ARGB) 
             {
               int x, y, wid, hei;
 #ifdef HAVE_NAME_WINDOW_PIXMAP
@@ -1275,7 +1278,6 @@ determine_mode (MetaDisplay    *display,
                 MetaCompWindow *cw)
 {
   XRenderPictFormat *format;
-  int mode;
 
   if (cw->alpha_pict) 
     {
@@ -1294,20 +1296,18 @@ determine_mode (MetaDisplay    *display,
   else
     format = XRenderFindVisualFormat (display->xdisplay, cw->attrs.visual);
   
-  if (format && format->type == PictTypeDirect && format->direct.alphaMask)
-    mode = WINDOW_ARGB;
-  else if (cw->opacity != (int) OPAQUE)
-    mode = WINDOW_TRANS;
+  if ((format && format->type == PictTypeDirect && format->direct.alphaMask)
+      || cw->opacity != (int) OPAQUE)
+    cw->mode = WINDOW_ARGB;
   else
-    mode = WINDOW_SOLID;
-  cw->mode = mode;
+    cw->mode = WINDOW_SOLID;
 
   if (cw->extents) 
     {
       XserverRegion damage;
       damage = XFixesCreateRegion (display->xdisplay, NULL, 0);
       XFixesCopyRegion (display->xdisplay, damage, cw->extents);
-      
+
       add_damage (display, screen, damage);
     }
 }
@@ -1340,6 +1340,7 @@ add_win (MetaScreen *screen,
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
   MetaCompWindow *cw = g_new0 (MetaCompWindow, 1);
+  gulong event_mask;
 
   if (info == NULL) 
     {
@@ -1358,6 +1359,13 @@ add_win (MetaScreen *screen,
       g_free (cw);
       return;
     }
+
+  /* If Metacity has decided not to manage this window then the input events
+     won't have been set on the window */
+  event_mask = cw->attrs.your_event_mask | PropertyChangeMask;
+  
+  XSelectInput (display->xdisplay, xwindow, event_mask);
+
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
   cw->pixmap = None;
@@ -1598,8 +1606,9 @@ process_property_notify (MetaCompositor *compositor,
   int p;
   Atom background_atoms[2];
 
-  background_atoms[0] = display->atom_x_root_pixmap;
-  background_atoms[1] = display->atom_x_set_root;
+  /* Check for the background property changing */
+  background_atoms[0] = compositor->atom_x_root_pixmap;
+  background_atoms[1] = compositor->atom_x_set_root;
 
   for (p = 0; p < 2; p++) 
     {
@@ -1615,7 +1624,7 @@ process_property_notify (MetaCompositor *compositor,
                               0, 0, 0, 0, TRUE);
                   XRenderFreePicture (display->xdisplay, info->root_tile);
                   info->root_tile = None;
-#ifdef USE_IDLE_REPAIR
+#ifdef USE_IDLE_REPAINT
                   add_repair (display);
 #endif
 
@@ -1625,7 +1634,39 @@ process_property_notify (MetaCompositor *compositor,
         }
     }
 
-  /* Handle transparency here... */
+  /* Check for the opacity changing */
+  if (event->atom == compositor->atom_net_wm_window_opacity) 
+    {
+      MetaCompWindow *cw = find_window_in_display (display, event->window);
+      gulong value;
+
+      if (!cw) {
+        g_print ("No window\n");
+        return;
+      }
+
+      if (meta_prop_get_cardinal (display, event->window,
+                                  compositor->atom_net_wm_window_opacity,
+                                  &value) == FALSE)
+        value = OPAQUE;
+
+      cw->opacity = value;
+      determine_mode (display, cw->screen, cw);
+      if (cw->shadow)
+        {
+          XRenderFreePicture (display->xdisplay, cw->shadow);
+          cw->shadow = None;
+        }
+
+      if (cw->extents)
+        XFixesDestroyRegion (display->xdisplay, cw->extents);
+      cw->extents = win_extents (cw);
+
+      cw->damaged = TRUE;
+#ifdef USE_IDLE_REPAINT
+      add_repair (display);
+#endif
+    }
 }
 
 static void
@@ -1780,10 +1821,23 @@ MetaCompositor *
 meta_compositor_new (MetaDisplay *display)
 {
 #ifdef HAVE_COMPOSITE_EXTENSIONS
+  char *atom_names[] = {
+    "_XROOTPMAP_ID",
+    "_XSETROOT_ID",
+    "_NET_WM_WINDOW_OPACITY",
+  };
+  Atom atoms[G_N_ELEMENTS(atom_names)];
   MetaCompositor *compositor;
 
   compositor = g_new (MetaCompositor, 1);
   compositor->display = display;
+
+  g_print ("Creating %d atoms\n", G_N_ELEMENTS (atom_names));
+  XInternAtoms (display->xdisplay, atom_names, G_N_ELEMENTS (atom_names),
+                False, atoms);
+  compositor->atom_x_root_pixmap = atoms[0];
+  compositor->atom_x_set_root = atoms[1];
+  compositor->atom_net_wm_window_opacity = atoms[2];
 
 #ifdef USE_IDLE_REPAINT
   g_print ("Using idle repaint\n");

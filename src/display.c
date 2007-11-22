@@ -343,10 +343,7 @@ meta_display_open (void)
     "_NET_WM_VISIBLE_ICON_NAME",
     "_NET_WM_USER_TIME_WINDOW",
     "_NET_WM_ACTION_ABOVE",
-    "_NET_WM_ACTION_BELOW"
-    "_XROOTPMAP_ID",
-    "_XSETROOT_ID",
-    "ESETROOT_PMAP_ID"
+    "_NET_WM_ACTION_BELOW",
   };
   Atom atoms[G_N_ELEMENTS(atom_names)];
   
@@ -408,7 +405,8 @@ meta_display_open (void)
   update_window_grab_modifiers (display);
 
   meta_prefs_add_listener (prefs_changed_callback, display);
-  
+
+  g_print ("Creating %d atoms\n", G_N_ELEMENTS (atom_names));
   XInternAtoms (display->xdisplay, atom_names, G_N_ELEMENTS (atom_names),
                 False, atoms);
   display->atom_net_wm_name = atoms[0];
@@ -508,9 +506,6 @@ meta_display_open (void)
   display->atom_net_wm_user_time_window = atoms[94];
   display->atom_net_wm_action_above = atoms[95];
   display->atom_net_wm_action_below = atoms[96];
-  display->atom_x_root_pixmap = atoms[97];
-  display->atom_x_set_root = atoms[98];
-  display->atom_e_set_root = atoms[99];
 
   display->prop_hooks = NULL;
   meta_display_init_window_prop_hooks (display);
