@@ -812,9 +812,21 @@ meta_screen_manage_all_windows (MetaScreen *screen)
   for (list = windows; list != NULL; list = list->next)
     {
       WindowInfo *info = list->data;
+      MetaWindow *window;
 
-      meta_window_new_with_attrs (screen->display, info->xwindow, TRUE,
-				  &info->attrs);
+      window = meta_window_new_with_attrs (screen->display, info->xwindow, TRUE,
+                                           &info->attrs);
+      if (info->xwindow == screen->no_focus_window ||
+          info->xwindow == screen->flash_window ||
+          info->xwindow == screen->wm_sn_selection_window ||
+          info->xwindow == screen->wm_cm_selection_window) {
+        g_print ("Not managing our own windows\n");
+        continue;
+      }
+
+      if (screen->display->compositor)
+        meta_compositor_add_window (screen->display->compositor, window,
+                                    info->xwindow, &info->attrs);
     }
   meta_stack_thaw (screen->stack);
 
@@ -828,9 +840,11 @@ void
 meta_screen_composite_all_windows (MetaScreen *screen)
 {
 #ifdef HAVE_COMPOSITE_EXTENSIONS
+  MetaDisplay *display;
   GList *windows, *list;
 
-  if (!screen->display->compositor)
+  display = screen->display;
+  if (!display->compositor)
     return;
 
   windows = list_windows (screen);
@@ -849,7 +863,9 @@ meta_screen_composite_all_windows (MetaScreen *screen)
         continue;
       }
 
-      meta_compositor_add_window (screen->display->compositor, NULL,
+      meta_compositor_add_window (display->compositor,
+                                  meta_display_lookup_x_window (display,
+                                                                info->xwindow),
 				  info->xwindow, &info->attrs);
     }
 

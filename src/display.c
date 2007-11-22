@@ -191,7 +191,8 @@ sn_error_trap_pop (SnDisplay *sn_display,
 #endif
 
 static void
-enable_compositor (MetaDisplay *display)
+enable_compositor (MetaDisplay *display,
+                   gboolean     composite_windows)
 {
   GSList *list;
 
@@ -208,7 +209,8 @@ enable_compositor (MetaDisplay *display)
       meta_compositor_manage_screen (screen->display->compositor,
 				     screen);
 
-      meta_screen_composite_all_windows (screen);
+      if (composite_windows)
+        meta_screen_composite_all_windows (screen);
     }
 }
 
@@ -816,7 +818,13 @@ meta_display_open (void)
       meta_display_close (display, timestamp);
       return FALSE;
     }
- 
+
+  /* We don't composite the windows here because they will be composited 
+     faster with the call to meta_screen_manage_all_windows further down 
+     the code */
+  if (meta_prefs_get_compositing_manager ())
+    enable_compositor (display, FALSE);
+   
   meta_display_grab (display);
   
   /* Now manage all existing windows */
@@ -870,9 +878,6 @@ meta_display_open (void)
   
   meta_display_ungrab (display);  
 
-  if (meta_prefs_get_compositing_manager ())
-    enable_compositor (display);
-  
   /* Done opening new display */
   display->display_opening = FALSE;
 
@@ -4904,7 +4909,7 @@ prefs_changed_callback (MetaPreference pref,
       gboolean cm = meta_prefs_get_compositing_manager ();
 
       if (cm)
-	enable_compositor (display);
+        enable_compositor (display, TRUE);
       else
 	disable_compositor (display);
     }

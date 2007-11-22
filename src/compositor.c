@@ -654,6 +654,22 @@ paint_root (MetaScreen *screen,
                     screen->rect.width, screen->rect.height);
 }
 
+static gboolean
+window_has_shadow (MetaCompWindow *cw)
+{
+  /* Always put a shadow around windows with a frame */
+  if (cw->window) 
+    {
+      if (cw->window->frame)
+        return TRUE;
+    }
+
+  if (cw->mode != WINDOW_ARGB)
+    return TRUE;
+  
+  return FALSE;
+}
+
 static XserverRegion
 win_extents (MetaCompWindow *cw)
 {
@@ -671,16 +687,7 @@ win_extents (MetaCompWindow *cw)
   r.width = cw->attrs.width + cw->attrs.border_width * 2;
   r.height = cw->attrs.height + cw->attrs.border_width * 2;
 
-  /*
-    We apply a shadow to the window if:
-    * the window is ARGB and not override redirected.
-    * the window is shaped and not override redirected.
-    * if it has a frame
-  */
-
-  if ((! (cw->mode == WINDOW_ARGB && cw->attrs.override_redirect)) &&
-      (! (cw->shaped && cw->attrs.override_redirect)) &&
-      (  (cw->window && cw->window->frame))) 
+  if (window_has_shadow (cw))
     {
       XRectangle sr;
       
