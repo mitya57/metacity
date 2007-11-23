@@ -1249,11 +1249,12 @@ meta_screen_update_cursor (MetaScreen *screen)
 #define MAX_PREVIEW_SIZE 150.0
 
 static GdkPixbuf *
-get_window_pixbuf (MetaWindow *window)
+get_window_pixbuf (MetaWindow *window,
+                   int        *width,
+                   int        *height)
 {
   Pixmap pmap;
   GdkPixbuf *pixbuf, *scaled;
-  int width, height;
   double ratio;
 
   pmap = meta_compositor_get_window_pixmap (window->display->compositor,
@@ -1265,24 +1266,24 @@ get_window_pixbuf (MetaWindow *window)
   if (pixbuf == NULL) 
     return NULL;
 
-  width = gdk_pixbuf_get_width (pixbuf);
-  height = gdk_pixbuf_get_height (pixbuf);
+  *width = gdk_pixbuf_get_width (pixbuf);
+  *height = gdk_pixbuf_get_height (pixbuf);
 
   /* Scale pixbuf to max dimension MAX_PREVIEW_SIZE */
-  if (width > height)
+  if (*width > *height)
     {
-      ratio = ((double) width) / MAX_PREVIEW_SIZE;
-      width = (int) MAX_PREVIEW_SIZE;
-      height = (int) (((double) height) / ratio);
+      ratio = ((double) *width) / MAX_PREVIEW_SIZE;
+      *width = (int) MAX_PREVIEW_SIZE;
+      *height = (int) (((double) *height) / ratio);
     }
   else
     {
-      ratio = ((double) height) / MAX_PREVIEW_SIZE;
-      height = (int) MAX_PREVIEW_SIZE;
-      width = (int) (((double) width) / ratio);
+      ratio = ((double) *height) / MAX_PREVIEW_SIZE;
+      *height = (int) MAX_PREVIEW_SIZE;
+      *width = (int) (((double) *width) / ratio);
     }
 
-  scaled = gdk_pixbuf_scale_simple (pixbuf, width, height,
+  scaled = gdk_pixbuf_scale_simple (pixbuf, *width, *height,
                                     GDK_INTERP_BILINEAR);
   g_object_unref (pixbuf);
   return scaled;
@@ -1320,16 +1321,40 @@ meta_screen_ensure_tab_popup (MetaScreen      *screen,
     {
       MetaWindow *window;
       MetaRectangle r;
-      
+      GdkPixbuf *win_pixbuf;
+      int width, height;
+
       window = tmp->data;
       
       entries[i].key = (MetaTabEntryKey) window->xwindow;
       entries[i].title = window->title;
 
-      entries[i].icon = get_window_pixbuf (window);
-      if (entries[i].icon == NULL)
+      win_pixbuf = get_window_pixbuf (window, &width, &height);
+      if (win_pixbuf == NULL)
         entries[i].icon = window->icon;
+      else
+        {
+          int icon_width, icon_height, t_width, t_height;
+#define ICON_OFFSET 6
 
+          icon_width = gdk_pixbuf_get_width (window->icon);
+          icon_height = gdk_pixbuf_get_height (window->icon);
+
+          t_width = width + ICON_OFFSET;
+          t_height = height + ICON_OFFSET;
+
+          entries[i].icon = gdk_pixbuf_new (GDK_COLORSPACE_RGB, TRUE, 8,
+                                            t_width, t_height);
+          gdk_pixbuf_fill (entries[i].icon, 0x00000000);
+          gdk_pixbuf_copy_area (win_pixbuf, 0, 0, width, height,
+                                entries[i].icon, 0, 0);
+          gdk_pixbuf_composite (window->icon, entries[i].icon, 
+                                t_width - icon_width, t_height - icon_height,
+                                icon_width, icon_height,
+                                t_width - icon_width, t_height - icon_height, 
+                                1.0, 1.0, GDK_INTERP_BILINEAR, 255);
+        }
+                                
       entries[i].blank = FALSE;
       entries[i].hidden = !meta_window_showing_on_its_workspace (window);
       entries[i].demands_attention = window->wm_state_demands_attention;
