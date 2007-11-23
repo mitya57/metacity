@@ -97,7 +97,8 @@ typedef struct _MetaCompWindow
   XWindowAttributes attrs;
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-  Pixmap pixmap;
+  Pixmap back_pixmap;
+  Pixmap shaded_back_pixmap;
 #endif
 
   int mode;
@@ -805,11 +806,11 @@ get_window_picture (MetaCompWindow *cw)
   meta_error_trap_push (display);
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-  if (cw->pixmap == None)
-    cw->pixmap = XCompositeNameWindowPixmap (display->xdisplay, cw->id);
+  if (cw->back_pixmap == None)
+    cw->back_pixmap = XCompositeNameWindowPixmap (display->xdisplay, cw->id);
 
-  if (cw->pixmap != None)
-    draw = cw->pixmap;
+  if (cw->back_pixmap != None)
+    draw = cw->back_pixmap;
 #endif
 
   format = get_window_format (cw);
@@ -1158,10 +1159,16 @@ free_win (MetaCompWindow *cw,
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
   /* See comment in map_win */
-  if (cw->pixmap && destroy) 
+  if (cw->back_pixmap && destroy) 
     {
-      XFreePixmap (display->xdisplay, cw->pixmap);
-      cw->pixmap = None;
+      XFreePixmap (display->xdisplay, cw->back_pixmap);
+      cw->back_pixmap = None;
+    }
+
+  if (cw->shaded_back_pixmap && destroy)
+    {
+      XFreePixmap (display->xdisplay, cw->shaded_back_pixmap);
+      cw->shaded_back_pixmap = None;
     }
 #endif
 
@@ -1235,10 +1242,16 @@ map_win (MetaDisplay *display,
   /* The reason we deallocate this here and not in unmap
      is so that we will still have a valid pixmap for 
      whenever the window is unmapped */
-  if (cw->pixmap) 
+  if (cw->back_pixmap) 
     {
-      XFreePixmap (display->xdisplay, cw->pixmap);
-      cw->pixmap = None;
+      XFreePixmap (display->xdisplay, cw->back_pixmap);
+      cw->back_pixmap = None;
+    }
+
+  if (cw->shaded_back_pixmap) 
+    {
+      XFreePixmap (display->xdisplay, cw->shaded_back_pixmap);
+      cw->shaded_back_pixmap = None;
     }
 #endif
 
@@ -1368,7 +1381,8 @@ add_win (MetaScreen *screen,
 
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-  cw->pixmap = None;
+  cw->back_pixmap = None;
+  cw->shaded_back_pixmap = None;
 #endif
 
   cw->damaged = FALSE;
@@ -1511,10 +1525,26 @@ resize_win (MetaCompWindow *cw,
   if (cw->attrs.width != width || cw->attrs.height != height) 
     {
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-      if (cw->pixmap) 
+      if (cw->shaded_back_pixmap) 
         {
-          XFreePixmap (display->xdisplay, cw->pixmap);
-          cw->pixmap = None;
+          XFreePixmap (display->xdisplay, cw->shaded_back_pixmap);
+          cw->shaded_back_pixmap = None;
+        }
+
+      if (cw->back_pixmap) 
+        {
+          /* If the window is shaded, we store the old backing pixmap
+             so we can return a proper image of the window */
+          if (cw->window && cw->window->shaded)
+            {
+              cw->shaded_back_pixmap = cw->back_pixmap;
+              cw->back_pixmap = None;
+            }
+          else
+            {
+              XFreePixmap (display->xdisplay, cw->back_pixmap);
+              cw->back_pixmap = None;
+            }
         }
 #endif
       if (cw->picture) 
@@ -2134,7 +2164,10 @@ meta_compositor_get_window_pixmap (MetaCompositor *compositor,
     return None;
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
-  return cw->pixmap;
+  if (window->shaded)
+    return cw->shaded_back_pixmap;
+  else
+    return cw->back_pixmap;
 #else
   return None;
 #endif
