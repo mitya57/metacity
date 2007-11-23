@@ -98,6 +98,11 @@ typedef struct _MetaCompWindow
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
   Pixmap back_pixmap;
+
+  /* When the window is shaded back_pixmap will be replaced with the pixmap
+     for the shaded window. This is a copy of the original unshaded window
+     so that we can still see what the window looked like when it is needed 
+     for the _get_window_pixmap function */
   Pixmap shaded_back_pixmap;
 #endif
 
