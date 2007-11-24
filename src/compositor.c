@@ -671,7 +671,7 @@ paint_root (MetaScreen *screen,
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
 
-  g_return_if_fail (info->root_buffer != None);
+  g_return_if_fail (root_buffer != None);
 
   if (info->root_tile == None) 
     {
@@ -1108,10 +1108,10 @@ add_repair (MetaDisplay *display)
 #endif
 
 static void
-add_damage (MetaDisplay    *display,
-            MetaScreen     *screen,
+add_damage (MetaScreen     *screen,
             XserverRegion   damage)
 {
+  MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
 
   if (info->all_damage) 
@@ -1126,6 +1126,22 @@ add_damage (MetaDisplay    *display,
 #ifdef USE_IDLE_REPAINT
   add_repair (display);
 #endif
+}
+
+static void
+damage_screen (MetaScreen *screen)
+{
+  MetaDisplay *display = screen->display;
+  XserverRegion region;
+  XRectangle r;
+
+  r.x = 0;
+  r.y = 0;
+  r.width = screen->rect.width;
+  r.height = screen->rect.height;
+
+  region = XFixesCreateRegion (display->xdisplay, &r, 1);
+  add_damage (screen, region);
 }
 
 static void
@@ -1152,7 +1168,7 @@ repair_win (MetaCompWindow *cw)
   
   meta_error_trap_pop (display, FALSE);
 
-  add_damage (display, screen, parts);
+  add_damage (screen, parts);
   cw->damaged = TRUE;
 }
 
@@ -1282,7 +1298,7 @@ unmap_win (MetaDisplay *display,
 
   if (cw->extents != None) 
     {
-      add_damage (display, screen, cw->extents);
+      add_damage (screen, cw->extents);
       cw->extents = None;
     }
 
@@ -1326,7 +1342,7 @@ determine_mode (MetaDisplay    *display,
       damage = XFixesCreateRegion (display->xdisplay, NULL, 0);
       XFixesCopyRegion (display->xdisplay, damage, cw->extents);
 
-      add_damage (display, screen, damage);
+      add_damage (screen, damage);
     }
 }
 
@@ -1441,7 +1457,7 @@ destroy_win (MetaDisplay *display,
   
   if (cw->extents != None) 
     {
-      add_damage (display, screen, cw->extents);
+      add_damage (screen, cw->extents);
       cw->extents = None;
     }
   
@@ -1577,7 +1593,7 @@ resize_win (MetaCompWindow *cw,
       XFixesUnionRegion (display->xdisplay, damage, damage, extents);
       XFixesDestroyRegion (display->xdisplay, extents);
       
-      add_damage (display, screen, damage);
+      add_damage (screen, damage);
     }
 
   info->clip_changed = TRUE;
@@ -1621,14 +1637,33 @@ static void
 process_configure_notify (MetaCompositor  *compositor,
                           XConfigureEvent *event)
 {
-  MetaCompWindow *cw = find_window_in_display (compositor->display,
-                                               event->window);
+  MetaDisplay *display = compositor->display;
+  MetaCompWindow *cw = find_window_in_display (display, event->window);
 
   if (cw) 
     {
       restack_win (cw, event->above);
       resize_win (cw, event->x, event->y, event->width, event->height,
                   event->border_width, event->override_redirect);
+    }
+  else
+    { 
+      MetaScreen *screen;
+      MetaCompScreen *info;
+
+      /* Might be the root window? */
+      screen = meta_display_screen_for_root (display, event->window);
+      if (screen == NULL)
+        return;
+
+      info = screen->compositor_data;
+      if (info->root_buffer)
+        {
+          XRenderFreePicture (display->xdisplay, info->root_buffer);
+          info->root_buffer = None;
+        }
+
+      damage_screen (screen);
     }
 }
 
@@ -1715,7 +1750,7 @@ expose_area (MetaScreen *screen,
   display = screen->display;
   region = XFixesCreateRegion (display->xdisplay, rects, nrects);
 
-  add_damage (display, screen, region);
+  add_damage (screen, region);
 }
 
 static void
