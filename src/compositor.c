@@ -125,7 +125,7 @@ typedef struct _MetaCompWindow
   int shadow_width;
   int shadow_height;
 
-  int opacity;
+  guint opacity;
 
   XserverRegion border_clip;
 } MetaCompWindow;
@@ -727,7 +727,7 @@ win_extents (MetaCompWindow *cw)
       if (!cw->shadow) 
         {
           double opacity = SHADOW_OPACITY;
-          if (cw->opacity != (int) OPAQUE)
+          if (cw->opacity != (guint) OPAQUE)
             opacity = opacity * ((double) cw->opacity) / ((double) OPAQUE);
           
           cw->shadow = shadow_picture (display, screen, opacity, cw->alpha_pict,
@@ -982,7 +982,7 @@ paint_windows (MetaScreen   *screen,
                 XFixesDestroyRegion (xdisplay, shadow_clip);
             }
 
-          if ((cw->opacity != (int) OPAQUE) && !(cw->alpha_pict)) 
+          if ((cw->opacity != (guint) OPAQUE) && !(cw->alpha_pict)) 
             {
               cw->alpha_pict = solid_picture (display, screen, FALSE,
                                               (double) cw->opacity / OPAQUE,
@@ -1331,7 +1331,7 @@ determine_mode (MetaDisplay    *display,
     format = XRenderFindVisualFormat (display->xdisplay, cw->attrs.visual);
   
   if ((format && format->type == PictTypeDirect && format->direct.alphaMask)
-      || cw->opacity != (int) OPAQUE)
+      || cw->opacity != (guint) OPAQUE)
     cw->mode = WINDOW_ARGB;
   else
     cw->mode = WINDOW_SOLID;
@@ -1720,7 +1720,7 @@ process_property_notify (MetaCompositor *compositor,
                                   &value) == FALSE)
         value = OPAQUE;
 
-      cw->opacity = value;
+      cw->opacity = (guint)value;
       determine_mode (display, cw->screen, cw);
       if (cw->shadow)
         {
