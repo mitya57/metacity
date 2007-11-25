@@ -54,7 +54,8 @@ struct _MetaCompositor
   Atom atom_x_root_pixmap;
   Atom atom_x_set_root;
   Atom atom_net_wm_window_opacity;
-  
+  Atom atom_net_wm_window_type_dnd;
+
 #ifdef USE_IDLE_REPAINT
   guint repaint_id;
 #endif
@@ -110,6 +111,7 @@ typedef struct _MetaCompWindow
 
   gboolean damaged;
   gboolean shaped;
+  gboolean dnd;
 
   Damage damage;
   Picture picture;
@@ -138,6 +140,7 @@ typedef struct _MetaCompWindow
 #define SHADOW_RADIUS 6.0
 #define SHADOW_OFFSET_X (SHADOW_RADIUS * -3 / 2)
 #define SHADOW_OFFSET_Y (SHADOW_RADIUS * -5 / 4)
+
 #define SHADOW_OPACITY 0.66
  
 #define TRANS_OPACITY 0.75
@@ -695,6 +698,10 @@ window_has_shadow (MetaCompWindow *cw)
         return TRUE;
     }
 
+  /* Don't put shadow around DND icon windows */
+  if (cw->dnd)
+    return FALSE;
+
   if (cw->mode != WINDOW_ARGB)
     return TRUE;
   
@@ -721,9 +728,10 @@ win_extents (MetaCompWindow *cw)
   if (window_has_shadow (cw))
     {
       XRectangle sr;
-      
+
       cw->shadow_dx = SHADOW_OFFSET_X;
       cw->shadow_dy = SHADOW_OFFSET_Y;
+
       if (!cw->shadow) 
         {
           double opacity = SHADOW_OPACITY;
@@ -1365,6 +1373,31 @@ is_shaped (MetaDisplay *display,
   return FALSE;
 }
 
+static void
+get_window_type (MetaDisplay    *display,
+                 MetaCompWindow *cw)
+{
+  MetaCompositor *compositor = display->compositor;
+  int n_atoms;
+  Atom *atoms;
+  int i;
+
+  n_atoms = 0;
+  atoms = NULL;
+  
+  meta_prop_get_atom_list (display, cw->id, 
+                           display->atom_net_wm_window_type,
+                           &atoms, &n_atoms);
+
+  for (i = 0; i < n_atoms; i++) 
+    {
+      if (atoms[i] == compositor->atom_net_wm_window_type_dnd)
+        cw->dnd = TRUE;
+      else
+        cw->dnd = FALSE;
+    }
+}
+  
 /* Must be called with an error trap in place */
 static void
 add_win (MetaScreen *screen,
@@ -1393,6 +1426,7 @@ add_win (MetaScreen *screen,
       g_free (cw);
       return;
     }
+  get_window_type (display, cw);
 
   /* If Metacity has decided not to manage this window then the input events
      won't have been set on the window */
@@ -1895,6 +1929,7 @@ meta_compositor_new (MetaDisplay *display)
     "_XROOTPMAP_ID",
     "_XSETROOT_ID",
     "_NET_WM_WINDOW_OPACITY",
+    "_NET_WM_WINDOW_TYPE_DND",
   };
   Atom atoms[G_N_ELEMENTS(atom_names)];
   MetaCompositor *compositor;
@@ -1908,6 +1943,7 @@ meta_compositor_new (MetaDisplay *display)
   compositor->atom_x_root_pixmap = atoms[0];
   compositor->atom_x_set_root = atoms[1];
   compositor->atom_net_wm_window_opacity = atoms[2];
+  compositor->atom_net_wm_window_type_dnd = atoms[3];
 
 #ifdef USE_IDLE_REPAINT
   g_print ("Using idle repaint\n");
