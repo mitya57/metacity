@@ -47,6 +47,14 @@
 
 #define USE_IDLE_REPAINT 1
 
+typedef enum _MetaCompWindowType
+{
+  META_COMP_WINDOW_NORMAL,
+  META_COMP_WINDOW_DND,
+  META_COMP_WINDOW_DESKTOP,
+  META_COMP_WINDOW_DOCK
+} MetaCompWindowType;
+
 struct _MetaCompositor 
 {
   MetaDisplay *display;
@@ -111,7 +119,8 @@ typedef struct _MetaCompWindow
 
   gboolean damaged;
   gboolean shaped;
-  gboolean dnd;
+  
+  MetaCompWindowType type;
 
   Damage damage;
   Picture picture;
@@ -699,7 +708,7 @@ window_has_shadow (MetaCompWindow *cw)
     }
 
   /* Don't put shadow around DND icon windows */
-  if (cw->dnd)
+  if (cw->type == META_COMP_WINDOW_DND)
     return FALSE;
 
   if (cw->mode != WINDOW_ARGB)
@@ -1379,9 +1388,10 @@ get_window_type (MetaDisplay    *display,
 {
   MetaCompositor *compositor = display->compositor;
   int n_atoms;
-  Atom *atoms;
+  Atom *atoms, type_atom;
   int i;
 
+  type_atom = None;
   n_atoms = 0;
   atoms = NULL;
   
@@ -1391,11 +1401,31 @@ get_window_type (MetaDisplay    *display,
 
   for (i = 0; i < n_atoms; i++) 
     {
-      if (atoms[i] == compositor->atom_net_wm_window_type_dnd)
-        cw->dnd = TRUE;
-      else
-        cw->dnd = FALSE;
+      if (atoms[i] == compositor->atom_net_wm_window_type_dnd ||
+          atoms[i] == display->atom_net_wm_window_type_desktop ||
+          atoms[i] == display->atom_net_wm_window_type_dock ||
+          atoms[i] == display->atom_net_wm_window_type_toolbar ||
+          atoms[i] == display->atom_net_wm_window_type_menu ||
+          atoms[i] == display->atom_net_wm_window_type_dialog ||
+          atoms[i] == display->atom_net_wm_window_type_normal ||
+          atoms[i] == display->atom_net_wm_window_type_utility ||
+          atoms[i] == display->atom_net_wm_window_type_splash)
+        {
+          type_atom = atoms[i];
+          break;
+        }
     }
+
+  meta_XFree (atoms);
+
+  if (type_atom == compositor->atom_net_wm_window_type_dnd)
+    cw->type = META_COMP_WINDOW_DND;
+  else if (type_atom == display->atom_net_wm_window_type_desktop)
+    cw->type = META_COMP_WINDOW_DESKTOP;
+  else if (type_atom == display->atom_net_wm_window_type_dock)
+    cw->type = META_COMP_WINDOW_DOCK;
+  else
+    cw->type = META_COMP_WINDOW_NORMAL;
 }
   
 /* Must be called with an error trap in place */
