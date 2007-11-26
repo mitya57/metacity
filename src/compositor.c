@@ -55,6 +55,12 @@ typedef enum _MetaCompWindowType
   META_COMP_WINDOW_DOCK
 } MetaCompWindowType;
 
+typedef enum _WindowDrawMode
+{
+  WINDOW_SOLID,
+  WINDOW_ARGB
+} WindowDrawMode;
+
 struct _MetaCompositor 
 {
   MetaDisplay *display;
@@ -119,12 +125,13 @@ typedef struct _MetaCompWindow
   Pixmap shaded_back_pixmap;
 #endif
 
-  int mode;
+  WindowDrawMode mode;
 
   gboolean damaged;
   gboolean shaped;
   gboolean viewable;
-  
+  gboolean skipped;
+
   MetaCompWindowType type;
 
   Damage damage;
@@ -148,9 +155,6 @@ typedef struct _MetaCompWindow
 
 #define OPAQUE 0xffffffff
 
-#define WINDOW_SOLID 0
-#define WINDOW_ARGB 1
-
 #define SHADOW_RADIUS 6.0
 #define SHADOW_OFFSET_X (SHADOW_RADIUS * -3 / 2)
 #define SHADOW_OFFSET_Y (SHADOW_RADIUS * -5 / 4)
@@ -164,6 +168,7 @@ typedef struct _MetaCompWindow
 #define WIN_IS_VIEWABLE(win) (win->viewable)
 #define WIN_HAS_DAMAGE(win) (win->damage)
 #define WIN_IS_VISIBLE(win) (WIN_IS_VIEWABLE(win) && WIN_HAS_DAMAGE(win))
+#define WIN_IS_DAMAGED(win) (win->damaged)
 
 /* Gaussian stuff for creating the shadows */
 static double
@@ -974,9 +979,9 @@ paint_windows (MetaScreen   *screen,
   for (index = windows; index; index = index->next) 
     {
       cw = (MetaCompWindow *) index->data;
-      if (!cw->damaged) 
+      if (!WIN_IS_DAMAGED (cw) || !WIN_IS_VISIBLE (cw)) 
         {
-          /* Not damaged */
+          cw->skipped = TRUE;
           continue;
         }
       
@@ -984,7 +989,7 @@ paint_windows (MetaScreen   *screen,
           (cw->attrs.y + cw->attrs.height < 1) ||
           (cw->attrs.x >= screen_width) || (cw->attrs.y >= screen_height)) 
         {
-          /* Off screen */
+          cw->skipped = TRUE;
           continue;
         }
       
@@ -1014,7 +1019,7 @@ paint_windows (MetaScreen   *screen,
       if (cw->extents == None)
         cw->extents = win_extents (cw);
       
-      if (cw->mode == WINDOW_SOLID) 
+      if (WIN_IS_OPAQUE (cw)) 
         {
           int x, y, wid, hei;
           
@@ -1055,6 +1060,7 @@ paint_windows (MetaScreen   *screen,
           XFixesCopyRegion (xdisplay, cw->border_clip, paint_region);
         }
 
+      cw->skipped = FALSE;
       last = index;
     }
   
@@ -1077,59 +1083,59 @@ paint_windows (MetaScreen   *screen,
     { 
       cw = (MetaCompWindow *) index->data;
 
-      if (cw->picture) 
+      if (cw->skipped)
+        continue;
+
+      if (cw->shadow && cw->type != META_COMP_WINDOW_DOCK) 
         {
-          if (cw->shadow && cw->type != META_COMP_WINDOW_DOCK) 
-            {
-              XserverRegion shadow_clip;
-
-              shadow_clip = XFixesCreateRegion (xdisplay, NULL, 0);
-              XFixesSubtractRegion (xdisplay, shadow_clip, cw->border_clip,
-                                    cw->border_size);
-              XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, 
-                                          shadow_clip);
-              
-              XRenderComposite (xdisplay, PictOpOver, info->black_picture,
-                                cw->shadow, root_buffer,
-                                0, 0, 0, 0,
-                                cw->attrs.x + cw->shadow_dx,
-                                cw->attrs.y + cw->shadow_dy,
-                                cw->shadow_width, cw->shadow_height);
-              if (shadow_clip)
-                XFixesDestroyRegion (xdisplay, shadow_clip);
-            }
-
-          if ((cw->opacity != (guint) OPAQUE) && !(cw->alpha_pict)) 
-            {
-              cw->alpha_pict = solid_picture (display, screen, FALSE,
-                                              (double) cw->opacity / OPAQUE,
-                                              0, 0, 0);
-            }
+          XserverRegion shadow_clip;
           
-          XFixesIntersectRegion (xdisplay, cw->border_clip, cw->border_clip, 
-                                 cw->border_size);
-          XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0,
-                                      cw->border_clip);
-          if (cw->mode == WINDOW_ARGB) 
-            {
-              int x, y, wid, hei;
-#ifdef HAVE_NAME_WINDOW_PIXMAP
-              x = cw->attrs.x;
-              y = cw->attrs.y;
-              wid = cw->attrs.width + cw->attrs.border_width * 2;
-              hei = cw->attrs.height + cw->attrs.border_width * 2;
-#else
-              x = cw->attrs.x + cw->attrs.border_width;
-              y = cw->attrs.y + cw->attrs.border_height;
-              wid = cw->attrs.width;
-              hei = cw->attrs.height;
-#endif
-              
-              XRenderComposite (xdisplay, PictOpOver, cw->picture, 
-                                cw->alpha_pict, root_buffer, 0, 0, 0, 0,
-                                x, y, wid, hei);
-            } 
+          shadow_clip = XFixesCreateRegion (xdisplay, NULL, 0);
+          XFixesSubtractRegion (xdisplay, shadow_clip, cw->border_clip,
+                                cw->border_size);
+          XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, 
+                                      shadow_clip);
+          
+          XRenderComposite (xdisplay, PictOpOver, info->black_picture,
+                            cw->shadow, root_buffer,
+                            0, 0, 0, 0,
+                            cw->attrs.x + cw->shadow_dx,
+                            cw->attrs.y + cw->shadow_dy,
+                            cw->shadow_width, cw->shadow_height);
+          if (shadow_clip)
+            XFixesDestroyRegion (xdisplay, shadow_clip);
         }
+      
+      if ((cw->opacity != (guint) OPAQUE) && !(cw->alpha_pict)) 
+        {
+          cw->alpha_pict = solid_picture (display, screen, FALSE,
+                                          (double) cw->opacity / OPAQUE,
+                                          0, 0, 0);
+        }
+      
+      XFixesIntersectRegion (xdisplay, cw->border_clip, cw->border_clip, 
+                             cw->border_size);
+      XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0,
+                                  cw->border_clip);
+      if (cw->mode == WINDOW_ARGB) 
+        {
+          int x, y, wid, hei;
+#ifdef HAVE_NAME_WINDOW_PIXMAP
+          x = cw->attrs.x;
+          y = cw->attrs.y;
+          wid = cw->attrs.width + cw->attrs.border_width * 2;
+          hei = cw->attrs.height + cw->attrs.border_width * 2;
+#else
+          x = cw->attrs.x + cw->attrs.border_width;
+          y = cw->attrs.y + cw->attrs.border_height;
+          wid = cw->attrs.width;
+          hei = cw->attrs.height;
+#endif
+          
+          XRenderComposite (xdisplay, PictOpOver, cw->picture, 
+                            cw->alpha_pict, root_buffer, 0, 0, 0, 0,
+                            x, y, wid, hei);
+        } 
       
       if (cw->border_clip) 
         {
