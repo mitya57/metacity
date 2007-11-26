@@ -96,6 +96,8 @@ typedef struct _MetaCompScreen
   guint overlays;
   gboolean compositor_active;
   gboolean clip_changed;
+
+  GList *dock_windows;
 } MetaCompScreen;
 
 typedef struct _MetaCompWindow 
@@ -853,6 +855,72 @@ get_window_picture (MetaCompWindow *cw)
   return None;
 }
 
+/* Dock shadows are only drawn on the desktop...
+   Here's how that all works. When a window is added in add_win, if it is
+   a Dock window, it gets added to a list. In phase 2 of the compositing
+   function, this list is walked before the main list. The shadows are then
+   drawn on the same clip region as the root window was drawn. This means 
+   that in the compositing function, when we come to the dock windows in
+   phase 3, we do not need to redraw their shadows. The end goal of all this
+   is that all(*) windows are drawn over the dock shadows.
+
+   (*) There is one caveat: Desktop windows. These are pretending to be the
+   root window, so we draw over them as well. This is done by copying the
+   overall region before subtracting the desktop area and then using this
+   copy to base where we draw the dock shadows on */
+static void
+paint_dock_shadows (MetaScreen   *screen,
+                    Picture       root_buffer,
+                    XserverRegion region)
+{
+  MetaDisplay *display = screen->display;
+  Display *xdisplay = display->xdisplay;
+  MetaCompScreen *info = screen->compositor_data;
+  GList *d;
+
+  for (d = info->dock_windows; d; d = d->next)
+    {
+      MetaCompWindow *cw = d->data;
+      XserverRegion shadow_clip;
+      
+      if (cw->shadow)
+        {
+          shadow_clip = XFixesCreateRegion (xdisplay, NULL, 0);
+          XFixesIntersectRegion (xdisplay, shadow_clip, 
+                                 cw->border_clip, region);
+          
+          XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, 
+                                      shadow_clip);
+          
+          XRenderComposite (xdisplay, PictOpOver, info->black_picture,
+                            cw->shadow, root_buffer,
+                            0, 0, 0, 0,
+                            cw->attrs.x + cw->shadow_dx,
+                            cw->attrs.y + cw->shadow_dy,
+                        cw->shadow_width, cw->shadow_height);
+          XFixesDestroyRegion (xdisplay, shadow_clip);
+        }
+    }
+}
+
+/* How compositing works:
+   The desktop is drawn in 3 phases, with some subphases.
+   Phase 1: The window list is walked from depthwise (so top windows first)
+            drawing all the opaque windows.
+       1.1: Once a window is drawn its region is removed from the overall region
+            This new region is recorded for drawing the shadows on later.
+   Phase 2: Once the window list has been walked, the root window is drawn
+            Because all the opaque windows regions have been removed from the
+            overall region, the root window is only drawn on the bits in between
+            windows
+   Phase 3: The window list is walked from the bottom to the top
+       3.1: The window's shadow is drawn, clipped to the region saved in
+            phase 1.1
+       3.2: The translucent windows are then drawn as well.
+
+   This is the general idea. However there are a few tweaks and tricks in it.
+   See comments above and below about the dock shadow
+*/
 static void
 paint_windows (MetaScreen   *screen,
                GList        *windows,
@@ -866,7 +934,7 @@ paint_windows (MetaScreen   *screen,
   int screen_width, screen_height, screen_number;
   Window xroot;
   MetaCompWindow *cw;
-  XserverRegion paint_region;
+  XserverRegion paint_region, desktop_region;
 
   screen_width = screen->rect.width;
   screen_height = screen->rect.height;
@@ -887,6 +955,8 @@ paint_windows (MetaScreen   *screen,
       paint_region = XFixesCreateRegion (xdisplay, NULL, 0);
       XFixesCopyRegion (xdisplay, paint_region, region);
     }
+
+  desktop_region = None;
 
   /*
    * Painting from top to bottom, reducing the clipping area at 
@@ -956,6 +1026,16 @@ paint_windows (MetaScreen   *screen,
           XRenderComposite (xdisplay, PictOpSrc, cw->picture, 
                             None, root_buffer, 0, 0, 0, 0,
                             x, y, wid, hei);
+
+          /* Here we copy paint_region before we subtract the desktop 
+             border_size region so we can draw the dock shadows over the
+             same area that we drew the desktop window */
+          if (cw->type == META_COMP_WINDOW_DESKTOP)
+            {
+              desktop_region = XFixesCreateRegion (xdisplay, 0, 0);
+              XFixesCopyRegion (xdisplay, desktop_region, paint_region);
+            }
+
           XFixesSubtractRegion (xdisplay, paint_region, 
                                 paint_region, cw->border_size);
         }
@@ -970,16 +1050,25 @@ paint_windows (MetaScreen   *screen,
   XFixesSetPictureClipRegion (xdisplay, root_buffer, 0, 0, paint_region);
   paint_root (screen, root_buffer);
 
+  /* We draw the dock shadows on the same region that we drew the 
+     desktop. If there was no desktop window then desktop_region will still
+     be None, and so we use the paint_region as that was where we drew
+     the root window. We cannot use paint_region if there was a desktop window
+     because the desktop window covers the root window and so paint_region
+     will be empty */
+  paint_dock_shadows (screen, root_buffer, 
+                      desktop_region == None ? paint_region : desktop_region);
+
   /* 
    * Painting from bottom to top, translucent windows and shadows are painted
    */
   for (index = g_list_last (windows); index; index = index->prev) 
     { 
       cw = (MetaCompWindow *) index->data;
-      
+
       if (cw->picture) 
         {
-          if (cw->shadow) 
+          if (cw->shadow && cw->type != META_COMP_WINDOW_DOCK) 
             {
               XserverRegion shadow_clip;
 
@@ -1085,7 +1174,8 @@ static void
 repair_display (MetaDisplay *display)
 {
   GSList *screens;
-  
+
+  meta_error_trap_push (display);
 #ifdef USE_IDLE_REPAINT
   if (display->compositor->repaint_id > 0) 
     {
@@ -1096,6 +1186,8 @@ repair_display (MetaDisplay *display)
 
   for (screens = display->screens; screens; screens = screens->next)
     repair_screen ((MetaScreen *) screens->data);
+
+  meta_error_trap_pop (display, FALSE);
 }
 
 #ifdef USE_IDLE_REPAINT
@@ -1457,6 +1549,9 @@ add_win (MetaScreen *screen,
       return;
     }
   get_window_type (display, cw);
+
+  if (cw->type == META_COMP_WINDOW_DOCK)
+    info->dock_windows = g_list_append (info->dock_windows, cw);
 
   /* If Metacity has decided not to manage this window then the input events
      won't have been set on the window */
@@ -2040,7 +2135,8 @@ meta_compositor_manage_screen (MetaCompositor *compositor,
 
   info = g_new0 (MetaCompScreen, 1);
   info->screen = screen;
-  
+  info->dock_windows = NULL;
+
   visual_format = XRenderFindVisualFormat (display->xdisplay,
                                            DefaultVisual (display->xdisplay,
                                                           screen->number));
