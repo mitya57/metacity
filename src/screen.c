@@ -1348,8 +1348,7 @@ meta_screen_ensure_tab_popup (MetaScreen      *screen,
           gdk_pixbuf_fill (entries[i].icon, 0x00000000);
           gdk_pixbuf_copy_area (win_pixbuf, 0, 0, width, height,
                                 entries[i].icon, 0, 0);
-          gdk_pixbuf_unref (win_pixbuf);
-
+          g_object_unref (win_pixbuf);
           gdk_pixbuf_composite (window->icon, entries[i].icon, 
                                 t_width - icon_width, t_height - icon_height,
                                 icon_width, icon_height,
@@ -1417,7 +1416,7 @@ meta_screen_ensure_tab_popup (MetaScreen      *screen,
                                              5, /* FIXME */
                                              TRUE);
 
-  for (i = 0; i < len; i++)
+  for (i = 0; i < len; i++) 
     g_object_unref (entries[i].icon);
 
   g_free (entries);
