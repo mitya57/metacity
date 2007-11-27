@@ -2277,6 +2277,10 @@ meta_compositor_unmanage_screen (MetaCompositor *compositor,
     XRenderFreePicture (display->xdisplay, info->black_picture);
 
   g_free (info->gaussian_map);
+  g_free (info->shadow_corner);
+  g_free (info->shadow_top);
+
+  g_list_free (info->dock_windows);
 
   XCompositeUnredirectSubwindows (display->xdisplay, screen->xroot,
                                   CompositeRedirectManual);
