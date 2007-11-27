@@ -1076,6 +1076,9 @@ paint_windows (MetaScreen   *screen,
   paint_dock_shadows (screen, root_buffer, 
                       desktop_region == None ? paint_region : desktop_region);
 
+  if (desktop_region)
+    XFixesDestroyRegion (xdisplay, desktop_region);
+
   /* 
    * Painting from bottom to top, translucent windows and shadows are painted
    */
