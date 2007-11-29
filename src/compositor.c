@@ -23,6 +23,7 @@
 
 #include <config.h>
 
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -68,6 +69,7 @@ struct _MetaCompositor
   guint repaint_id;
 #endif
   guint enabled : 1;
+  guint show_redraw : 1;
 };
 
 typedef struct _conv 
@@ -1060,10 +1062,25 @@ paint_all (MetaScreen   *screen,
   screen_width = screen->rect.width;
   screen_height = screen->rect.height;
 
-  XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, None);
+  XFixesSetPictureClipRegion (xdisplay, info->root_buffer, 0, 0, region);
   XRenderComposite (xdisplay, PictOpSrc, info->root_buffer, None,
                     info->root_picture, 0, 0, 0, 0, 0, 0, 
                     screen_width, screen_height);
+
+  if (screen->display->compositor->show_redraw)
+    {
+      Picture overlay;
+
+      /* Make a random colour overlay */
+      overlay = solid_picture (screen->display, screen, TRUE, 0.3,
+                               ((double) (rand () % 100)) / 100.0,
+                               ((double) (rand () % 100)) / 100.0,
+                               ((double) (rand () % 100)) / 100.0);
+      
+      XRenderComposite (xdisplay, PictOpOver, overlay, None, info->root_picture,
+                        0, 0, 0, 0, 0, 0, screen_width, screen_height);
+      XRenderFreePicture (xdisplay, overlay);
+    }
 }
 
 static void
@@ -1982,6 +1999,7 @@ meta_compositor_new (MetaDisplay *display)
 
   compositor->enabled = TRUE;
 
+  compositor->show_redraw = (g_getenv ("METACITY_DEBUG_REDRAWS") != NULL);
   return compositor;
 #else
   return NULL;
