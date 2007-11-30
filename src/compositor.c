@@ -864,7 +864,7 @@ paint_windows (MetaScreen   *screen,
   MetaDisplay *display = screen->display;
   MetaCompScreen *info = screen->compositor_data;
   Display *xdisplay = display->xdisplay;
-  GList *index;
+  GList *index, *last;
   int screen_width, screen_height, screen_number;
   Window xroot;
   MetaCompWindow *cw;
@@ -894,8 +894,12 @@ paint_windows (MetaScreen   *screen,
    * Painting from top to bottom, reducing the clipping area at 
    * each iteration. Only the opaque windows are painted 1st.
    */
+  last = NULL;
   for (index = windows; index; index = index->next) 
     {
+      /* Store the last window we dealt with */
+      last = index;
+
       cw = (MetaCompWindow *) index->data;
       if (!cw->damaged) 
         {
@@ -975,7 +979,7 @@ paint_windows (MetaScreen   *screen,
   /* 
    * Painting from bottom to top, translucent windows and shadows are painted
    */
-  for (index = g_list_last (windows); index; index = index->prev) 
+  for (index = last; index; index = index->prev) 
     { 
       cw = (MetaCompWindow *) index->data;
       
