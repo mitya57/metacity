@@ -121,6 +121,7 @@ typedef struct _MetaCompWindow
 
   gboolean damaged;
   gboolean shaped;
+  gboolean needs_shadow;
   
   MetaCompWindowType type;
 
@@ -705,17 +706,25 @@ window_has_shadow (MetaCompWindow *cw)
   /* Always put a shadow around windows with a frame */
   if (cw->window) 
     {
-      if (cw->window->frame)
+      if (cw->window->frame) {
+        g_print ("Window has shadow because it has a frame\n");
         return TRUE;
+      }
     }
 
   /* Don't put shadow around DND icon windows */
-  if (cw->type == META_COMP_WINDOW_DND)
+  if (cw->type == META_COMP_WINDOW_DND ||
+      cw->type == META_COMP_WINDOW_DESKTOP) {
+    g_print ("Window has no shadow as it is DND or Desktop\n");
     return FALSE;
+  }
 
-  if (cw->mode != WINDOW_ARGB)
+  if (cw->mode != WINDOW_ARGB) {
+    g_print ("Window has shadow as it is not ARGB\n");
     return TRUE;
+  }
   
+  g_print ("Window has no shadow as it fell through\n");
   return FALSE;
 }
 
@@ -736,7 +745,7 @@ win_extents (MetaCompWindow *cw)
   r.width = cw->attrs.width + cw->attrs.border_width * 2;
   r.height = cw->attrs.height + cw->attrs.border_width * 2;
 
-  if (window_has_shadow (cw))
+  if (cw->needs_shadow)
     {
       XRectangle sr;
 
@@ -1447,6 +1456,8 @@ get_window_type (MetaDisplay    *display,
     cw->type = META_COMP_WINDOW_DOCK;
   else
     cw->type = META_COMP_WINDOW_NORMAL;
+
+  g_print ("Window is %d\n", cw->type);
 }
   
 /* Must be called with an error trap in place */
@@ -1514,6 +1525,7 @@ add_win (MetaScreen *screen,
   cw->border_clip = None;
 
   determine_mode (display, screen, cw);
+  cw->needs_shadow = window_has_shadow (cw);
 
   /* Add this to the list at the top of the stack
      before it is mapped so that map_win can find it again */
@@ -1807,6 +1819,8 @@ process_property_notify (MetaCompositor *compositor,
 
       cw->opacity = (guint)value;
       determine_mode (display, cw->screen, cw);
+      cw->needs_shadow = window_has_shadow (cw);
+
       if (cw->shadow)
         {
           XRenderFreePicture (display->xdisplay, cw->shadow);
