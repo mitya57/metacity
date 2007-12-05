@@ -1641,8 +1641,10 @@ parse_geometry_element (GMarkupParseContext  *context,
     }
 }
 
+#if 0
 static gboolean
-check_expression (const char          *expr,
+check_expression (PosToken            *tokens,
+                  int                  n_tokens,
                   gboolean             has_object,
                   MetaTheme           *theme,
                   GMarkupParseContext *context,
@@ -1681,7 +1683,7 @@ check_expression (const char          *expr,
   env.mini_icon_height = 0;
   env.theme = theme;
   
-  if (!meta_parse_position_expression (expr,
+  if (!meta_parse_position_expression (tokens, n_tokens,
                                        &env,
                                        &x, &y,
                                        error))
@@ -1692,16 +1694,7 @@ check_expression (const char          *expr,
 
   return TRUE;
 }
-
-static char*
-optimize_expression (MetaTheme  *theme,
-                     const char *expr)
-{
-  /* We aren't expecting an error here, since we already
-   * did check_expression
-   */
-  return meta_theme_replace_constants (theme, expr, NULL);
-}
+#endif
 
 static void
 parse_draw_op_element (GMarkupParseContext  *context,
@@ -1775,6 +1768,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
 
+#if 0
       if (!check_expression (x1, FALSE, info->theme, context, error))
         return;
 
@@ -1786,7 +1780,8 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (y2, FALSE, info->theme, context, error))
         return;
-      
+#endif
+ 
       dash_on_val = 0;
       if (dash_on_length &&
           !parse_positive_integer (dash_on_length, &dash_on_val, context, info->theme, error))
@@ -1815,10 +1810,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
       op = meta_draw_op_new (META_DRAW_LINE);
 
       op->data.line.color_spec = color_spec;
-      op->data.line.x1 = optimize_expression (info->theme, x1);
-      op->data.line.y1 = optimize_expression (info->theme, y1);
-      op->data.line.x2 = optimize_expression (info->theme, x2);
-      op->data.line.y2 = optimize_expression (info->theme, y2);
+
+      op->data.line.x1 = meta_draw_spec_new (info->theme, x1, NULL);
+      op->data.line.y1 = meta_draw_spec_new (info->theme, y1, NULL);
+      op->data.line.x2 = meta_draw_spec_new (info->theme, x2, NULL);
+      op->data.line.y2 = meta_draw_spec_new (info->theme, y2, NULL);
+
       op->data.line.width = width_val;
       op->data.line.dash_on_length = dash_on_val;
       op->data.line.dash_off_length = dash_off_val;
@@ -1885,6 +1882,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
 
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -1896,6 +1894,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
+#endif
 
       filled_val = FALSE;
       if (filled && !parse_boolean (filled, &filled_val, context, error))
@@ -1914,10 +1913,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
       op = meta_draw_op_new (META_DRAW_RECTANGLE);
 
       op->data.rectangle.color_spec = color_spec;
-      op->data.rectangle.x = optimize_expression (info->theme, x);
-      op->data.rectangle.y = optimize_expression (info->theme, y);
-      op->data.rectangle.width = optimize_expression (info->theme, width);
-      op->data.rectangle.height = optimize_expression (info->theme, height);
+      op->data.rectangle.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.rectangle.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.rectangle.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.rectangle.height = meta_draw_spec_new (info->theme, 
+                                                      height, NULL);
+
       op->data.rectangle.filled = filled_val;
 
       g_assert (info->op_list);
@@ -2025,7 +2026,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
             }
         }
 
-     
+#if 0     
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2037,6 +2038,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
+#endif
 
       if (start_angle == NULL)
         {
@@ -2081,10 +2083,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
       op = meta_draw_op_new (META_DRAW_ARC);
 
       op->data.arc.color_spec = color_spec;
-      op->data.arc.x = optimize_expression (info->theme, x);
-      op->data.arc.y = optimize_expression (info->theme, y);
-      op->data.arc.width = optimize_expression (info->theme, width);
-      op->data.arc.height = optimize_expression (info->theme, height);
+
+      op->data.arc.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.arc.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.arc.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.arc.height = meta_draw_spec_new (info->theme, height, NULL);
+
       op->data.arc.filled = filled_val;
       op->data.arc.start_angle = start_angle_val;
       op->data.arc.extent_angle = extent_angle_val;
@@ -2138,6 +2142,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
 
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2149,13 +2154,13 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-      
+#endif 
       op = meta_draw_op_new (META_DRAW_CLIP);
 
-      op->data.clip.x = optimize_expression (info->theme, x);
-      op->data.clip.y = optimize_expression (info->theme, y);
-      op->data.clip.width = optimize_expression (info->theme, width);
-      op->data.clip.height = optimize_expression (info->theme, height);
+      op->data.clip.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.clip.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.clip.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.clip.height = meta_draw_spec_new (info->theme, height, NULL);
 
       g_assert (info->op_list);
       
@@ -2225,7 +2230,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
                      _("No \"alpha\" attribute on element <%s>"), element_name);
           return;
         }
-      
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2237,7 +2242,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-
+#endif
       alpha_spec = NULL;
       if (!parse_alpha (alpha, &alpha_spec, context, error))
         return;
@@ -2259,10 +2264,11 @@ parse_draw_op_element (GMarkupParseContext  *context,
 
       op->data.tint.color_spec = color_spec;
       op->data.tint.alpha_spec = alpha_spec;
-      op->data.tint.x = optimize_expression (info->theme, x);
-      op->data.tint.y = optimize_expression (info->theme, y);
-      op->data.tint.width = optimize_expression (info->theme, width);
-      op->data.tint.height = optimize_expression (info->theme, height);
+
+      op->data.tint.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.tint.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.tint.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.tint.height = meta_draw_spec_new (info->theme, height, NULL);
 
       g_assert (info->op_list);
       
@@ -2325,6 +2331,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
 
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2336,7 +2343,8 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-      
+#endif
+  
       type_val = meta_gradient_type_from_string (type);
       if (type_val == META_GRADIENT_LAST)
         {
@@ -2353,10 +2361,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
       g_assert (info->op == NULL);
       info->op = meta_draw_op_new (META_DRAW_GRADIENT);
 
-      info->op->data.gradient.x = optimize_expression (info->theme, x);
-      info->op->data.gradient.y = optimize_expression (info->theme, y);
-      info->op->data.gradient.width = optimize_expression (info->theme, width);
-      info->op->data.gradient.height = optimize_expression (info->theme, height);
+      info->op->data.gradient.x = meta_draw_spec_new (info->theme, x, NULL);
+      info->op->data.gradient.y = meta_draw_spec_new (info->theme, y, NULL);
+      info->op->data.gradient.width = meta_draw_spec_new (info->theme, 
+                                                        width, NULL);
+      info->op->data.gradient.height = meta_draw_spec_new (info->theme,
+                                                         height, NULL);
 
       info->op->data.gradient.gradient_spec = meta_gradient_spec_new (type_val);
 
@@ -2429,7 +2439,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
                      _("No \"filename\" attribute on element <%s>"), element_name);
           return;
         }
-      
+#if 0      
       if (!check_expression (x, TRUE, info->theme, context, error))
         return;
 
@@ -2441,7 +2451,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, TRUE, info->theme, context, error))
         return;
-
+#endif
       fill_type_val = META_IMAGE_FILL_SCALE;
       if (fill_type)
         {
@@ -2493,10 +2503,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
 
       op->data.image.pixbuf = pixbuf;
       op->data.image.colorize_spec = colorize_spec;
-      op->data.image.x = optimize_expression (info->theme, x);
-      op->data.image.y = optimize_expression (info->theme, y);
-      op->data.image.width = optimize_expression (info->theme, width);
-      op->data.image.height = optimize_expression (info->theme, height);
+
+      op->data.image.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.image.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.image.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.image.height = meta_draw_spec_new (info->theme, height, NULL);
+
       op->data.image.alpha_spec = alpha_spec;
       op->data.image.fill_type = fill_type_val;
       
@@ -2642,7 +2654,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
                      _("No \"height\" attribute on element <%s>"), element_name);
           return;
         }
-
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2654,7 +2666,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-
+#endif
       filled_val = TRUE;
       if (filled && !parse_boolean (filled, &filled_val, context, error))
         return;
@@ -2691,10 +2703,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       op = meta_draw_op_new (META_DRAW_GTK_ARROW);
 
-      op->data.gtk_arrow.x = optimize_expression (info->theme, x);
-      op->data.gtk_arrow.y = optimize_expression (info->theme, y);
-      op->data.gtk_arrow.width = optimize_expression (info->theme, width);
-      op->data.gtk_arrow.height = optimize_expression (info->theme, height);
+      op->data.gtk_arrow.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.gtk_arrow.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.gtk_arrow.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.gtk_arrow.height = meta_draw_spec_new (info->theme, 
+                                                      height, NULL);
+
       op->data.gtk_arrow.filled = filled_val;
       op->data.gtk_arrow.state = state_val;
       op->data.gtk_arrow.shadow = shadow_val;
@@ -2768,7 +2782,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
                      _("No \"height\" attribute on element <%s>"), element_name);
           return;
         }
-
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2780,7 +2794,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-
+#endif
       state_val = meta_gtk_state_from_string (state);
       if (((int) state_val) == -1)
         {
@@ -2803,10 +2817,11 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       op = meta_draw_op_new (META_DRAW_GTK_BOX);
 
-      op->data.gtk_box.x = optimize_expression (info->theme, x);
-      op->data.gtk_box.y = optimize_expression (info->theme, y);
-      op->data.gtk_box.width = optimize_expression (info->theme, width);
-      op->data.gtk_box.height = optimize_expression (info->theme, height);
+      op->data.gtk_box.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.gtk_box.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.gtk_box.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.gtk_box.height = meta_draw_spec_new (info->theme, height, NULL);
+
       op->data.gtk_box.state = state_val;
       op->data.gtk_box.shadow = shadow_val;
       
@@ -2860,6 +2875,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
       
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2868,6 +2884,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
 
       if (!check_expression (y2, FALSE, info->theme, context, error))
         return;
+#endif
 
       state_val = meta_gtk_state_from_string (state);
       if (((int) state_val) == -1)
@@ -2881,9 +2898,10 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       op = meta_draw_op_new (META_DRAW_GTK_VLINE);
 
-      op->data.gtk_vline.x = optimize_expression (info->theme, x);
-      op->data.gtk_vline.y1 = optimize_expression (info->theme, y1);
-      op->data.gtk_vline.y2 = optimize_expression (info->theme, y2);
+      op->data.gtk_vline.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.gtk_vline.y1 = meta_draw_spec_new (info->theme, y1, NULL);
+      op->data.gtk_vline.y2 = meta_draw_spec_new (info->theme, y2, NULL);
+
       op->data.gtk_vline.state = state_val;
       
       g_assert (info->op_list);
@@ -2940,7 +2958,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
                      _("No \"height\" attribute on element <%s>"), element_name);
           return;
         }
-      
+#if 0      
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -2952,7 +2970,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (!check_expression (height, FALSE, info->theme, context, error))
         return;
-
+#endif
       fill_type_val = META_IMAGE_FILL_SCALE;
       if (fill_type)
         {
@@ -2972,11 +2990,12 @@ parse_draw_op_element (GMarkupParseContext  *context,
         return;
       
       op = meta_draw_op_new (META_DRAW_ICON);
+      
+      op->data.icon.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.icon.y = meta_draw_spec_new (info->theme, y, NULL);
+      op->data.icon.width = meta_draw_spec_new (info->theme, width, NULL);
+      op->data.icon.height = meta_draw_spec_new (info->theme, height, NULL);
 
-      op->data.icon.x = optimize_expression (info->theme, x);
-      op->data.icon.y = optimize_expression (info->theme, y);
-      op->data.icon.width = optimize_expression (info->theme, width);
-      op->data.icon.height = optimize_expression (info->theme, height);
       op->data.icon.alpha_spec = alpha_spec;
       op->data.icon.fill_type = fill_type_val;
       
@@ -3022,12 +3041,14 @@ parse_draw_op_element (GMarkupParseContext  *context,
           return;
         }
       
+#if 0
       if (!check_expression (x, FALSE, info->theme, context, error))
         return;
 
       if (!check_expression (y, FALSE, info->theme, context, error))
         return;
-      
+#endif
+
       /* Check last so we don't have to free it when other
        * stuff fails
        */
@@ -3041,8 +3062,9 @@ parse_draw_op_element (GMarkupParseContext  *context,
       op = meta_draw_op_new (META_DRAW_TITLE);
 
       op->data.title.color_spec = color_spec;
-      op->data.title.x = optimize_expression (info->theme, x);
-      op->data.title.y = optimize_expression (info->theme, y);
+
+      op->data.title.x = meta_draw_spec_new (info->theme, x, NULL);
+      op->data.title.y = meta_draw_spec_new (info->theme, y, NULL);
 
       g_assert (info->op_list);
       
@@ -3078,7 +3100,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       /* x/y/width/height default to 0,0,width,height - should
        * probably do this for all the draw ops
        */
-      
+#if 0      
       if (x && !check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -3090,6 +3112,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
       
       if (height && !check_expression (height, FALSE, info->theme, context, error))
         return;
+#endif
 
       op_list = meta_theme_lookup_draw_op_list (info->theme,
                                                 name);
@@ -3118,15 +3141,16 @@ parse_draw_op_element (GMarkupParseContext  *context,
 
       meta_draw_op_list_ref (op_list);
       op->data.op_list.op_list = op_list;      
-      op->data.op_list.x = x ? optimize_expression (info->theme, x) :
-        g_strdup ("0");
-      op->data.op_list.y = y ? optimize_expression (info->theme, y) :
-        g_strdup ("0");
-      op->data.op_list.width = width ? optimize_expression (info->theme, width) :
-        g_strdup ("width");
-      op->data.op_list.height = height ?  optimize_expression (info->theme, height) :
-        g_strdup ("height");
-      
+
+      op->data.op_list.x = meta_draw_spec_new (info->theme, x ? x : "0", NULL);
+      op->data.op_list.y = meta_draw_spec_new (info->theme, y ? y : "0", NULL);
+      op->data.op_list.width = meta_draw_spec_new (info->theme, 
+                                                   width ? width : "width",
+                                                   NULL);
+      op->data.op_list.height = meta_draw_spec_new (info->theme,
+                                                    height ? height : "height",
+                                                    NULL);
+
       meta_draw_op_list_append (info->op_list, op);
 
       push_state (info, STATE_INCLUDE);
@@ -3179,6 +3203,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
         }
 
       /* These default to 0 */
+#if 0
       if (tile_xoffset && !check_expression (tile_xoffset, FALSE, info->theme, context, error))
         return;
 
@@ -3188,7 +3213,6 @@ parse_draw_op_element (GMarkupParseContext  *context,
       /* x/y/width/height default to 0,0,width,height - should
        * probably do this for all the draw ops
        */
-      
       if (x && !check_expression (x, FALSE, info->theme, context, error))
         return;
 
@@ -3206,7 +3230,7 @@ parse_draw_op_element (GMarkupParseContext  *context,
 
       if (!check_expression (tile_height, FALSE, info->theme, context, error))
         return;
-      
+#endif 
       op_list = meta_theme_lookup_draw_op_list (info->theme,
                                                 name);
       if (op_list == NULL)
@@ -3233,23 +3257,25 @@ parse_draw_op_element (GMarkupParseContext  *context,
       op = meta_draw_op_new (META_DRAW_TILE);
 
       meta_draw_op_list_ref (op_list);
+
+      op->data.tile.x = meta_draw_spec_new (info->theme, x ? x : "0", NULL);
+      op->data.tile.y = meta_draw_spec_new (info->theme, y ? y : "0", NULL);
+      op->data.tile.width = meta_draw_spec_new (info->theme,
+                                                width ? width : "width",
+                                                NULL);
+      op->data.tile.height = meta_draw_spec_new (info->theme,
+                                                 height ? height : "height",
+                                                 NULL);
+      op->data.tile.tile_xoffset = meta_draw_spec_new (info->theme,
+                                                       tile_xoffset ? tile_xoffset : "0",
+                                                       NULL);
+      op->data.tile.tile_yoffset = meta_draw_spec_new (info->theme,
+                                                       tile_yoffset ? tile_yoffset : "0",
+                                                       NULL);
+      op->data.tile.tile_width = meta_draw_spec_new (info->theme, tile_width, NULL);
+      op->data.tile.tile_height = meta_draw_spec_new (info->theme, tile_height, NULL);
+
       op->data.tile.op_list = op_list;      
-      op->data.tile.x = x ? optimize_expression (info->theme, x) :
-        g_strdup ("0");
-      op->data.tile.y = y ? optimize_expression (info->theme, y) :
-        g_strdup ("0");
-      op->data.tile.width = width ? optimize_expression (info->theme, width) :
-        g_strdup ("width");
-      op->data.tile.height = height ?  optimize_expression (info->theme, height) :
-        g_strdup ("height");
-      op->data.tile.tile_xoffset = tile_xoffset ?
-        optimize_expression (info->theme, tile_xoffset) :
-        g_strdup ("0");
-      op->data.tile.tile_yoffset = tile_yoffset ?
-        optimize_expression (info->theme, tile_yoffset) :
-        g_strdup ("0");
-      op->data.tile.tile_width = optimize_expression (info->theme, tile_width);
-      op->data.tile.tile_height = optimize_expression (info->theme, tile_height);
       
       meta_draw_op_list_append (info->op_list, op);
 
