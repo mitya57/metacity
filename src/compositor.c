@@ -1286,6 +1286,7 @@ free_win (MetaCompWindow *cw,
           gboolean        destroy)
 {
   MetaDisplay *display = cw->screen->display;
+  MetaCompScreen *info = cw->screen->compositor_data;
 
 #ifdef HAVE_NAME_WINDOW_PIXMAP
   /* See comment in map_win */
@@ -1353,7 +1354,12 @@ free_win (MetaCompWindow *cw,
 
         cw->damage = None;
       }
-      
+
+      /* The window may not have been added to the list in this case,
+         but we can check anyway */
+      if (cw->type == META_COMP_WINDOW_DOCK)
+        info->dock_windows = g_slist_remove (info->dock_windows, cw);
+
       g_free (cw);
     }
 }
@@ -1552,12 +1558,6 @@ add_win (MetaScreen *screen,
     }
   get_window_type (display, cw);
 
-  if (cw->type == META_COMP_WINDOW_DOCK) 
-    {
-      g_print ("Appending %p to dock windows\n", cw);
-      info->dock_windows = g_slist_append (info->dock_windows, cw);
-    }
-
   /* If Metacity has decided not to manage this window then the input events
      won't have been set on the window */
   event_mask = cw->attrs.your_event_mask | PropertyChangeMask;
@@ -1594,6 +1594,13 @@ add_win (MetaScreen *screen,
 
   determine_mode (display, screen, cw);
   cw->needs_shadow = window_has_shadow (cw);
+
+  /* Only add the window to the list of docks if it needs a shadow */
+  if (cw->type == META_COMP_WINDOW_DOCK && cw->needs_shadow) 
+    {
+      g_print ("Appending %p to dock windows\n", cw);
+      info->dock_windows = g_slist_append (info->dock_windows, cw);
+    }
 
   /* Add this to the list at the top of the stack
      before it is mapped so that map_win can find it again */

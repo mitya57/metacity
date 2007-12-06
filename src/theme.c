@@ -2429,7 +2429,6 @@ meta_draw_spec_new (MetaTheme  *theme,
     {
       gboolean result;
 
-      g_print ("%s is constant\n", expr);
       result = pos_eval (spec, NULL, &spec->value, error);
       if (result == FALSE)
         {
