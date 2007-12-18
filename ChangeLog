@@ -1,3 +1,38 @@
+2007-12-14  Thomas Thurman  <thomas@thurman.org.uk>
+
+        * configure.in: Post-release bump to 2.21.5.
+
+2007-12-14  Thomas Thurman  <tthurman@gnome.org>
+
+        * NEWS: 2.21.3 release.
+
+2007-12-11  Thomas Thurman  <tthurman@gnome.org>
+
+        * src/theme-parser.c: remove dead code; closes #501365.
+
+2007-12-08  Thomas Thurman  <tthurman@gnome.org>
+
+	* src/metacity.schemas.in: rewrite long description of
+	/schemas/apps/metacity/general/focus_new_windows because we
+	love the translators really. Closes #474889.
+
+2007-12-08  Matthias Clasen  <mclasen@redhat.com>
+
+	* src/menu.c (meta_window_menu_new): check for null before adding
+	menu; closes #496054.
+
+2007-12-08  Thomas Thurman  <tthurman@gnome.org>
+
+	* src/keybindings.c (meta_display_process_key_event): Recur if the
+	keypress ended a grab, so it can be processed in its own right.
+	Closes #112560.
+
+2007-12-08  Martin Meyer  <elreydetodo@gmail.com>
+
+	* src/theme-parser.c (parse_draw_op_element): Fix
+	typo where wrong variable was checked (reported by
+	Kjartan Maraas). Closes #501362.
+	
 2007-11-19  Lucas Rocha  <lucasr@gnome.org>
 
 	* src/main.c (main): try to get the session client ID from 

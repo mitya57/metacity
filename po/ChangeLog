@@ -1,3 +1,52 @@
+2007-12-17  Daniel Nylander <po@danielnylander.se>
+
+	* sv.po: Updated Swedish translation.
+
+2007-12-15  Kjartan Maraas  <kmaraas@gnome.org>
+
+	* nb.po: Updated Norwegian bokmål translation.
+
+2007-12-10  Jorge Gonzalez  <jorgegonz@svn.gnome.org>
+
+        * es.po: Updated Spanish translation, fixes bug #500562 and bug #500831
+
+2007-12-10  Matej Urbančič  <mateju@svn.gnome.org>
+
+	* sl.po: Updated Slovenian Translation.
+
+2007-12-10  Jorge Gonzalez  <jorgegonz@svn.gnome.org>
+
+        * es.po: Updated Spanish translation, fixes bug #500831
+
+2007-12-09  Jorge Gonzalez  <jorgegonz@svn.gnome.org>
+
+        * es.po: Updated Spanish translation, fixes bug #500562
+
+2007-12-08  Jakub Friedl  <jfriedl@suse.cz>
+
+	* cs.po: Czech Translation updated by Petr Kovar.
+
+2007-12-08  Ihar Hrachyshka <booxter@lacinka.org>
+
+	* be@latin.po: Updated Belarusian Latin translation.
+
+2007-12-08  Leonardo Ferreira Fontenelle  <leonardof@svn.gnome.org>
+
+	* pt_BR.po: Fixes in Brazilian Portuguese translation by Luiz Armesto.
+
+2007-12-07  Leonardo Ferreira Fontenelle  <leonardof@svn.gnome.org>
+
+	* pt_BR.po: Fixed attributes in Brazilian Portuguese translation by
+	Rodrigo Flores.
+
+2007-12-02  Marcel Telka  <marcel@telka.sk>
+
+	* sk.po: Updated Slovak translation by Pavol Šimo.
+
+2007-11-28  Ignacio Casal Quinteiro  <nacho.resa@gmail.com>
+
+	* gl.po: Updated Galician Translation.
+
 2007-11-12  Matej Urbančič <mateju@svn.gnome.org>
 
 	* sl.po: Updated Slovenian translation.
@@ -8,7 +57,7 @@
 
 2007-11-01  Jorge Gonzalez  <jorgegonz@svn.gnome.org>
 
-        * es/es.po: Updated Spanish translation
+	* es.po: Updated Spanish translation
 
 2007-10-25  Matej Urbančič  <mateju@svn.gnome.org>
 
