@@ -386,7 +386,7 @@ struct _MetaDisplay
   unsigned int have_xfixes : 1;
 #define META_DISPLAY_HAS_COMPOSITE(display) ((display)->have_composite)
 #define META_DISPLAY_HAS_DAMAGE(display) ((display)->have_damage)
-#define META_DISPLAY_HAS_XFIXES(display) ((display)->have_fixes)
+#define META_DISPLAY_HAS_XFIXES(display) ((display)->have_xfixes)
 #else
 #define META_DISPLAY_HAS_COMPOSITE(display) FALSE
 #define META_DISPLAY_HAS_DAMAGE(display) FALSE
