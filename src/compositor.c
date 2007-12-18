@@ -1392,7 +1392,7 @@ map_win (MetaDisplay *display,
 #endif
 
   cw->attrs.map_state = IsViewable;
-  cw->damaged = FALSE;
+  cw->damaged = TRUE;
 }
 
 static void
@@ -1935,9 +1935,14 @@ process_expose (MetaCompositor *compositor,
                                                event->window);
   MetaScreen *screen = NULL;
   XRectangle rect[1];
+  int origin_x = 0, origin_y = 0;
 
   if (cw != NULL)
-    screen = cw->screen;
+    {
+      screen = cw->screen;
+      origin_x = cw->attrs.x; /* + cw->attrs.border_width; ? */
+      origin_y = cw->attrs.y; /* + cw->attrs.border_width; ? */
+    }
   else
     {
       screen = meta_display_screen_for_root (compositor->display, 
@@ -1945,9 +1950,9 @@ process_expose (MetaCompositor *compositor,
       if (screen == NULL)
         return;
     }
-    
-  rect[0].x = event->x;
-  rect[0].y = event->y;
+
+  rect[0].x = event->x + origin_x;
+  rect[0].y = event->y + origin_y;
   rect[0].width = event->width;
   rect[0].height = event->height;
   
