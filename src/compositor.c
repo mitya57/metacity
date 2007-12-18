@@ -752,7 +752,7 @@ window_has_shadow (MetaCompWindow *cw)
   if (cw->window) 
     {
       if (cw->window->frame) {
-/*         g_print ("Window has shadow because it has a frame\n"); */
+        g_print ("Window has shadow because it has a frame\n");
         return TRUE;
       }
     }
@@ -760,16 +760,16 @@ window_has_shadow (MetaCompWindow *cw)
   /* Don't put shadow around DND icon windows */
   if (cw->type == META_COMP_WINDOW_DND ||
       cw->type == META_COMP_WINDOW_DESKTOP) {
-/*     g_print ("Window has no shadow as it is DND or Desktop\n"); */
+    g_print ("Window has no shadow as it is DND or Desktop\n");
     return FALSE;
   }
 
   if (cw->mode != WINDOW_ARGB) {
-/*     g_print ("Window has shadow as it is not ARGB\n"); */
+    g_print ("Window has shadow as it is not ARGB\n");
     return TRUE;
   }
   
-/*   g_print ("Window has no shadow as it fell through\n"); */
+  g_print ("Window has no shadow as it fell through\n");
   return FALSE;
 }
 
@@ -1996,10 +1996,8 @@ process_property_notify (MetaCompositor *compositor,
       MetaCompWindow *cw = find_window_in_display (display, event->window);
       gulong value;
 
-      if (!cw) {
-        g_print ("No window\n");
+      if (!cw) 
         return;
-      }
 
       if (meta_prop_get_cardinal (display, event->window,
                                   compositor->atom_net_wm_window_opacity,
@@ -2024,7 +2022,20 @@ process_property_notify (MetaCompositor *compositor,
 #ifdef USE_IDLE_REPAINT
       add_repair (display);
 #endif
+
+      return;
     }
+
+  if (event->atom == display->atom_net_wm_window_type) {
+    MetaCompWindow *cw = find_window_in_display (display, event->window);
+
+    if (!cw)
+      return;
+
+    get_window_type (display, cw);
+    cw->needs_shadow = window_has_shadow (cw);
+    return;
+  }
 }
 
 static void
@@ -2312,7 +2323,7 @@ meta_compositor_manage_screen (MetaCompositor *compositor,
   info->overlays = 0;
   info->clip_changed = TRUE;
 
-  info->have_shadows = (g_getenv("META_DEBUG_NO_SHADOW") != NULL);
+  info->have_shadows = (g_getenv("META_DEBUG_NO_SHADOW") == NULL);
   info->gaussian_map = make_gaussian_map (SHADOW_RADIUS);
   presum_gaussian (info);
 
