@@ -496,6 +496,10 @@ display_entry (MetaTabPopup *popup,
       GdkRectangle rect;
       cairo_region_t *region;
 
+      /* Do stuff behind gtk's back */
+      gdk_window_hide (gtk_widget_get_window (popup->outline_window));
+      meta_core_increment_event_serial (GDK_DISPLAY_XDISPLAY (gdk_display_get_default ()));
+
       rect = te->rect;
       rect.x = 0;
       rect.y = 0;
