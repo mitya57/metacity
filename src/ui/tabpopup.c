@@ -33,6 +33,7 @@
 #include "draw-workspace.h"
 #include <gtk/gtk.h>
 #include <math.h>
+#include <X11/Xatom.h>
 
 #define OUTSIDE_SELECT_RECT 2
 #define INSIDE_SELECT_RECT 2
@@ -207,6 +208,23 @@ tab_entry_new (const MetaTabEntry *entry,
   return te;
 }
 
+static void
+outline_window_set_have_shadow (GdkWindow *window,
+                                gboolean   have_shadow)
+{
+  Display *xdisplay;
+  Window   xwindow;
+
+  xdisplay = GDK_WINDOW_XDISPLAY (window);
+  xwindow  = GDK_WINDOW_XID (window);
+
+  gdk_error_trap_push ();
+  XChangeProperty (xdisplay, xwindow, XInternAtom (xdisplay, "_METACITY_WINDOW_HAVE_SHADOW", False),
+                   XA_CARDINAL, 32, PropModeReplace,
+                   (guchar *) &have_shadow, 1);
+  gdk_error_trap_pop_ignored ();
+}
+
 MetaTabPopup*
 meta_ui_tab_popup_new (const MetaTabEntry *entries,
                        int                 screen_number,
@@ -246,6 +264,9 @@ meta_ui_tab_popup_new (const MetaTabEntry *entries,
 
       gdk_window_set_background_rgba (gtk_widget_get_window (popup->outline_window),
                                       &black);
+
+      outline_window_set_have_shadow (gtk_widget_get_window (popup->outline_window),
+                                      FALSE);
 
       g_signal_connect (G_OBJECT (popup->outline_window), "draw",
                         G_CALLBACK (outline_window_draw), popup);
